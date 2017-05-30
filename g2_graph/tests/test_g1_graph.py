@@ -13,7 +13,7 @@ class SmallCircleGraphTestCase(unittest.TestCase):
         self.g1 = g1_graph.G1(self.g1_vertices_N)
 
         for j in range(0, self.g1_edges_N):
-            self.g1.add_edge((j, (j+1) % self.g1_vertices_N))
+            self.g1.add_edge(j, (j+1) % self.g1_vertices_N)
 
 class NumberOfEdgesTestCase(SmallCircleGraphTestCase):
     def runTest(self):
@@ -31,6 +31,23 @@ class GetVertexTestCase(SmallCircleGraphTestCase):
     def runTest(self):
         self.assertEqual(self.g1.get_vertex(3), 3)
 
+        with self.assertRaises(ValueError):
+            self.g1.get_vertex(100)
+
+class GetEdgeTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        e = self.g1.get_edge(1, 2)
+        self.assertEqual(e.source(), 1)
+        self.assertEqual(e.target(), 2)
+
+        edge_index_map = self.g1.get_edge_index_map()
+        self.assertEqual(edge_index_map[e.source(), e.target()], 1)
+
+
+        with self.assertRaises(ValueError):
+            self.g1.get_edge(3, 5)
+
+
 class AddVertexTestCase(SmallCircleGraphTestCase):
     def runTest(self):
         g1_vertices_before = self.g1.get_number_of_vertices()
@@ -47,68 +64,146 @@ class AddVertexTestCase(SmallCircleGraphTestCase):
                          "Number of edges changes when"+\
                          " adding a vertex.")
 
-class GetEdgeTestCase(SmallCircleGraphTestCase):
-    def runTest(self):
-        e_tuple_01 = self.g1.get_edge((0, 1))
-        e_id_0 = self.g1.get_edge(0)
-
-        self.assertIs(type(e_tuple_01), np.ndarray)
-        self.assertIs(type(e_id_0), np.ndarray)
- 
- 
-
-        e_tuple_12 = self.g1.get_edge((1, 2))
-        e_id_1 = self.g1.get_edge(1)
-
-        e_tuple_14 = self.g1.get_edge((1, 4))
-        e_id_20 = self.g1.get_edge(20)
-
-        self.assertTrue(np.all(e_id_0 == e_tuple_01))
-        self.assertTrue(np.all(e_id_1 == e_tuple_12))
-
-        self.assertEqual(e_tuple_14, None)
-        self.assertEqual(e_id_20, None)
-
 class AddEdgeTestCase(SmallCircleGraphTestCase):
     def runTest(self):
-        added_edge = self.g1.add_edge((1,4))
-        self.assertIs(type(added_edge), np.ndarray)
- 
-        added_edge_id = (self.g1_edges_N - 1) + 1
-        
-        self.assertTrue(np.all(added_edge == self.g1.get_edge((1,4))))
-        self.assertTrue(np.all(added_edge == self.g1.get_edge(added_edge_id)))
+        new_edge = self.g1.add_edge(2, 6)
+        edge_index_map = self.g1.get_edge_index_map()
 
-class GetEdgeMatrixTestCase(SmallCircleGraphTestCase):
+        self.assertEqual(edge_index_map[new_edge.source(), new_edge.target()], self.g1_edges_N - 1 + 1)
+        self.assertEqual(self.g1.get_number_of_edges(), self.g1_edges_N + 1)
+
+class GetVertexIndexMapTestCase(SmallCircleGraphTestCase):
     def runTest(self):
-        edge_matrix = self.g1.get_edge_matrix()
+        vertex_index_map = self.g1.get_vertex_index_map()
+        
+        for u in range(self.g1_vertices_N):
+            self.assertEqual(vertex_index_map[u], u)
+
+        # Test what happens if we add a vertex:
+        v = self.g1.add_vertex()
+        vertex_index_map = self.g1.get_vertex_index_map()
+        for u in range(self.g1.get_number_of_vertices()):
+            self.assertEqual(vertex_index_map[u], u)
+        
+        with self.assertRaises(ValueError):
+            vertex_index_map[100]
+
+class GetEdgeIndexMapTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        edge_index_map = self.g1.get_edge_index_map()
+
+        # Test that an exception is raised when a non existing edge
+        # is requested
+        with self.assertRaises(ValueError):
+            edge_index_map[1, 4]
+
+        e = self.g1.get_edge(1, 2)
+        self.assertEqual(edge_index_map[1, 2], edge_index_map[e])
+        
+class GetVertexIteratorTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        vertex_it = self.g1.get_vertex_iterator()
+        
+        j = 0
+        for v in vertex_it:
+            self.assertEqual(v, j)
+            j += 1
+
+        self.g1.add_vertex()
+        vertex_it = self.g1.get_vertex_iterator()
+        j = 0
+        for v in vertex_it:
+            self.assertEqual(v, j)
+            j += 1
+
+class GetEdgeIteratorTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        edge_it = self.g1.get_edge_iterator()
+        
+        for e in edge_it:
+            self.assertEqual(e, self.g1.get_edge(e.source(), e.target()))
+
+class GetVertexArrayTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        vertex_array = self.g1.get_vertex_array()
+        self.assertTrue(np.all(vertex_array == np.arange(self.g1_vertices_N)))
+        
+        self.g1.add_vertex()
+        vertex_array = self.g1.get_vertex_array()
+        self.assertTrue(np.all(vertex_array == np.arange(self.g1_vertices_N + 1)))
+
+class GetEdgeArrayTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        edge_array = self.g1.get_edge_array()
         #Test array type
-        self.assertIs(type(edge_matrix), np.ndarray)
+        self.assertIs(type(edge_array), np.ndarray)
  
-        edge_indices = [edge[2] for edge in edge_matrix]
+        edge_indices = [edge[2] for edge in edge_array]
 
         # This only holds if no adges are added or deleted after creation
         self.assertTrue(np.all(edge_indices == np.arange(self.g1_edges_N)))
 
         # Test what happens if an edge is added:
-        self.g1.add_edge((1,4))
-        edge_matrix_new = self.g1.get_edge_matrix()
-        edge_indices_new = [edge[2] for edge in edge_matrix_new]
+        self.g1.add_edge(1,4)
+        edge_array_new = self.g1.get_edge_array()
+        edge_indices_new = [edge[2] for edge in edge_array_new]
         # Fails: New ordering is [0,1,10,2,...]
         self.assertFalse(np.all(edge_indices_new == np.arange(self.g1_edges_N + 1)))
+        edge_index_map = self.g1.get_edge_index_map()
 
+        #NOTE: Index is the same in edge_index map.
+        self.assertEqual(edge_index_map[1,4], 10)
 
         # We can force the correct ordering [0, 1, 2, ..., 10] if we reinitialize 
         # after adding an edge:
         self.g1.g.reindex_edges()
-        edge_matrix_reindex = self.g1.get_edge_matrix()
-        edge_indices_reindex = [edge[2] for edge in edge_matrix_reindex] 
+        edge_array_reindex = self.g1.get_edge_array()
+        edge_indices_reindex = [edge[2] for edge in edge_array_reindex] 
         # True:
         self.assertTrue(np.all(edge_indices_reindex == np.arange(self.g1_edges_N + 1)))
 
         # However, after reinitializing all id's change! Standard behavior after 
         # adding an edge is no reinit. Can be forced.
 
+class NewVertexPropertyTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        vp = self.g1.new_vertex_property("orientation", "vector<double>")
+        self.assertIsNotNone(vp)
+        self.assertTrue(vp[0] == np.array([]))
+
+class SetGetVertexPropertyTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        vp = self.g1.new_vertex_property("orientation", "vector<double>")
+        orientation = np.array([1.0, 0.8888, 0.11101])
+        self.g1.set_vertex_property("orientation", 1, orientation)
+        self.assertTrue(np.all(self.g1.get_vertex_property("orientation", 1) == orientation))
+
+        with self.assertRaises(KeyError):
+            self.g1.get_vertex_property("diesdas", 1)
+
+        with self.assertRaises(ValueError):
+            self.g1.get_vertex_property("orientation", 100)
+
+class NewEdgePropertyTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        ep = self.g1.new_edge_property("distance", "double")
+        self.assertIsNotNone(ep)
+        for e in self.g1.get_edge_iterator():
+            self.assertTrue(ep[e] == 0.0)
+
+class SetGetEdgePropertyTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        ep = self.g1.new_edge_property("distance", "double")
+        distance = 12.5555
+        self.g1.set_edge_property("distance", 1, 2, distance)
+        self.assertTrue(self.g1.get_edge_property("distance", 1, 2) == distance)
+
+        with self.assertRaises(KeyError):
+            self.g1.get_edge_property("diesdas", 1, 2)
+
+        with self.assertRaises(ValueError):
+            self.g1.get_edge_property("distance", 1, 1000)
+ 
 class GetNeighbourNodesTestCase(SmallCircleGraphTestCase):
     def runTest(self):
         # Neighbours are ordered by vertex id.
@@ -121,7 +216,6 @@ class GetIncidentEdgesTestCase(SmallCircleGraphTestCase):
         self.assertIs(type(incident_edges), np.ndarray)
         self.assertTrue(np.all(incident_edges[0] == np.array([3, 2, 2])))
         self.assertTrue(np.all(incident_edges[1] == np.array([3, 4, 3])))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -19,8 +19,20 @@ class G1:
         return self.g.num_vertices()
 
     def get_vertex(self, u):
-        return self.g.vertex(u)
-    
+        return self.g.vertex(u, use_index=True, add_missing=False)
+
+    def get_edge(self, u, v):
+        edges = self.g.edge(u,v, all_edges=True, add_missing=False)
+        # Return all edges but this list should never contain
+        # more then one edge. Can be empty if the requested edge
+        # is not in the graph.
+        assert(len(edges) <= 1)
+
+        try:
+            return edges[0]
+        except IndexError:
+            raise ValueError("Nonexistent edge: ({},{})".format(u, v))
+ 
     def add_vertex(self):
         """
         Add vertex and return 
@@ -29,48 +41,45 @@ class G1:
         u = self.g.add_vertex()
         return u
 
-    def get_edge(self, edge_key):
-        #TODO: Check if this is the most efficient way.
-        """
-        FOR CONSISTENCY: ALL EDGE OPERATIONS
-        RELY ONLY ON THE EDGE MATRIX.
-        Returns edge in form np.array(u, v, id) by
-        providing a tuple of the form (u, v) or an edge id.
-        """
-
-        if isinstance(edge_key, tuple):
-            return self.__get_edge_by_vertex(edge_key)
-        elif isinstance(edge_key, int):
-            return self.__get_edge_by_id(edge_key)
-
-    def __get_edge_by_vertex(self, (u, v)):
-        for e in self.get_edge_matrix():
-            if np.all(np.array([e[0], e[1]]) == np.array([u, v])):
-                return e
-        
-        return None
-
-    def __get_edge_by_id(self, edge_id):
-        for e in self.get_edge_matrix():
-            if e[2] == edge_id:
-                return e
- 
-        return None
-
-    def add_edge(self, (u, v), reindex=False):
+    def add_edge(self, u, v, reindex=False):
         """
         Add edge and return 
-        edge descriptor of the form
-        np.array(u, v, id)
+        edge descriptor that has
+        methods .source()
+        .target(). Get the id
+        of the edge from 
+        edge_index_map[e]
         """
         e = self.g.add_edge(u, v)
         
-        if reindex:
-            self.g.reindex_edges()
-        
-        return self.__get_edge_by_vertex((e.source(), e.target()))
-        
-    def get_edge_matrix(self):
+        return e
+ 
+    def get_vertex_index_map(self):
+        return self.g.vertex_index
+
+    def get_edge_index_map(self):
+        return self.g.edge_index
+
+    def get_vertex_iterator(self):
+        """
+        SLOW
+        """
+        return self.g.vertices()
+
+    def get_edge_iterator(self):
+        """
+        SLOW if used to iterate over edges
+        because of python loop. Order of edges
+        DOES NOT neceressarily correspond to
+        the edge index ordering as given by the
+        edge_index property map.
+        """
+        return self.g.edges()
+
+    def get_vertex_array(self):
+        return self.g.get_vertices()
+ 
+    def get_edge_array(self):
         """
         graph_tool.get_edges()
         Return a numpy.ndarray containing the edges. The shape of
@@ -79,6 +88,41 @@ class G1:
         """
         return self.g.get_edges()
 
+    def new_vertex_property(self, name, dtype):
+        vp = self.g.new_vertex_property(dtype)
+        self.g.vertex_properties[name] = vp
+        return vp
+
+    def set_vertex_property(self, name, u, value):
+        """
+        NOTE: For vector types an empty 
+        array is initialized.
+        For double, int etc. a zero is set as
+        default value.
+        """
+        u = self.get_vertex(u)
+        self.g.vertex_properties[name][u] = value
+
+    def get_vertex_property(self, name, u):
+        u = self.get_vertex(u)
+        return self.g.vertex_properties[name][u]
+
+    def new_edge_property(self, name, dtype):
+        ep = self.g.new_edge_property(dtype)
+        self.g.edge_properties[name] = ep
+        return ep
+
+    def set_edge_property(self, name, u, v, value):
+        e = self.get_edge(u, v)
+        self.g.edge_properties[name][e] = value
+    
+    def get_edge_property(self, name, u, v):
+        e = self.get_edge(u, v)
+        return self.g.edge_properties[name][e]
+
+    def list_properties(self):
+        self.g.list_properties()
+  
     def get_neighbour_nodes(self, u):
         """
         Returns sorted vertex id's.
