@@ -203,7 +203,14 @@ class SetGetEdgePropertyTestCase(SmallCircleGraphTestCase):
 
         with self.assertRaises(ValueError):
             self.g1.get_edge_property("distance", 1, 1000)
- 
+
+class GraphPropertyTestCase(SmallCircleGraphTestCase):
+    def runTest(self):
+        gp = self.g1.new_graph_property("test", "python::object")
+        pyobj = {1: 2, 2:1, 3: -1, 4 :-1} 
+        self.g1.set_graph_property("test", pyobj)
+        self.assertEqual(self.g1.get_graph_property("test"), pyobj)
+        
 class GetNeighbourNodesTestCase(SmallCircleGraphTestCase):
     def runTest(self):
         # Neighbours are ordered by vertex id.

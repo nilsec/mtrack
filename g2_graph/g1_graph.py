@@ -120,6 +120,17 @@ class G1:
         e = self.get_edge(u, v)
         return self.g.edge_properties[name][e]
 
+    def new_graph_property(self, name, dtype):
+        gp = self.g.new_graph_property(dtype)
+        self.g.graph_properties[name] = gp
+        return gp
+
+    def set_graph_property(self, name, value):
+        self.g.graph_properties[name] = value
+
+    def get_graph_property(self, name):
+        return self.g.graph_properties[name] 
+
     def list_properties(self):
         self.g.list_properties()
   
