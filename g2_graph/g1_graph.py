@@ -1,159 +1,48 @@
-import graph_tool.all as gt
+from graph import G 
 import numpy as np
 
-class G1:
-    """
-    Wrapper class for the G1 graph.
-    If we decide to change the backend in the future
-    we only need to change the corresponding methods.
-    """
+class G1(G):
     def __init__(self, N):
-        self.N = N
-        self.g = gt.Graph(directed=False)
-        self.g.add_vertex(N)
+        G.__init__(self, N)
 
-    def get_number_of_edges(self):
-        return self.g.num_edges()
+        G.new_vertex_property(self, "orientation", dtype="vector<double>")
+        G.new_vertex_property(self, "position", dtype="vector<double>")
+        G.new_vertex_property(self, "partner", dtype="long long")
 
-    def get_number_of_vertices(self):
-        return self.g.num_vertices()
-
-    def get_vertex(self, u):
-        return self.g.vertex(u, use_index=True, add_missing=False)
-
-    def get_edge(self, u, v):
-        edges = self.g.edge(u,v, all_edges=True, add_missing=False)
-        # Return all edges but this list should never contain
-        # more then one edge. Can be empty if the requested edge
-        # is not in the graph.
-        assert(len(edges) <= 1)
-
-        try:
-            return edges[0]
-        except IndexError:
-            raise ValueError("Nonexistent edge: ({},{})".format(u, v))
- 
-    def add_vertex(self):
-        """
-        Add vertex and return 
-        vertex descriptor.
-        """
-        u = self.g.add_vertex()
-        return u
-
-    def add_edge(self, u, v, reindex=False):
-        """
-        Add edge and return 
-        edge descriptor that has
-        methods .source()
-        .target(). Get the id
-        of the edge from 
-        edge_index_map[e]
-        """
-        e = self.g.add_edge(u, v)
+        # NOTE: Start/End dummy node and edge are implicit
         
-        return e
+    def add_edge(self, u, v):
+        G.add_edge(self, u, v)
+        
+    def set_orientation(self, u, value):
+        assert(type(value) == np.ndarray)
+        assert(len(value) == 3)
+        assert(value.ndim == 1)
+
+        G.set_vertex_property(self, "orientation", u, value)
+        
+    def get_orientation(self, u):
+        orientations = G.get_vertex_property(self, "orientation")
+        return orientations[u]
+
+    def set_position(self, u, value):
+        assert(type(value) == np.ndarray)
+        assert(len(value) == 3)
+        assert(value.ndim == 1)
  
-    def get_vertex_index_map(self):
-        return self.g.vertex_index
+        G.set_vertex_property(self, "position", u, value)
 
-    def get_edge_index_map(self):
-        return self.g.edge_index
+    def get_position(self, u):
+        positions = G.get_vertex_property(self, "position")
+        return positions[u]
 
-    def get_vertex_iterator(self):
-        """
-        SLOW
-        """
-        return self.g.vertices()
-
-    def get_edge_iterator(self):
-        """
-        SLOW if used to iterate over edges
-        because of python loop. Order of edges
-        DOES NOT neceressarily correspond to
-        the edge index ordering as given by the
-        edge_index property map.
-        """
-        return self.g.edges()
-
-    def get_vertex_array(self):
-        return self.g.get_vertices()
- 
-    def get_edge_array(self):
-        """
-        graph_tool.get_edges()
-        Return a numpy.ndarray containing the edges. The shape of
-        the array will be (E, 3) where E is the number of edges and
-        each line will contain the source, target and index of an edge.
-        """
-        return self.g.get_edges()
-
-    def new_vertex_property(self, name, dtype):
-        vp = self.g.new_vertex_property(dtype)
-        self.g.vertex_properties[name] = vp
-        return vp
-
-    def set_vertex_property(self, name, u, value):
-        """
-        NOTE: For vector types an empty 
-        array is initialized.
-        For double, int etc. a zero is set as
-        default value.
-        """
-        u = self.get_vertex(u)
-        self.g.vertex_properties[name][u] = value
-
-    def get_vertex_property(self, name, u):
-        u = self.get_vertex(u)
-        return self.g.vertex_properties[name][u]
-
-    def new_edge_property(self, name, dtype):
-        ep = self.g.new_edge_property(dtype)
-        self.g.edge_properties[name] = ep
-        return ep
-
-    def set_edge_property(self, name, u, v, value):
-        e = self.get_edge(u, v)
-        self.g.edge_properties[name][e] = value
-    
-    def get_edge_property(self, name, u, v):
-        e = self.get_edge(u, v)
-        return self.g.edge_properties[name][e]
-
-    def new_graph_property(self, name, dtype):
-        gp = self.g.new_graph_property(dtype)
-        self.g.graph_properties[name] = gp
-        return gp
-
-    def set_graph_property(self, name, value):
-        self.g.graph_properties[name] = value
-
-    def get_graph_property(self, name):
-        return self.g.graph_properties[name] 
-
-    def list_properties(self):
-        self.g.list_properties()
-  
-    def get_neighbour_nodes(self, u):
-        """
-        Returns sorted vertex id's.
-        """
-        return np.sort(self.g.get_out_neighbours(u))
-
-    def get_incident_edges(self, u):
-        """
-        Returns incident edges sorted by id.
-        """
-        edges = self.g.get_out_edges(u)
-        return np.array(sorted(edges, key=lambda x: x[2]))
-
-    def random_init(self, deg_sampler, args):
-        """
-        Initialize random graph with custom 
-        degree sampler.
-        """
-        self.g = gt.random_graph(N=self.N,
-                                 deg_sampler=lambda: deg_sampler(**args),
-                                 directed=False,
-                                 parallel_edges=False,
-                                 random=True)
+    def set_partner(self, u, value):
+        assert(type(value) == int)
+        assert(value < G.get_number_of_vertices(self))
+        
+        G.set_vertex_property(self, "partner", u, value)
+        
+    def get_partner(self, u):
+        partner = G.get_vertex_property(self, "partner")
+        return partner[u]
+     
