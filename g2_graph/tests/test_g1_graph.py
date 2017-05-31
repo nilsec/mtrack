@@ -40,7 +40,5 @@ class SetGetPartnerTestCase(SmallCircleGraphTestCase):
         for n in range(self.g1.get_number_of_vertices()):
             self.assertTrue(np.all((n+1) % self.g1.get_number_of_vertices() == self.g1.get_partner(n)))
 
- 
-        
 if __name__ == "__main__":
     unittest.main()

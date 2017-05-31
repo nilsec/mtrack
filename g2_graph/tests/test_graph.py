@@ -218,15 +218,18 @@ class GraphPropertyTestCase(SmallCircleGraphTestCase):
 class GetNeighbourNodesTestCase(SmallCircleGraphTestCase):
     def runTest(self):
         # Neighbours are ordered by vertex id.
-        self.assertIs(type(self.g.get_neighbour_nodes(1)), np.ndarray)
+        self.assertIs(type(self.g.get_neighbour_nodes(1)), list)
         self.assertTrue(np.all(self.g.get_neighbour_nodes(1) == [0,2]))
 
 class GetIncidentEdgesTestCase(SmallCircleGraphTestCase):
     def runTest(self):
         incident_edges = self.g.get_incident_edges(3)
-        self.assertIs(type(incident_edges), np.ndarray)
-        self.assertTrue(np.all(incident_edges[0] == np.array([3, 2, 2])))
-        self.assertTrue(np.all(incident_edges[1] == np.array([3, 4, 3])))
+        edge_index_map = self.g.get_edge_index_map()
+
+        self.assertIs(type(incident_edges), list)
+        self.assertEqual(incident_edges[0], self.g.get_edge(2,3))
+        self.assertEqual(incident_edges[1], self.g.get_edge(3,4))
+        self.assertEqual(len(incident_edges), 2)
 
 if __name__ == "__main__":
     unittest.main()
