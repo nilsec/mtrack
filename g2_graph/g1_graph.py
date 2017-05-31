@@ -1,7 +1,10 @@
-from graph import G 
+from graph import G
+from start_edge import StartEdge 
 import numpy as np
 
 class G1(G):
+    START_EDGE = StartEdge()
+    
     def __init__(self, N):
         G.__init__(self, N)
 
@@ -45,4 +48,3 @@ class G1(G):
     def get_partner(self, u):
         partner = G.get_vertex_property(self, "partner")
         return partner[u]
-     
