@@ -152,14 +152,16 @@ class G:
         """
         Returns sorted vertex id's.
         """
-        return np.sort(self.g.get_out_neighbours(u))
+        return list(np.sort(self.g.get_out_neighbours(u)))
 
     def get_incident_edges(self, u):
         """
         Returns incident edges sorted by id.
         """
         edges = self.g.get_out_edges(u)
-        return np.array(sorted(edges, key=lambda x: x[2]))
+        edges = np.array(sorted(edges, key=lambda x: x[2]))
+
+        return [self.get_edge(e[0], e[1]) for e in edges]
 
     def random_init(self, deg_sampler, args):
         """
