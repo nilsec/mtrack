@@ -44,7 +44,7 @@ class GraphConverter:
         g1_edge_index_map = self.g1.get_edge_index_map()
         g1_vertex_index_map = self.g1.get_vertex_index_map()
 
-        g1edge_g2vertices = {g1_edge_index_map[e]: 
+        g1edge_g2vertices = {self.g1.get_edge_id(e, g1_edge_index_map): 
                              [] for e in self.g1.get_edge_iterator()}
         g1edge_g2vertices[G1.START_EDGE.id()] = []
 
@@ -67,14 +67,11 @@ class GraphConverter:
             for e1 in g1_incident_edges_v:
                 for e2 in g1_incident_edges_v + [G1.START_EDGE]:
                     partner_conflict = self.check_edge_partner_conflict(e1, e2)
-                
-                    e1_id = g1_edge_index_map[e1]
-                    if e2 != G1.START_EDGE:
-                        e2_id = g1_edge_index_map[e2]
-                    else:
-                        e2_id = G1.START_EDGE.id()
+               
+                    e1_id = self.g1.get_edge_id(e1, g1_edge_index_map) 
+                    e2_id = self.g1.get_edge_id(e2, g1_edge_index_map)
 
-                    if (e1_id > e2_id and e2_id != G1.START_EDGE.id()) or partner_conflict:
+                    if (e1_id >= e2_id and e2_id != G1.START_EDGE.id()) or partner_conflict:
                         continue # Do not create g2 vertex that conflicts with itself.
 
                     # Create g2 vertex
@@ -83,8 +80,8 @@ class GraphConverter:
                     
                     # Fill index maps 
                     g2vertex_g1edges[g2_vertex_id] = (e1, e2)
-                    g1edge_g2vertices[e1].append(g2_vertex_id)
-                    g1edge_g2vertices[e2].append(g2_vertex_id)
+                    g1edge_g2vertices[e1_id].append(g2_vertex_id)
+                    g1edge_g2vertices[e2_id].append(g2_vertex_id)
                     g1_vertex_center[g2_vertex_id] = v
                     g1_vertex_center_inverse[v].append(g2_vertex_id)
 
@@ -93,7 +90,8 @@ class GraphConverter:
                     #     v^
                     v_conflicts.append(g2_vertex_id)
             
-            g2_center_conflicts.append(v_conflicts)
+            if len(v_conflicts) > 1: 
+                g2_center_conflicts.append(v_conflicts)
 
         index_maps = {"g2vertex_g1edges": g2vertex_g1edges,
                       "g1edge_g2vertices": g1edge_g2vertices,
@@ -118,7 +116,7 @@ class GraphConverter:
 
             # Check which g2 nodes contain partner
             # nodes of v, those are mutually exclusive:
-            if partner > v and partner != (-1): # -1 encodes no partner
+            if g1_partner > v and g1_partner != (-1): # -1 encodes no partner
                 g2_partner = g1_vertex_center_inverse[g1_partner]
                 
                 g2_partner_conflicts.append(g2_partner + g2_vertex)
@@ -127,10 +125,11 @@ class GraphConverter:
 
     def get_continuation_constraints(self, g1edge_g2vertices, g1_vertex_center):
         continuation_constraints = []       
-        
+        edge_index_map = self.g1.get_edge_index_map()       
+ 
         for e in self.g1.get_edge_iterator():
             # Get all g2 nodes that contain the g1 edge e
-            g2_vertices_e = g1edge_g2vertices(e)
+            g2_vertices_e = g1edge_g2vertices[self.g1.get_edge_id(e, edge_index_map)]
             
             # Divide those in two groups representing
             # those g2 nodes that are to the "left"
