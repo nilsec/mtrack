@@ -1,6 +1,7 @@
 from graph import G
 from start_edge import StartEdge 
 import numpy as np
+import mt_utils
 
 class G1(G):
     START_EDGE = StartEdge()
@@ -82,15 +83,18 @@ class G1(G):
             edge_cost = {}
         
         for e in edge_array:
-            positions = [self.get_position(e[0]), self.get_position(e[1])]
-            orientations = [self.get_orientation(e[0]), self.get_orientation(e[1])]
+            positions = [np.array(self.get_position(e[0])), 
+                         np.array(self.get_position(e[1]))]
+            orientations = [np.array(self.get_orientation(e[0])), 
+                            np.array(self.get_orientation(e[1]))]
 
             d = np.linalg.norm(positions[0] - positions[1])
             d_cost = distance_factor * d
 
 
-            orientation_angles = helper.get_orientation_angle(positions,
-                                                              orientations)
+            orientation_angles = mt_utils.get_orientation_angle(positions,
+                                                                orientations)
+
             o_cost = orientation_factor * sum(orientation_angles)
             
             if debug:
@@ -98,8 +102,11 @@ class G1(G):
                                                            "orientation_cost": o_cost}
 
             edge_cost_tot[G.get_edge(self, e[0], e[1])] = d_cost + o_cost
-           
-        return edge_cost_tot
+          
+        if debug:
+            return edge_cost
+        else:
+            return edge_cost_tot
 
     def get_edge_combination_cost(self, comb_angle_factor, comb_angle_prior = 0.0):
         edge_combination_cost = {}
@@ -109,15 +116,15 @@ class G1(G):
             incident_edges = G.get_incident_edges(self, v)
             
             for e1 in incident_edges:
-                for e2 in incident_edges + [START_EDGE]:
+                for e2 in incident_edges + [self.START_EDGE]:
                     e1_id = self.get_edge_id(e1, edge_index_map)
                     e2_id = self.get_edge_id(e2, edge_index_map)
 
-                    if e1_id >= e2_id and e2_id != START_EDGE.id():
+                    if e1_id >= e2_id and e2_id != self.START_EDGE.id():
                         continue
 
-                    if e2_id == START_EDGE.id():
-                        edge_combination_cost[(e1, e2)) = comb_angle_prior
+                    if e2_id == self.START_EDGE.id():
+                        edge_combination_cost[(e1, e2)] = comb_angle_prior
 
                     else:
                         middle_vertex = v
@@ -131,19 +138,19 @@ class G1(G):
                         e2_middle_index = e2_tuple.index(middle_vertex)
 
                         v_middle_pos = self.get_position(e1_tuple[e1_middle_index]) 
-                        v1_pos = self.get_position(e1_tuple[int(not e1_middle_index)])
-                        v2_pos = self.get_position(e2_tuple[int(not e2_middle_index)]) 
+                        v1_pos = np.array(self.get_position(e1_tuple[int(not e1_middle_index)]))
+                        v2_pos = np.array(self.get_position(e2_tuple[int(not e2_middle_index)]))
 
                         vector_1 = v1_pos - v_middle_pos
                         vector_2 = v2_pos - v_middle_pos
 
                         if np.allclose(vector_1, np.array([0,0,0])) or\
-                           np.allclose(vector_2, np.array([0,0,0]))
+                           np.allclose(vector_2, np.array([0,0,0])):
                             
                             comb_angle = 0.0
     
                         else:
-                            comb_angle = helper.get_spanning_angle(vector_1, vector_2)
+                            comb_angle = mt_utils.get_spanning_angle(vector_1, vector_2)
                             assert((comb_angle <= np.pi) and (comb_angle >= 0)) 
                             comb_angle = np.pi - comb_angle
 
