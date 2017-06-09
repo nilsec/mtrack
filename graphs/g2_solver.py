@@ -9,6 +9,8 @@ class G2Solver:
         self.backend.initialize(self.g2_vertices_N, pylp.VariableType.Binary)
         self.objective = pylp.LinearObjective(self.g2_vertices_N)
 
+        pylp.setLogLevel()
+
         g2_vertex_index_map = g2.get_vertex_index_map()
 
         for v in g2.get_vertex_iterator():
