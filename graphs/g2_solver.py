@@ -53,8 +53,8 @@ class G2Solver:
         print "with: " + str(len(self.constraints)) + " constraints."
         print "and " + str(self.g2_vertices_N) + " variables.\n"
 
-        if timelimit != None:
-            self.backend.set_timelimit(timelimit)
+        if time_limit != None:
+            self.backend.set_timelimit(time_limit)
 
         solution = pylp.Solution()
         self.backend.solve(solution)
