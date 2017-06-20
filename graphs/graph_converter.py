@@ -1,6 +1,7 @@
 import numpy as np
 from g1_graph import G1
 from g2_graph import G2
+import pdb
 
 class GraphConverter:
     def __init__(self, g1):
@@ -70,14 +71,18 @@ class GraphConverter:
                
                     e1_id = self.g1.get_edge_id(e1, g1_edge_index_map) 
                     e2_id = self.g1.get_edge_id(e2, g1_edge_index_map)
+    
+                    if partner_conflict:
+                        continue
 
-                    if (e1_id >= e2_id and e2_id != G1.START_EDGE.id()) or partner_conflict:
-                        continue # Do not create g2 vertex that conflicts with itself.
+                    if e1_id >= e2_id:
+                        if e2_id != G1.START_EDGE.id():
+                            continue
 
                     # Create g2 vertex
                     g2_vertex_id = g2_vertices_N
                     g2_vertices_N += 1
-                    
+ 
                     # Fill index maps 
                     g2vertex_g1edges[g2_vertex_id] = (e1, e2)
                     g1edge_g2vertices[e1_id].append(g2_vertex_id)
@@ -90,14 +95,14 @@ class GraphConverter:
                     #     v^
                     v_conflicts.append(g2_vertex_id)
             
-            if len(v_conflicts) > 1: 
-                g2_center_conflicts.append(v_conflicts)
+            #if len(v_conflicts) > 1: 
+            g2_center_conflicts.append(v_conflicts)
 
         index_maps = {"g2vertex_g1edges": g2vertex_g1edges,
                       "g1edge_g2vertices": g1edge_g2vertices,
                       "g1_vertex_center": g1_vertex_center,
                       "g1_vertex_center_inverse": g1_vertex_center_inverse}
-    
+
         return g2_vertices_N, g2_center_conflicts, index_maps
 
     def get_partner_conflicts(self, g2, g1_vertex_center_inverse):
@@ -118,7 +123,6 @@ class GraphConverter:
             # nodes of v, those are mutually exclusive:
             if g1_partner > v and g1_partner != (-1): # -1 encodes no partner
                 g2_partner = g1_vertex_center_inverse[g1_partner]
-                
                 g2_partner_conflicts.append(g2_partner + g2_vertex)
 
         return g2_partner_conflicts
