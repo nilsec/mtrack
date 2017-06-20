@@ -184,21 +184,22 @@ class G:
         component_vp, hist = gt.label_components(self.g, 
                                                  directed=False,
                                                  attractors=False)
+
         print "Generate Masks..."
         masks = []
         max_comp = max(component_vp.a)
         for label in range(0, max_comp):
+            if hist[label] < min_vertices:
+                continue
+  
             print "Get label {}/{}".format(label, max_comp)
             binary_mask = component_vp.a == label
-
-            if sum(binary_mask) < min_vertices:
-                continue
 
             cc_vp = self.g.new_vertex_property("bool")
             cc_vp.a = binary_mask
             masks.append(cc_vp)
 
-        return masks
+        return masks, hist
 
     def save(self, path):
         self.g.save(path, fmt='gt')
