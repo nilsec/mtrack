@@ -2,6 +2,9 @@ from graphs import g1_graph
 from graphs import graph_converter
 from graphs import cost_converter
 from graphs import g2_solver
+from preprocessing import nml_io
+import os
+import json
 
 def solve(g1,
           start_edge_prior,
@@ -9,19 +12,23 @@ def solve(g1,
           orientation_factor,
           comb_angle_factor,
           selection_cost,
-          output_directory,
-          time_limit):
+          time_limit,
+          output_dir=None,
+          voxel_size=None):
 
     vertex_cost_params = {}
     edge_cost_params = {"distance_factor": distance_factor,
                         "orientation_factor": orientation_factor,
                         "start_edge_prior": start_edge_prior}
 
-    edge_combination_cost_params = {"comb_angle_factor": 1.0}
+    edge_combination_cost_params = {"comb_angle_factor": comb_angle_factor}
+
+    
 
     if isinstance(g1, str):
         g1_tmp = g1_graph.G1(0) # initialize empty G1 graph
-        g1 = g1_tmp.load(g1) # load from file
+        g1_tmp.load(g1) # load from file
+        g1 = g1_tmp
 
     if g1.get_number_of_edges() == 0:
         raise Warning("Graph has no edges.")
@@ -51,6 +58,37 @@ def solve(g1,
     print "Get G1 solution..."
     g1_solution = g2_to_g1_solution(g2_solution, g1, g2, index_maps)
 
+    
+    if output_dir is not None:
+        assert(voxel_size is not None)
+
+        print "Save solution..."
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            
+        nml_io.g1_to_nml(g1_solution, 
+                         output_dir + "g1s_kno.nml", 
+                         knossos=True, 
+                         voxel_size=voxel_size)
+
+        nml_io.g1_to_nml(g1_solution, 
+                         output_dir + "g1s_phy.nml")
+
+        nml_io.g1_to_nml(g1_solution, 
+                         output_dir + "g1s_vox.nml", 
+                         voxel=True, 
+                         voxel_size=voxel_size)
+        
+        g1_solution.save(output_dir + "g1s.gt")
+
+        meta_data = {"tl": time_limit,
+                     "vs": voxel_size,
+                     "ec": edge_cost_params,
+                     "ecc": edge_combination_cost_params}
+
+        with open(output_dir + "meta.txt", "w+") as meta:
+            json.dump(meta_data, meta)
+
     return g1_solution
 
 
@@ -71,6 +109,9 @@ def g2_to_g1_solution(g2_solution, g1, g2, index_maps):
 
     edge_mask = []
     vertex_mask = []
+
+    g1.g.set_vertex_filter(None)
+    g1.g.set_edge_filter(None)
 
     for v in g1.get_vertex_iterator():
         if v in g1_selected_vertices:
@@ -94,3 +135,19 @@ def g2_to_g1_solution(g2_solution, g1, g2, index_maps):
     g1.g.set_edge_filter(edge_filter)
 
     return g1
+
+
+if __name__ == "__main__":
+    base_dir = "/media/nilsec/d0/gt_mt_data/experiments/cc_dist80" 
+    ccs = os.listdir(base_dir)
+    vol = base_dir + "/" + ccs[20]
+
+    solve(vol,
+          start_edge_prior=180.0,
+          distance_factor=0.0,
+          orientation_factor=15.0,
+          comb_angle_factor=16.0,
+          selection_cost=-80.0,
+          output_dir="/media/nilsec/d0/gt_mt_data/cc_solve/",
+          time_limit=1000,
+          voxel_size=[5.0, 5.0, 50.0])
