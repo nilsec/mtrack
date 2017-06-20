@@ -3,6 +3,7 @@ from start_edge import StartEdge
 import numpy as np
 import mt_utils
 import os
+import matplotlib.pyplot as plt
 
 class G1(G):
     START_EDGE = StartEdge()
@@ -84,13 +85,10 @@ class G1(G):
 
         return vertex_cost
             
-    def get_edge_cost(self, distance_factor, orientation_factor, start_edge_prior, debug=False):
+    def get_edge_cost(self, distance_factor, orientation_factor, start_edge_prior):
         edge_array = G.get_edge_array(self)
         edge_cost_tot = {}
         
-        if debug:
-            edge_cost = {}
-
         edge_cost_tot[self.START_EDGE] = 2.0 * start_edge_prior
         
         for e in edge_array:
@@ -108,16 +106,9 @@ class G1(G):
 
             o_cost = orientation_factor * sum(orientation_angles)
             
-            if debug:
-                edge_cost[G.get_edge(self, e[0], e[1])] = {"distance_cost": d_cost,
-                                                           "orientation_cost": o_cost}
-
             edge_cost_tot[G.get_edge(self, e[0], e[1])] = d_cost + o_cost
-          
-        if debug:
-            return edge_cost
-        else:
-            return edge_cost_tot
+
+        return edge_cost_tot
 
     def get_edge_combination_cost(self, comb_angle_factor, comb_angle_prior = 0.0):
         edge_combination_cost = {}
@@ -171,11 +162,14 @@ class G1(G):
 
     def get_components(self, min_vertices, output_folder, voxel_size):
         print "Find connected components...\n"
-        component_masks = G.get_component_masks(self, min_vertices)
+        component_masks, hist = G.get_component_masks(self, min_vertices)
 
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
-        
+    
+        plt.bar(range(len(hist)), hist)
+        plt.savefig(output_folder + "cc_hist.png")
+ 
         print "Filter Graphs..."
         cc_list = []
         
@@ -190,6 +184,7 @@ class G1(G):
             G.set_vertex_filter(self, mask)
             g1_masked = G1(0, G_in=self)
             g1_masked.save(output_file)
+            
             
             G.set_vertex_filter(self, None)
             n += 1
