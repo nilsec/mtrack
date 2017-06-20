@@ -14,6 +14,7 @@ from graphs import g1_graph
 import nml_io
 import pickle
 from scipy.spatial import KDTree
+import matplotlib.pyplot as plt
 
 diam_out = 24 # Outer diameter of microtubule in nm
 
@@ -273,13 +274,62 @@ def connect_graph_locally(g1, distance_threshold):
     pairs = kdtree.query_pairs(distance_threshold, p=2.0, eps=0)
 
     print "Construct graph...\n"
+    
     for edge in pairs:
-        g1.add_edge(*edge)
+        if g1.get_partner(edge[0]) != edge[1]:
+            g1.add_edge(*edge)
 
     return g1
 
 
+def get_distance_histogram(positions, n_samples):
+    n_tot = len(positions)
+    d_all_to_all = []
+
+    ind_1 = np.random.randint(0, n_tot, size=n_samples)
+
+    for i in ind_1:
+        print str(i) + "/" + str(n_samples)
+        for j in range(len(positions)):
+            if j != i and not j in ind_1:
+                d_all_to_all.append(np.linalg.norm(positions[i] - positions[j]))
+
+    pickle.dump(d_all_to_all, open("./d_all_to_all", "wb"))
+
+    plt.hist(d_all_to_all, normed=True)
+    plt.show()
+
+def chunk_volume(prob_map_stack_file, 
+                 n_slices,
+                 xy_fraction):
+
+    f = h5py.File(prob_map_stack_file)
+    prob_map_stack = f['exported_data'].value
+    f.close()
+
+    volume_dimensions = np.shape(prob_map_stack)
+
+    x = volume_dimensions[0]
+    y = volume_dimensions[1]
+    z = volume_dimensions[2]
+
+    mod = z % n_slices
+ 
+
+    if mod != 0:
+        raise Warning("N_slices % n_slices = {} % {} = {}".format(z, n_slices, mod))
+
+    
+    print volume_dimensions
+
+
 if __name__ == "__main__":
+    prob_map_stack_file_perp = "/media/nilsec/d0/gt_mt_data/" +\
+                               "probability_maps/validation/perpendicular/stack/stack.h5"
+ 
+    chunk_volume(prob_map_stack_file_perp, 10, 1.0)
+
+    """
     prob_map_stack_file_perp = "/media/nilsec/d0/gt_mt_data/" +\
                                "probability_maps/validation/perpendicular/stack/stack.h5"
 
@@ -288,34 +338,13 @@ if __name__ == "__main__":
  
     prob_map_stack_file_direction = DirectionType(prob_map_stack_file_perp, prob_map_stack_file_par)
 
-    gs = 0.9
-    ps = 0.9
+    base_dir = "/media/nilsec/d0/gt_mt_data/experiments/"
 
-    gaussian_sigma = DirectionType(gs, gs)
-    point_threshold = DirectionType(ps, ps)
-    voxel_size = [5.0, 5.0, 50.0]
-   
+    for dist in [89]:
+        candidates = pickle.load(open("candidates.p", "rb"))
+        g1 = candidates_to_g1(candidates, voxel_size)
+        g1_connected = connect_graph_locally(g1, dist)
+        cc_list = g1_connected.get_components(min_vertices=4, 
+                                              output_folder= base_dir + "cc_nopcedge_dist%s/" % dist,
+                                              voxel_size=voxel_size)
     """
-    candidates = extract_candidates(prob_map_stack_file_direction, 
-                                    gaussian_sigma, 
-                                    point_threshold, 
-                                    voxel_size,
-                                    length_correction=0.0, 
-                                    verbose=False, 
-                                    bounding_box=None)
-    pickle.dump(candidates, open("candidates.p", "wb"))
-    """
-    """
-    candidates = pickle.load(open("candidates.p", "rb"))
-    g1 = candidates_to_g1(candidates, voxel_size)
-    g1_connected = connect_graph_locally(g1, 200)
-    cc_list = g1_connected.get_components(min_vertices=4, 
-                                output_folder="./cc_test/",
-                                voxel_size=voxel_size)
-    """
-    n = 0
-    for cc in os.listdir("/media/nilsec/d0/gt_mt_data/cc_test"):
-        g1_load = g1_graph.G1(0)
-        g1_load.load("/media/nilsec/d0/gt_mt_data/cc_test/" + cc)
-        nml_io.g1_to_nml(g1_load, "./nml_test/g1_load_%s.nml" % n, knossos=True, voxel_size=voxel_size)
-        n += 1
