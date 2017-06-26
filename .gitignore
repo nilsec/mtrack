@@ -2,3 +2,5 @@
 *.pyc
 *.nml
 *.gt
+*.txt
+*.p
