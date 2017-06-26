@@ -47,15 +47,24 @@ class DirectionType:
 
 
 def process_bounding_box(bounding_box):
-    xyz_bb = [[], [], []]
+    if len(bounding_box) == 2:
+        assert(isinstance(bounding_box[0], int))
+        assert(isinstance(bounding_box[1], int))
 
-    for j in range(3):
-        for corner in bounding_box:
-            xyz_bb[j].append(corner[j])
+        slices = range(bounding_box[0], bounding_box[1])
+        x_lim = None
+        y_lim = None
 
-    slices = range(int(min(xyz_bb[2])), int(max(xyz_bb[2])))
-    x_lim = [int(min(xyz_bb[0]) - 0.5), int(max(xyz_bb[0]) + 0.5)]
-    y_lim = [int(min(xyz_bb[1]) - 0.5), int(max(xyz_bb[1]) + 0.5)]
+    else:
+        xyz_bb = [[], [], []]
+
+        for j in range(3):
+            for corner in bounding_box:
+                xyz_bb[j].append(corner[j])
+
+        slices = range(int(min(xyz_bb[2])), int(max(xyz_bb[2])))
+        x_lim = [int(min(xyz_bb[0]) - 0.5), int(max(xyz_bb[0]) + 0.5)]
+        y_lim = [int(min(xyz_bb[1]) - 0.5), int(max(xyz_bb[1]) + 0.5)]
 
     return slices, x_lim, y_lim
  
@@ -178,7 +187,8 @@ def extract_candidates(prob_map_stack_file,
                        voxel_size,
                        length_correction=0.0, 
                        verbose=False, 
-                       bounding_box=None):
+                       bounding_box=None,
+                       bs_output_dir=None):
 
     if verbose:
         print "\nExtract Candidates\n"
@@ -191,7 +201,8 @@ def extract_candidates(prob_map_stack_file,
                                           point_threshold=point_threshold, 
                                           voxel_size=voxel_size, 
                                           verbose=verbose, 
-                                          bounding_box=bounding_box)
+                                          bounding_box=bounding_box,
+                                          output_directory=bs_output_dir)
 
     if bounding_box is not None:
         slices, x_lim, y_lim = process_bounding_box(bounding_box)
@@ -227,8 +238,9 @@ def extract_candidates(prob_map_stack_file,
         slice_number += 1 
 
     if bounding_box is not None:
-        for candidate in candidates:
-            candidate.position = tuple(np.array(candidate.position) +\
+        if x_lim is not None:
+            for candidate in candidates:
+                candidate.position = tuple(np.array(candidate.position) +\
                                        np.array((x_lim[0], y_lim[0], 0)))
 
     return candidates
