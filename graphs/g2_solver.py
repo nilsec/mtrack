@@ -7,6 +7,7 @@ class G2Solver:
         
         self.backend = pylp.GurobiBackend()
         self.backend.initialize(self.g2_vertices_N, pylp.VariableType.Binary)
+
         self.objective = pylp.LinearObjective(self.g2_vertices_N)
 
         pylp.setLogLevel()
