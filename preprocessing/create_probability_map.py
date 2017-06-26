@@ -62,8 +62,10 @@ def get_prob_map_ilastik(input_directory, output_directory, ilastik_source_direc
 
 if __name__ == "__main__":
     ilastik_source_directory = "/usr/local/src/ilastik-1.2.0rc10-Linux/"
-    input_directory = "/media/nilsec/d0/Data_MTs/Validation/raw/"
-    ilastik_project = '/media/nilsec/d0/Data_MTs/ilastik/parallel_3.ilp'
-    output_directory = 'media/nilsec/d0/gt_mt_data/probability_maps/validation/parallel'
+    input_directory = "/media/nilsec/d0/Data_MTs/Test/raw_split/"
+    #ilastik_project = '/media/nilsec/d0/Data_MTs/ilastik/parallel_3.ilp'
+    #ilastik_project = '/media/nilsec/d0/gt_mt_data/ilastik/perpendicular.ilp'
+    ilastik_project = "/media/nilsec/d0/Data_MTs/ilastik/perp.ilp"
+    output_directory = '/media/nilsec/d0/gt_mt_data/probability_maps/test/perpendicular/'
     
     get_prob_map_ilastik(input_directory, output_directory, ilastik_source_directory, ilastik_project, verbose=True)
