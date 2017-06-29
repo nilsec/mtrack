@@ -4,6 +4,9 @@ import numpy as np
 import mt_utils
 import os
 import matplotlib.pyplot as plt
+from numpy.core.umath_tests import inner1d
+import itertools
+import pdb
 
 class G1(G):
     START_EDGE = StartEdge()
@@ -38,6 +41,9 @@ class G1(G):
         orientations = G.get_vertex_property(self, "orientation")
         return orientations[u]
 
+    def get_orientation_array(self, u):
+        return G.get_vertex_property(self, "orientation").get_2d_array([0,1,2])
+
     def set_position(self, u, value):
         assert(type(value) == np.ndarray)
         assert(len(value) == 3)
@@ -48,6 +54,9 @@ class G1(G):
     def get_position(self, u):
         positions = G.get_vertex_property(self, "position")
         return positions[u]
+
+    def get_position_array(self):
+        return G.get_vertex_property(self, "position").get_2d_array([0,1,2])
 
     def set_partner(self, u, value):
         assert(type(value) == int)
@@ -110,7 +119,15 @@ class G1(G):
 
         return edge_cost_tot
 
-    def get_edge_combination_cost(self, comb_angle_factor, comb_angle_prior = 0.0):
+    def get_edge_cost_opt(self, distance_factor, orientation_factor, start_edge_prior):
+        edge_array = G.get_edge_array(self) 
+        pos_array = self.get_position_array()
+        orientation_array = self.get_orientation_array()
+ 
+        print edge_array
+        return 0
+
+    def get_edge_combination_cost_old(self, comb_angle_factor, comb_angle_prior = 0.0):
         edge_combination_cost = {}
         edge_index_map = G.get_edge_index_map(self)
 
@@ -145,20 +162,160 @@ class G1(G):
 
                         vector_1 = v1_pos - v_middle_pos
                         vector_2 = v2_pos - v_middle_pos
-
-                        if np.allclose(vector_1, np.array([0,0,0])) or\
-                           np.allclose(vector_2, np.array([0,0,0])):
-                            
-                            comb_angle = 0.0
     
-                        else:
-                            comb_angle = mt_utils.get_spanning_angle(vector_1, vector_2)
-                            assert((comb_angle <= np.pi) and (comb_angle >= 0)) 
-                            comb_angle = np.pi - comb_angle
+                        comb_angle = mt_utils.get_spanning_angle(vector_1, vector_2)
+                        assert((comb_angle <= np.pi) and (comb_angle >= 0)) 
+                        comb_angle = np.pi - comb_angle
 
                         edge_combination_cost[(e1, e2)] = (comb_angle * comb_angle_factor)**2
 
         return edge_combination_cost
+
+
+    def get_edge_combination_cost_1(self, comb_angle_factor):
+        edge_combination_cost = {}
+        edge_index_map = G.get_edge_index_map(self)
+        middle_indices = []
+        end_indices = []
+        edges = []
+
+        for v in G.get_vertex_iterator(self):
+            incident_edges = G.get_incident_edges(self, v)
+            
+            for e1 in incident_edges:
+                for e2 in incident_edges + [self.START_EDGE]:
+                    e1_id = self.get_edge_id(e1, edge_index_map)
+                    e2_id = self.get_edge_id(e2, edge_index_map)
+
+                    if e1_id >= e2_id and e2_id != self.START_EDGE.id():
+                        continue
+
+                    if e2_id == self.START_EDGE.id():
+                        continue
+
+                    else:
+                        middle_vertex = int(v)
+                        middle_indices.extend([middle_vertex, middle_vertex])
+
+                        end_vertices = set([int(e1.source()), 
+                                            int(e1.target()), 
+                                            int(e2.source()), 
+                                            int(e2.target())])
+
+                        end_vertices.remove(middle_vertex)
+                        end_indices.extend(list(end_vertices))
+                        edges.append((e1, e2))
+
+        pos_array = self.get_position_array()
+        end_indices = np.array(end_indices)
+        middle_indices = np.array(middle_indices)
+
+        v = (pos_array[:, end_indices] - pos_array[:, middle_indices]).T
+        norm = np.sum(np.abs(v)**2, axis=-1)**(1./2.)
+        u = v/norm[:,None]
+        angles = np.arccos(np.clip(inner1d(u[::2], u[1::2]), -1.0, 1.0))
+        angles = np.pi - angles
+        cost = (angles * comb_angle_factor)**2
+
+        return dict(itertools.izip(edges, cost))
+
+    def get_edge_combination_cost(self, comb_angle_factor, comb_angle_prior=0.0):
+        edge_index_map = G.get_edge_index_map(self)
+        """
+        Only collect the indices for each edge combination in
+        the loop and perform cost calculation later in vectorized 
+        form.
+        """
+        middle_indices = []
+        end_indices = []
+        edges = []
+        cost = []
+        prior_cost = {}
+        """
+        Problem: The indices are derived from the vertices in the graph.
+        The graphs are filtered versions of a bigger graph where the
+        vertices have not been enumerated newly. Thus we expect 
+        vertices to have random indices, not corresponding to 
+        the number of vertices in the sub graph. If we try to acces
+        the position matrix with these indices we get out of bounds
+        errors because the position matrix has only the entries 
+        of the filtered subgraph. We need to map vertex indices
+        in the range [0, N_vertices_subgraph - 1]
+        """
+
+        index_map = {}
+
+        for n, v in enumerate(G.get_vertex_iterator(self)):
+            incident_edges = G.get_incident_edges(self, v)
+            index_map[v] = n 
+            
+            for e1 in incident_edges:
+                for e2 in incident_edges + [self.START_EDGE]:
+                    e1_id = self.get_edge_id(e1, edge_index_map)
+                    e2_id = self.get_edge_id(e2, edge_index_map)
+
+                    if e1_id >= e2_id and e2_id != self.START_EDGE.id():
+                        continue
+
+                    if e2_id == self.START_EDGE.id():
+                        """
+                        Always append edges together with cost
+                        s.t. zip(edges, cost) is a correct mapping
+                        of edges to cost.
+                        """
+                        prior_cost[(e1, e2)] = comb_angle_prior
+ 
+                    else:
+                        """
+                        Here we only save indices. How to secure
+                        a proper matching between cost that we calculate
+                        later and the corresponding edges?
+
+                        1. Middle vertex is v -> index_map[v] in [0, N-1]
+                        2. Append the middle_vertex twice to a list.
+                        3. Append the distinct end vertices (2) to end vertices
+                        4. Append the corresponding edges to a list.
+
+                        -> We end up with 3 lists of the following form:
+                        edges = [(e1, e2), (e3, e4), ...]
+                        m_ind = [ m1, m1 ,  m2, m2 , ...]
+                        e_ind = [ v1, v2 ,  v3, v4 , ...]
+                        p_arr = [ p(m1)  ,   p(m2) , ...]
+                        index_map: m1 -> 0, m2 -> 1, m3 -> 2, ...
+                            --> p_arr[m1] = p(m1), p_arr[m2] = p(m2) 
+                        """
+                        middle_vertex = int(v)
+                        middle_indices.extend([middle_vertex, middle_vertex])
+
+                        end_vertices = set([int(e1.source()), 
+                                            int(e1.target()), 
+                                            int(e2.source()), 
+                                            int(e2.target())])
+
+                        end_vertices.remove(middle_vertex)
+                        end_indices.extend(list(end_vertices))
+                        edges.append((e1, e2))
+                        """
+                        (e1, e2) -> end_indices, middle_indices
+                        """
+
+        if middle_indices:
+            pos_array = self.get_position_array()
+            end_indices = np.array([index_map[v] for v in end_indices])
+            middle_indices = np.array([index_map[v] for v in middle_indices])
+
+            v = (pos_array[:, end_indices] - pos_array[:, middle_indices]).T
+            norm = np.sum(np.abs(v)**2, axis=-1)**(1./2.)
+            u = v/norm[:,None]
+            angles = np.arccos(np.clip(inner1d(u[::2], u[1::2]), -1.0, 1.0))
+            angles = np.pi - angles
+            cost = cost + list((angles * comb_angle_factor)**2)
+
+        edge_combination_cost = dict(itertools.izip(edges, cost))
+        edge_combination_cost.update(prior_cost)
+ 
+        return edge_combination_cost
+ 
 
     def get_components(self, min_vertices, output_folder, voxel_size):
         print "Find connected components...\n"
