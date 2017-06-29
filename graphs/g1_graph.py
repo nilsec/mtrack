@@ -41,7 +41,7 @@ class G1(G):
         orientations = G.get_vertex_property(self, "orientation")
         return orientations[u]
 
-    def get_orientation_array(self, u):
+    def get_orientation_array(self):
         return G.get_vertex_property(self, "orientation").get_2d_array([0,1,2])
 
     def set_position(self, u, value):
@@ -96,128 +96,44 @@ class G1(G):
             
     def get_edge_cost(self, distance_factor, orientation_factor, start_edge_prior):
         edge_array = G.get_edge_array(self)
-        edge_cost_tot = {}
+        vertex_array = G.get_vertex_array(self)
+        index_map = dict(itertools.izip(vertex_array, range(vertex_array.shape[0])))
+        index_map_inv = dict(itertools.izip(range(vertex_array.shape[0]), vertex_array))
+ 
         
+        edge_array[:, 0] = np.array([index_map[j] for j in edge_array[:,0]])
+        edge_array[:, 1] = np.array([index_map[j] for j in edge_array[:,1]])
+
+        pos_array = self.get_position_array()
+        orientation_array = self.get_orientation_array()
+
+        vectors = (pos_array[:, edge_array[:, 0]] - pos_array[:, edge_array[:, 1]]).T
+
+        d = np.sum(np.abs(vectors)**2, axis=-1)**(1./2.)
+        d_cost = distance_factor * d
+
+        u_v = vectors/d[:,None]
+        
+        o_0 = (orientation_array[:, edge_array[:, 0]]).T
+        o_1 = (orientation_array[:, edge_array[:, 1]]).T
+        o = np.vstack((o_0, o_1))
+        o_norm = np.sum(np.abs(o)**2, axis=-1)**(1./2.)
+        u_o = o/o_norm[:, None] 
+
+        angles = np.arccos(np.clip(inner1d(np.vstack((u_v, u_v)), u_o), -1.0, 1.0))
+        angles[angles >= np.pi/2.] = np.pi - angles[angles >= np.pi/2.]
+        o_cost = angles[:angles.shape[0]/2] + angles[angles.shape[0]/2:] * orientation_factor
+        
+        tot_cost = d_cost + o_cost
+       
+        edge_cost_tot = {G.get_edge(self, index_map_inv[edge_array[i,0]],\
+                                          index_map_inv[edge_array[i, 1]]):\
+                         tot_cost[i] for i in range(tot_cost.shape[0])}
+
         edge_cost_tot[self.START_EDGE] = 2.0 * start_edge_prior
-        
-        for e in edge_array:
-            positions = [np.array(self.get_position(e[0])), 
-                         np.array(self.get_position(e[1]))]
-            orientations = [np.array(self.get_orientation(e[0])), 
-                            np.array(self.get_orientation(e[1]))]
-
-            d = np.linalg.norm(positions[0] - positions[1])
-            d_cost = distance_factor * d
-
-
-            orientation_angles = mt_utils.get_orientation_angle(positions,
-                                                                orientations)
-
-            o_cost = orientation_factor * sum(orientation_angles)
-            
-            edge_cost_tot[G.get_edge(self, e[0], e[1])] = d_cost + o_cost
 
         return edge_cost_tot
 
-    def get_edge_cost_opt(self, distance_factor, orientation_factor, start_edge_prior):
-        edge_array = G.get_edge_array(self) 
-        pos_array = self.get_position_array()
-        orientation_array = self.get_orientation_array()
- 
-        print edge_array
-        return 0
-
-    def get_edge_combination_cost_old(self, comb_angle_factor, comb_angle_prior = 0.0):
-        edge_combination_cost = {}
-        edge_index_map = G.get_edge_index_map(self)
-
-        for v in G.get_vertex_iterator(self):
-            incident_edges = G.get_incident_edges(self, v)
-            
-            for e1 in incident_edges:
-                for e2 in incident_edges + [self.START_EDGE]:
-                    e1_id = self.get_edge_id(e1, edge_index_map)
-                    e2_id = self.get_edge_id(e2, edge_index_map)
-
-                    if e1_id >= e2_id and e2_id != self.START_EDGE.id():
-                        continue
-
-                    if e2_id == self.START_EDGE.id():
-                        edge_combination_cost[(e1, e2)] = comb_angle_prior
-
-                    else:
-                        middle_vertex = v
-                        e1_tuple = [e1.source(), e1.target()]
-                        e2_tuple = [e2.source(), e2.target()]
-
-                        assert(middle_vertex in e1_tuple)
-                        assert(middle_vertex in e2_tuple)
-
-                        e1_middle_index = e1_tuple.index(middle_vertex)
-                        e2_middle_index = e2_tuple.index(middle_vertex)
-
-                        v_middle_pos = self.get_position(e1_tuple[e1_middle_index]) 
-                        v1_pos = np.array(self.get_position(e1_tuple[int(not e1_middle_index)]))
-                        v2_pos = np.array(self.get_position(e2_tuple[int(not e2_middle_index)]))
-
-                        vector_1 = v1_pos - v_middle_pos
-                        vector_2 = v2_pos - v_middle_pos
-    
-                        comb_angle = mt_utils.get_spanning_angle(vector_1, vector_2)
-                        assert((comb_angle <= np.pi) and (comb_angle >= 0)) 
-                        comb_angle = np.pi - comb_angle
-
-                        edge_combination_cost[(e1, e2)] = (comb_angle * comb_angle_factor)**2
-
-        return edge_combination_cost
-
-
-    def get_edge_combination_cost_1(self, comb_angle_factor):
-        edge_combination_cost = {}
-        edge_index_map = G.get_edge_index_map(self)
-        middle_indices = []
-        end_indices = []
-        edges = []
-
-        for v in G.get_vertex_iterator(self):
-            incident_edges = G.get_incident_edges(self, v)
-            
-            for e1 in incident_edges:
-                for e2 in incident_edges + [self.START_EDGE]:
-                    e1_id = self.get_edge_id(e1, edge_index_map)
-                    e2_id = self.get_edge_id(e2, edge_index_map)
-
-                    if e1_id >= e2_id and e2_id != self.START_EDGE.id():
-                        continue
-
-                    if e2_id == self.START_EDGE.id():
-                        continue
-
-                    else:
-                        middle_vertex = int(v)
-                        middle_indices.extend([middle_vertex, middle_vertex])
-
-                        end_vertices = set([int(e1.source()), 
-                                            int(e1.target()), 
-                                            int(e2.source()), 
-                                            int(e2.target())])
-
-                        end_vertices.remove(middle_vertex)
-                        end_indices.extend(list(end_vertices))
-                        edges.append((e1, e2))
-
-        pos_array = self.get_position_array()
-        end_indices = np.array(end_indices)
-        middle_indices = np.array(middle_indices)
-
-        v = (pos_array[:, end_indices] - pos_array[:, middle_indices]).T
-        norm = np.sum(np.abs(v)**2, axis=-1)**(1./2.)
-        u = v/norm[:,None]
-        angles = np.arccos(np.clip(inner1d(u[::2], u[1::2]), -1.0, 1.0))
-        angles = np.pi - angles
-        cost = (angles * comb_angle_factor)**2
-
-        return dict(itertools.izip(edges, cost))
 
     def get_edge_combination_cost(self, comb_angle_factor, comb_angle_prior=0.0):
         edge_index_map = G.get_edge_index_map(self)
