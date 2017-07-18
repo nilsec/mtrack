@@ -1,5 +1,4 @@
 import pyted
-import process_tracings
 import numpy as np
 import pickle
 import os
@@ -8,7 +7,7 @@ import os
 def evaluate_skeleton(tracing_volume, reconstruction_volume, distance_threshold, 
                       voxel_size, background_label=0.0, report_ted=True, 
                       report_rand=True, report_voi=True, verbose=True, 
-                      from_skeleton=False):
+                      from_skeleton=True):
 
     print "Start Evaluation..."
         
@@ -26,7 +25,6 @@ def evaluate_skeleton(tracing_volume, reconstruction_volume, distance_threshold,
     ted = pyted.Ted(parameters)
     print "Create Report...\n"
     
-    rec_ted = np.zeros(np.shape(reconstruction_volume))
     report = ted.create_report(tracing_volume.astype(np.uint32), 
                                reconstruction_volume.astype(np.uint32),
                                np.array([voxel_size[2], voxel_size[1],voxel_size[0]]).astype(np.float64)) # Jan changed order to z, y, x in new ted version.
