@@ -3,6 +3,7 @@ from xml.dom import minidom
 import os
 import sys
 import ast
+import graphs
 
 class NodeAttribute:
     def __init__(self, position, id, orientation, partner, identifier):
@@ -19,7 +20,8 @@ def g1_to_nml(g1,
               output_file,
               knossos=False,
               voxel=False,
-              voxel_size=None):
+              voxel_size=None,
+              knossify=False):
 
     if knossos:
         assert(voxel_size is not None)
@@ -31,6 +33,11 @@ def g1_to_nml(g1,
 
     else:
         graph_id = 1 # physical format
+
+    if isinstance(g1, str):
+        g1_tmp = graphs.g1_graph.G1(0)
+        g1_tmp.load(g1)
+        g1 = g1_tmp
 
     doc = minidom.Document()
     annotations_elem = doc.createElement("things")
@@ -60,7 +67,7 @@ def g1_to_nml(g1,
             position = np.array([position[j]/voxel_size[j] for j in range(3)])
             orientation = np.array([orientation[j]/voxel_size[j] for j in range(3)])
 
-        if knossos:
+        if knossify or knossos:
             position = np.rint(position).astype(int)
             node_id += 1
 
@@ -87,7 +94,7 @@ def g1_to_nml(g1,
         source_id = g1.get_vertex_id(e.source(), g1_index_map)
         target_id = g1.get_vertex_id(e.target(), g1_index_map)
 
-        if knossos:
+        if knossos or knossify:
             source_id += 1
             target_id += 1
 
@@ -185,8 +192,6 @@ def from_node_elem_to_node(node_elem):
     return point, ID, np.array(orientation), partner, identifier
 
 
-
-
 def parse_attributes(xml_elem, parse_input):
     parse_output = []
     attributes = xml_elem.attributes
@@ -196,6 +201,37 @@ def parse_attributes(xml_elem, parse_input):
         except KeyError:
             parse_output.append(None)
     return parse_output
+
+
+def nml_to_g1(nml,
+              output_file):
+
+    node_dic, edge_list = from_nml(nml)
+
+    g1 = graphs.g1_graph.G1(len(node_dic.keys()))
+    index_map = {v: v_new for v_new, v in enumerate(node_dic.keys())}
+    index_map[-1] = -1
+
+    for v, properties in node_dic.iteritems():
+        g1.set_position(index_map[v], properties.position)
+        g1.set_orientation(index_map[v], properties.orientation)
+        try:
+            g1.set_partner(index_map[v], index_map[properties.partner])
+        except KeyError:
+            g1.set_partner(index_map[v], -1)
+
+    
+    edge_index_map = np.vectorize(index_map.get)
+
+    for edge in edge_list:
+        g1.add_edge(*edge_index_map(edge))
+
+    if output_file is not None:
+        g1.save(output_file)
+
+    return g1
+    
+    
 
 
 if __name__ == "__main__":
