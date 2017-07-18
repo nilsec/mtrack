@@ -3,6 +3,8 @@ import sys
 sys.path.append(os.path.join('..', '..'))
 from xml.dom import minidom
 from preprocessing import nml_io
+import graphs
+import numpy as np
 
 
 def get_solutions(solution_dir, file_tag):
@@ -15,8 +17,12 @@ def get_solutions(solution_dir, file_tag):
 
     return sorted(files)
 
-def combine_knossos_solutions(solution_dir, output_file):
-    files = get_solutions(solution_dir, "kno")
+def combine_knossos_solutions(solution_dir, output_file, tag=None):
+
+    if tag is None:
+        tag = "kno"
+
+    files = get_solutions(solution_dir, tag)
     
     doc = minidom.Document()
     annotations_elem = doc.createElement("things")
@@ -68,8 +74,71 @@ def combine_knossos_solutions(solution_dir, output_file):
 
     with open(output_file, "w+") as f:
         f.write(doc)
+
+
+def combine_gt_solutions(solution_dir, output_file):
+    files = get_solutions(solution_dir, ".gt")
+    positions = []
+    orientations = []
+    edges = []
+    n_edges = []
+    N = []
+    index_map = {-1: -1}
+
+    g1_tmp = graphs.g1_graph.G1(0)
+
+    for f in files:
+        g1_tmp.load(f)
+        #if g1_tmp.get_number_of_vertices() == 0:
+        #    continue
+        edges.append(g1_tmp.get_edge_array())
+        #edges[-1] += sum(N)
+
  
+        index_map.update({v: j + sum(N) for j, v in enumerate(g1_tmp.get_vertex_iterator())})
+
+        N.append(g1_tmp.get_number_of_vertices())
+        positions.append(g1_tmp.get_position_array().T)
+        orientations.append(g1_tmp.get_orientation_array().T)
+               
+    N_comb = sum(N)
+    positions = np.vstack(positions)
+    orientations = np.vstack(orientations)
+    edges = np.delete(np.vstack(edges), 2, 1)
+
+    
+    g1_comb = graphs.g1_graph.G1(N_comb)
+    for v in range(N_comb):
+        g1_comb.set_position(v, positions[v])
+        g1_comb.set_orientation(v, orientations[v])
+
+    index_map = np.vectorize(index_map.get)
+    edges = index_map(edges)
+
+    g1_comb.add_edge_list(edges)
+    g1_comb.save(output_file)
+    return g1_comb
+
+def combine_lines():
+    rec_lines_dir = "/media/nilsec/d0/gt_mt_data/experiments/selection_cost_grid0404_solve_4/lines" 
+    rec_combined = rec_lines_dir + "/combined.nml"
+    trace_lines_dir = "/media/nilsec/d0/gt_mt_data/test_tracing/lines_v17_cropped"
+    trace_combined = trace_lines_dir + "/combined.nml"
+
+    combine_knossos_solutions(rec_lines_dir, rec_combined, "kfy")
+    combine_knossos_solutions(trace_lines_dir, trace_combined, "kfy")
+
 
 if __name__ == "__main__":
+    sol_sc_4 = "/media/nilsec/d0/gt_mt_data/experiments/selection_cost_grid0404_solve_4/solution"
+    combine_knossos_solutions(sol_sc_4, "./sol_sc_4.nml")
+    
+    #combine_lines()
+    """
     sol_89 = "/media/nilsec/d0/gt_mt_data/experiments/validation_solve_dt89" 
-    combine_knossos_solutions(sol_89, "./val_89.nml")
+    
+    for j in range(0, 10):
+        sol_89 = "/media/nilsec/d0/gt_mt_data/experiments/"\
+                 "selection_cost_grid0404_solve_{}/solution".format(j)
+        combine_knossos_solutions(sol_89, "./solutions/sc_grid0404_{}.nml".format(j))
+    """
