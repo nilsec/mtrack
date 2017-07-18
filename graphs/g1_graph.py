@@ -29,6 +29,9 @@ class G1(G):
         
     def add_edge(self, u, v):
         G.add_edge(self, u, v)
+
+    def add_edge_list(self, edges, hashed=False):
+        self.g.add_edge_list(edges, hashed)
         
     def set_orientation(self, u, value):
         assert(type(value) == np.ndarray)
@@ -67,6 +70,10 @@ class G1(G):
     def get_partner(self, u):
         partner = G.get_vertex_property(self, "partner")
         return partner[u]
+
+    def get_partner_array(self):
+        partner = G.get_vertex_property(self, "partner")
+        return partner.get_array()
 
     def get_edge_id(self, e, edge_index_map):
         """
@@ -233,7 +240,7 @@ class G1(G):
         return edge_combination_cost
  
 
-    def get_components(self, min_vertices, output_folder, voxel_size):
+    def get_components(self, min_vertices, output_folder):
         print "Find connected components...\n"
         component_masks, hist = G.get_component_masks(self, min_vertices)
 
@@ -242,6 +249,8 @@ class G1(G):
     
         plt.bar(range(len(hist)), hist)
         plt.savefig(output_folder + "cc_hist.png")
+        plt.clf()
+        plt.cla()
  
         print "Filter Graphs..."
         cc_list = []
