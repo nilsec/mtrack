@@ -5,6 +5,7 @@ from graphs.graph import G
 import evaluation
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
+import pdb
 
 class GtVolume(object):
     def __init__(self):
@@ -77,7 +78,8 @@ class RecChain(graphs.graph.G):
         self.layers += 1
 
     def draw(self, show_edge_weights=True, show_ids=True):
-        color_wheel = cm.rainbow(np.linspace(0, 1, len(self.ids)))
+        pdb.set_trace()
+        color_wheel = cm.rainbow(np.linspace(0, 1, max(self.ids)+1))
         vertex_pos = {}
 
         plt.figure()
@@ -105,6 +107,62 @@ class RecChain(graphs.graph.G):
                 plt.annotate(str(weight), (x,y))
     
         plt.show()
+
+def get_rec_chains(rec_line_list, 
+                   gt_line_list, 
+                   dimensions, 
+                   tolerance_radius,
+                   voxel_size,
+                   correction=np.array([0,0,0])):
+
+    gt_volume = get_gt_volume(gt_line_list,
+                              dimensions,
+                              tolerance_radius,
+                              voxel_size,
+                              correction)
+
+    rec_chains = []
+    for l in rec_line_list:
+        voxel_line = get_rec_line(l)
+        rec_chain = RecChain()
+
+        for voxel_pos in voxel_line:
+            voxel_ids = gt_volume.get_ids(tuple(voxel_pos))
+            rec_chain.add_voxel(voxel_ids)
+        
+        rec_chains.append(rec_chain)
+
+    return rec_chains
+        
+    
+
+
+def get_rec_line(rec_line, correction=np.array([0,0,0])):
+    if isinstance(rec_line, str):
+        g1 = graphs.g1_graph.G1(0)
+        g1.load(line)
+
+    elif isinstance(rec_line, graphs.g1_graph.G1):
+        g1 = rec_line
+
+    else:
+        raise TypeError("A line must be a path or a g1 graph.")
+ 
+    line_points = []
+        
+    for edge in g1.get_edge_iterator():
+        start = np.array(g1.get_position(edge.source()), dtype=int)
+        start -= correction
+        end = np.array(g1.get_position(edge.target()), dtype=int)
+        end -= correction
+
+        dda = evaluation.DDA3(start, end)
+        skeleton_edge = dda.draw()
+        skeleton_edge = [np.array([p[2], p[1], p[0]]) for p in skeleton_edge]
+        line_points.extend(skeleton_edge)
+        
+    return line_points
+ 
 
 def get_gt_volume(gt_lines, dimensions, tolerance_radius, voxel_size, correction=np.array([0,0,0])):
     gt_volume = GtVolume()
