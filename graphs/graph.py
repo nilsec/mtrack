@@ -15,6 +15,11 @@ class G:
         else:
             self.g = gt.Graph(G_in.g, prune=False, directed=False)
 
+    def get_shortest_path(self, source, target, weights):
+        vertex_list, edge_list = gt.shortest_path(self.g, source, target, weights)
+        return vertex_list, edge_list
+        
+
     def get_number_of_edges(self):
         return self.g.num_edges()
 
