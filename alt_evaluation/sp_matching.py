@@ -49,6 +49,13 @@ class RecChain(graphs.graph.G):
         self.structure = {}
         self.ids = set()
 
+        #Dummy Start Node
+        self.start_dummy = None
+        self.add_voxel([-1])
+        
+        #Dummy end node
+        self.end_dummy = None
+
     def add_voxel(self, ids):
         assert(len(ids)>0)
         [self.ids.add(id) for id in ids]
@@ -56,6 +63,12 @@ class RecChain(graphs.graph.G):
 
         for id in ids:
             v = G.add_vertex(self)
+            
+            if id == -1:
+                self.start_dummy = v
+            if id == -2:
+                self.end_dummy = v
+
             G.set_vertex_property(self, "id", v, id)
             G.set_vertex_property(self, "layer", v, self.layers)
                 
@@ -77,9 +90,12 @@ class RecChain(graphs.graph.G):
         self.previous_layer = current_layer
         self.layers += 1
 
-    def draw(self, show_edge_weights=True, show_ids=True):
-        pdb.set_trace()
-        color_wheel = cm.rainbow(np.linspace(0, 1, max(self.ids)+1))
+    def draw(self, show_edge_weights=True, 
+                   show_ids=True, 
+                   vertex_highlight=[], 
+                   edge_highlight=[]):
+
+        color_wheel = cm.rainbow(np.linspace(0, 1, max([max(self.ids), 1]) + 1))
         vertex_pos = {}
 
         plt.figure()
@@ -88,8 +104,14 @@ class RecChain(graphs.graph.G):
             y = self.layers - layer_id
 
             for x in xx:
-                vertex_id = G.get_vertex_property(self, "id")[layer_vertices[x]] 
-                plt.scatter(x, y, c=color_wheel[vertex_id - 1])
+                vertex_id = G.get_vertex_property(self, "id")[layer_vertices[x]]
+
+                if layer_vertices[x] in vertex_highlight:
+                    marker = "D"
+                else:
+                    marker = "o"
+
+                plt.scatter(x, y, c=color_wheel[vertex_id - 1], marker=marker)
                 vertex_pos[layer_vertices[x]] = (x,y)
                 if show_ids:
                     plt.annotate(str(vertex_id), (x,y))
@@ -98,7 +120,13 @@ class RecChain(graphs.graph.G):
             start = vertex_pos[edge.source()]
             end = vertex_pos[edge.target()]
             line = zip(start, end)
-            plt.plot(line[0], line[1], c='black', linestyle="--", linewidth=1)
+            if edge in edge_highlight:
+                linestyle = "-"
+                linewidth = 2
+            else:
+                linestyle = "--"
+                linewidth = 1
+            plt.plot(line[0], line[1], c='black', linestyle=linestyle, linewidth=linewidth)
             
             if show_edge_weights:
                 weight = G.get_edge_property(self, "weight", edge.source(), edge.target())
@@ -107,6 +135,22 @@ class RecChain(graphs.graph.G):
                 plt.annotate(str(weight), (x,y))
     
         plt.show()
+
+    def get_shortest_path(self, plot=False):
+        if self.end_dummy is None:
+            self.add_voxel([-2])
+            
+        vertex_list, edge_list = G.get_shortest_path(self, 
+                                                     self.start_dummy, 
+                                                     self.end_dummy,
+                                                     G.get_edge_property(self, "weight"))
+
+        if plot:
+            self.draw(vertex_highlight=vertex_list,
+                      edge_highlight=edge_list)
+
+    
+        
 
 def get_rec_chains(rec_line_list, 
                    gt_line_list, 
