@@ -1,7 +1,10 @@
 import numpy as np
 from scipy.ndimage.morphology import distance_transform_edt
 import graphs
+from graphs.graph import G
 import evaluation
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import cm
 
 class GtVolume(object):
     def __init__(self):
@@ -32,7 +35,76 @@ class GtVolume(object):
                 canvas[point[0], point[1], point[2]] = 1
 
         return canvas
+
+class RecChain(graphs.graph.G):
+    def __init__(self):
+        G.__init__(self, 0, None)
+        G.new_edge_property(self, "weight", dtype="short")
+        G.new_vertex_property(self, "id", dtype="int")
+        G.new_vertex_property(self, "layer", dtype="long")
+        
+        self.layers = 0
+        self.previous_layer = []
+        self.structure = {}
+        self.ids = set()
+
+    def add_voxel(self, ids):
+        assert(len(ids)>0)
+        [self.ids.add(id) for id in ids]
+        current_layer = []
+
+        for id in ids:
+            v = G.add_vertex(self)
+            G.set_vertex_property(self, "id", v, id)
+            G.set_vertex_property(self, "layer", v, self.layers)
                 
+            if self.previous_layer:
+                # Connect to all nodes of previous layer
+                for u in self.previous_layer:
+                    e = G.add_edge(self, v, u)
+                    
+                    # Add edge weight
+                    id_u = G.get_vertex_property(self, "id")[u]
+                    if id_u == id:
+                        G.set_edge_property(self, "weight", e.source(), e.target(), 0)
+                    else:
+                        G.set_edge_property(self, "weight", e.source(), e.target(), 1)
+
+            current_layer.append(v)
+                
+        self.structure[self.layers] = current_layer
+        self.previous_layer = current_layer
+        self.layers += 1
+
+    def draw(self, show_edge_weights=True, show_ids=True):
+        color_wheel = cm.rainbow(np.linspace(0, 1, len(self.ids)))
+        vertex_pos = {}
+
+        plt.figure()
+        for layer_id, layer_vertices in self.structure.iteritems():
+            xx = range(len(layer_vertices))
+            y = self.layers - layer_id
+
+            for x in xx:
+                vertex_id = G.get_vertex_property(self, "id")[layer_vertices[x]] 
+                plt.scatter(x, y, c=color_wheel[vertex_id - 1])
+                vertex_pos[layer_vertices[x]] = (x,y)
+                if show_ids:
+                    plt.annotate(str(vertex_id), (x,y))
+
+        for edge in G.get_edge_iterator(self):
+            start = vertex_pos[edge.source()]
+            end = vertex_pos[edge.target()]
+            line = zip(start, end)
+            plt.plot(line[0], line[1], c='black', linestyle="--", linewidth=1)
+            
+            if show_edge_weights:
+                weight = G.get_edge_property(self, "weight", edge.source(), edge.target())
+                x = (start[0] + end[0])/2.0
+                y = (start[1] + end[1])/2.0
+                plt.annotate(str(weight), (x,y))
+    
+        plt.show()
 
 def get_gt_volume(gt_lines, dimensions, tolerance_radius, voxel_size, correction=np.array([0,0,0])):
     gt_volume = GtVolume()
@@ -73,7 +145,6 @@ def get_gt_volume(gt_lines, dimensions, tolerance_radius, voxel_size, correction
         label += 1 
 
     return gt_volume
-
 
 def enlarge_binary_map(binary_map, marker_size_voxel=1, voxel_size=None, marker_size_physical=None):
     """
