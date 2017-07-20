@@ -55,8 +55,8 @@ class GetRecChainsTestCase(SimpleLines):
                                                 voxel_size=[5.,5.,50.])
 
         for chain in rec_chains:
-            chain.draw()
-        
+            chain.get_shortest_path(plot=True)
+
 
         
 
