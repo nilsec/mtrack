@@ -71,7 +71,7 @@ def lines_to_nml(line_list_gt,
                                     knossify=True)
 
 def get_volume(line_list, dimensions, correction=np.array([0,0,0])):
-    canvas = np.empty([dimensions[2], dimensions[1], dimensions[0]])
+    canvas = np.zeros([dimensions[2], dimensions[1], dimensions[0]])
     
     print "Interpolate Nodes..."
     label = 1
