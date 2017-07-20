@@ -26,7 +26,20 @@ class SimpleLines(unittest.TestCase):
 class GtVolumeTestCase(SimpleLines):
     def runTest(self):
         volume = sp_matching.get_gt_volume(self.line_list, [9, 9, 12], tolerance_radius=10.0, voxel_size = [5.,5.,50.])
-        print volume.get_binary_volume(2, [9, 9, 12])
+        volume_drawn = volume.get_binary_volume(2, [9, 9, 12])
+        #print volume_drawn
+
+class RecChainTestCase(unittest.TestCase):
+    def runTest(self):
+        rec_chain = sp_matching.RecChain() 
+        rec_chain.add_voxel([1])
+        rec_chain.add_voxel([1,2,3])
+        rec_chain.add_voxel([1,2])
+        rec_chain.add_voxel([1,2])
+        rec_chain.add_voxel([3,4,2])
+
+        rec_chain.draw()
+
         
 
 if __name__ == "__main__":
