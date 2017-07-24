@@ -6,6 +6,7 @@ import evaluation
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 import pdb
+import itertools
 
 class GtVolume(object):
     def __init__(self):
@@ -55,6 +56,12 @@ class RecChain(graphs.graph.G):
         
         #Dummy end node
         self.end_dummy = None
+
+        #Shortest Path ID List
+        self.sp_ids = []
+
+    def get_id(self, u):
+        return G.get_vertex_property(self, "id")[u]
 
     def add_voxel(self, ids):
         assert(len(ids)>0)
@@ -136,6 +143,9 @@ class RecChain(graphs.graph.G):
     
         plt.show()
 
+    def get_sp_ids(self):
+        return self.sp_ids
+
     def get_shortest_path(self, plot=False):
         if self.end_dummy is None:
             self.add_voxel([-2])
@@ -145,13 +155,103 @@ class RecChain(graphs.graph.G):
                                                      self.end_dummy,
                                                      G.get_edge_property(self, "weight"))
 
+        for v in vertex_list:
+            self.sp_ids.append(self.get_id(v))
+
         if plot:
             self.draw(vertex_highlight=vertex_list,
                       edge_highlight=edge_list)
 
-    
-        
+        return vertex_list, edge_list
 
+class ErrorGraph(graphs.graph.G):
+    def __init__(self, rec_chain_list):
+        self.rec_chain_list = rec_chain_list
+        self.min_id_sets = []
+ 
+        G.__init__(self, 0, None)
+        G.new_vertex_property(self, "id", dtype="int")
+
+        self.rec_layer = []
+        self.gt_layer = []
+        
+    def get_min_id_groups(self, id_chain, min_length):
+        min_id_groups = []
+        
+        for id, group in itertools.groupby(id_chain):
+            if len(list(group)) >= min_length:
+                if id != (-1) and id != (-2):
+                    min_id_groups.append(id)
+
+        return min_id_groups
+        
+    def get_sp_matching(self, min_id_path=1):
+        N_rec = 0
+
+        rec_gt = {}
+        for chain in self.rec_chain_list:
+            chain.get_shortest_path()
+            id_chain = chain.get_sp_ids()
+            assert(bool(id_chain)) # No empty chains
+
+            min_id_chain = self.get_min_id_groups(id_chain, min_length=min_id_path)
+            self.min_id_sets.append(set(min_id_chain))
+
+            rec_node = G.add_vertex(self)
+            G.set_vertex_property(self, "id", rec_node, N_rec)
+            self.rec_layer.append(rec_node)
+            rec_gt[rec_node] = tuple(set(min_id_chain))
+            
+            N_rec += 1
+            
+
+        gt_ids = set()
+        for ids in self.min_id_sets:
+            gt_ids.update(ids)
+
+        for id in gt_ids:
+            gt_node = G.add_vertex(self)
+            G.set_vertex_property(self, "id", gt_node, id)
+            self.gt_layer.append(gt_node)
+
+        for rec_node, gt_ids in rec_gt.iteritems():
+            for gt_node in self.gt_layer:
+                if G.get_vertex_property(self, "id")[gt_node] in gt_ids:
+                    G.add_edge(self, rec_node, gt_node)
+
+
+
+    def draw(self):
+        plt.figure()
+        
+        x = 0
+        y_rec = 1
+        vertex_pos = {}
+        for rec_node in self.rec_layer:
+            plt.scatter(x, y_rec)
+            vertex_pos[rec_node] = (x, y_rec)
+            vertex_id = G.get_vertex_property(self, "id")[rec_node]
+            plt.annotate(str(vertex_id), (x, y_rec))
+            x += 1
+
+        x = 0
+        y_gt = 4
+        for gt_node in self.gt_layer:
+            plt.scatter(x, y_gt)
+            vertex_pos[gt_node] = (x, y_gt)
+            vertex_id = G.get_vertex_property(self, "id")[gt_node]
+            plt.annotate(str(vertex_id), (x,y_gt))
+            x += 1
+
+        for edge in G.get_edge_iterator(self):
+            start = vertex_pos[edge.source()]
+            end = vertex_pos[edge.target()]
+            line = zip(start, end)
+            plt.plot(line[0], line[1], c='black')
+
+        plt.show()
+ 
+        
 def get_rec_chains(rec_line_list, 
                    gt_line_list, 
                    dimensions, 
@@ -178,8 +278,6 @@ def get_rec_chains(rec_line_list,
 
     return rec_chains
         
-    
-
 
 def get_rec_line(rec_line, correction=np.array([0,0,0])):
     if isinstance(rec_line, str):
