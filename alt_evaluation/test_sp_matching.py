@@ -48,7 +48,7 @@ class RecChainTestCase(unittest.TestCase):
 
 class GetRecChainsTestCase(SimpleLines):
     def runTest(self):
-        rec_chains = sp_matching.get_rec_chains([self.line_list[0], self.line_list[1]],
+        rec_chains, gt_volume = sp_matching.get_rec_chains([self.line_list[0], self.line_list[1]],
                                                 [self.line_list[2], self.line_list[3]],
                                                 dimensions=[9,9,12],
                                                 tolerance_radius=30.0,
@@ -94,30 +94,142 @@ class MergeTestCase(unittest.TestCase):
 
         self.gt_lines = [gt_line_1, gt_line_2]
         self.rec_lines = [rec_line_1]
+
+        self.report = {"fp": 0, "fn": 0, "mergers": 1, "splits": 0}
            
+class SplitTestCase(unittest.TestCase):
+    def setUp(self):
+        N = 10
+        gt_line_1 = graphs.g1_graph.G1(N)
+
+        rec_line_1 = graphs.g1_graph.G1(N/2)
+        rec_line_2 = graphs.g1_graph.G1(N/2)
+
+        #Make line:
+        for v in range(N - 1):
+            gt_line_1.add_edge(v, v+1)
+
+        for v in range(N/2 - 1):
+            rec_line_1.add_edge(v, v+1)
+            rec_line_2.add_edge(v, v+1)
+
+        z = 2.0
+        for v in gt_line_1.get_vertex_iterator():
+            gt_line_1.set_position(v, np.array([3.0, 3.0, z]))
+            z += 1
+
+        z = 2.0
+        for v in rec_line_1.get_vertex_iterator():
+            rec_line_1.set_position(v, np.array([4.0, 4.0, z]))
+            rec_line_2.set_position(v, np.array([2.0, 2.0, z + 5]))
+            z += 1
+
+        self.gt_lines = [gt_line_1]
+        self.rec_lines = [rec_line_1, rec_line_2]
+
+        self.report = {"fp": 0, "fn": 0, "mergers": 0, "splits": 1}
  
 
-class ErrorGraphTestCase(MergeTestCase):
+
+class FnTestCase(unittest.TestCase):
+    def setUp(self):
+        N = 10
+        gt_line_1 = graphs.g1_graph.G1(N)
+        gt_line_2 = graphs.g1_graph.G1(N)
+
+        rec_line_1 = graphs.g1_graph.G1(N/2)
+        rec_line_2 = graphs.g1_graph.G1(N/2)
+
+        #Make line:
+        for v in range(N - 1):
+            gt_line_1.add_edge(v, v+1)
+            gt_line_2.add_edge(v, v+1)
+
+        for v in range(N/2 - 1):
+            rec_line_1.add_edge(v, v+1)
+            rec_line_2.add_edge(v, v+1)
+
+        z = 2.0
+        for v in gt_line_1.get_vertex_iterator():
+            gt_line_1.set_position(v, np.array([3.0, 3.0, z]))
+            gt_line_2.set_position(v, np.array([9.0, 9.0, z]))
+            z += 1
+
+        z = 2.0
+        for v in rec_line_1.get_vertex_iterator():
+            rec_line_1.set_position(v, np.array([4.0, 4.0, z]))
+            rec_line_2.set_position(v, np.array([2.0, 2.0, z + 5]))
+            z += 1
+
+        self.gt_lines = [gt_line_1, gt_line_2]
+        self.rec_lines = [rec_line_1, rec_line_2]
+
+        self.report = {"fp": 0, "fn": 0, "mergers": 1, "splits": 1}
+
+class FpTestCase(unittest.TestCase):
+    def setUp(self):
+        N = 10
+        gt_line_1 = graphs.g1_graph.G1(N)
+
+        rec_line_1 = graphs.g1_graph.G1(N/2)
+
+        rec_line_2 = graphs.g1_graph.G1(N)
+
+        #Make line:
+        for v in range(N - 1):
+            gt_line_1.add_edge(v, v+1)
+            rec_line_2.add_edge(v, v+1)
+
+        for v in range(N/2 - 1):
+            rec_line_1.add_edge(v, v+1)
+
+        z = 2.0
+        for v in gt_line_1.get_vertex_iterator():
+            gt_line_1.set_position(v, np.array([3.0, 3.0, z]))
+            rec_line_2.set_position(v, np.array([9.0, 9.0, z]))
+            z += 1
+
+        z = 2.0
+        for v in rec_line_1.get_vertex_iterator():
+            rec_line_1.set_position(v, np.array([4.0, 4.0, z]))
+            z += 1
+
+        self.gt_lines = [gt_line_1]
+        self.rec_lines = [rec_line_1, rec_line_2]
+
+        self.report = {"fp": 1, "fn": 0, "mergers": 0, "splits": 0}
+
+
+class ErrorGraphTestCase(FpTestCase):
     def runTest(self):
-        rec_chains = sp_matching.get_rec_chains(self.rec_lines,
+        rec_chains, gt_volume = sp_matching.get_rec_chains(self.rec_lines,
                                                 self.gt_lines,
                                                 dimensions=[12, 12, 12],
-                                                tolerance_radius=30.0,
+                                                tolerance_radius=20.0,
                                                 voxel_size=[5.,5.,50.])
 
         for chain in rec_chains:
             chain.get_shortest_path(plot=True)
 
-        error_graph = sp_matching.ErrorGraph(rec_chains)
+        error_graph = sp_matching.ErrorGraph(rec_chains, gt_volume)
         error_graph.get_sp_matching(3)
         error_graph.draw()
+        self.assertEqual(error_graph.get_report(), self.report)
+
+class ShortestPathEvalTestCase(unittest.TestCase):
+    def runTest(self):
+        gt_line_dir = "/media/nilsec/d0/gt_mt_data/test_tracing/lines_v17_cropped"
+        rec_line_dir = "/media/nilsec/d0/gt_mt_data/experiments/selection_cost_grid0404_solve_4/lines"
+        dimensions = [1025, 1025, 101]
+        tolerance = 50
+
+        print sp_matching.shortest_path_eval(gt_line_dir,
+                                       rec_line_dir,
+                                       dimensions,
+                                       [0,0,300],
+                                       tolerance,
+                                       [5.,5.,50.],
+                                       3)
  
-
-
-        
-
 if __name__ == "__main__":
     unittest.main()
-        
-        
-        
