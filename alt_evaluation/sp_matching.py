@@ -7,12 +7,48 @@ import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 import pdb
 import itertools
+import os
+
+def shortest_path_eval(gt_line_dir,
+                       rec_line_dir,
+                       dimensions,
+                       correction,
+                       tolerance_radius,
+                       voxel_size,
+                       min_path_length,
+                       plot_sp=False,
+                       plot_error_graph=True):
+
+    gt_lines = [os.path.join(gt_line_dir, f) for f in os.listdir(gt_line_dir) if f.endswith(".gt")]
+    rec_lines = [os.path.join(rec_line_dir, f) for f in os.listdir(rec_line_dir) if f.endswith(".gt")]
+    
+    rec_chains, gt_volume = get_rec_chains(rec_lines,
+                                           gt_lines,
+                                           dimensions,
+                                           tolerance_radius,
+                                           voxel_size,
+                                           correction=correction)
+
+    if plot_sp:
+        for chain in rec_chains:
+            chain.get_shortest_path(True)
+
+    error_graph = ErrorGraph(rec_chains, gt_volume)
+    error_graph.get_sp_matching(min_path_length)
+    
+    if plot_error_graph:
+        error_graph.draw()
+    
+    return error_graph.get_report()
+
 
 class GtVolume(object):
     def __init__(self):
         self.id_dict = {}
+        self.ids = set()
 
     def add_volume(self, volume, id):
+        self.ids.add(id)
         non_zero = np.nonzero(volume)
         non_zero = np.vstack([p for p in non_zero]).T
 
@@ -102,7 +138,7 @@ class RecChain(graphs.graph.G):
                    vertex_highlight=[], 
                    edge_highlight=[]):
 
-        color_wheel = cm.rainbow(np.linspace(0, 1, max([max(self.ids), 1]) + 1))
+        color_wheel = cm.rainbow(np.linspace(0, 1, max([max(self.ids), 4]) + 1))
         vertex_pos = {}
 
         plt.figure()
@@ -165,7 +201,8 @@ class RecChain(graphs.graph.G):
         return vertex_list, edge_list
 
 class ErrorGraph(graphs.graph.G):
-    def __init__(self, rec_chain_list):
+    def __init__(self, rec_chain_list, gt_volume):
+        self.gt_ids = gt_volume.ids
         self.rec_chain_list = rec_chain_list
         self.min_id_sets = []
  
@@ -204,12 +241,7 @@ class ErrorGraph(graphs.graph.G):
             
             N_rec += 1
             
-
-        gt_ids = set()
-        for ids in self.min_id_sets:
-            gt_ids.update(ids)
-
-        for id in gt_ids:
+        for id in self.gt_ids:
             gt_node = G.add_vertex(self)
             G.set_vertex_property(self, "id", gt_node, id)
             self.gt_layer.append(gt_node)
@@ -250,7 +282,48 @@ class ErrorGraph(graphs.graph.G):
             plt.plot(line[0], line[1], c='black')
 
         plt.show()
- 
+
+    def get_report(self, remove_background=True):
+        print "Get report..."
+        print "Remove background: ", str(remove_background)
+        rec_neighbours = {}
+        gt_neighbours = {}
+        false_positive = 0
+        false_negative = 0
+        mergers = 0
+        splits = 0
+
+        for rec_vertex in self.rec_layer:
+            matches = G.get_neighbour_nodes(self, rec_vertex)
+
+            if remove_background:
+                for match in matches:
+                    if G.get_vertex_property(self, "id")[match] == 0:
+                        matches.remove(match)
+            
+            n_matches = len(matches)
+
+            if n_matches == 0:
+                false_positive += 1
+                continue
+
+            mergers += (n_matches - 1)
+
+        for gt_vertex in self.gt_layer:
+            matches = G.get_neighbour_nodes(self, gt_vertex)
+            n_matches = len(matches)
+
+            if n_matches == 0:
+                false_negative += 1
+                continue
+        
+            splits += (n_matches - 1)
+
+        
+        return {"fp": false_positive, 
+                "fn": false_negative, 
+                "mergers": mergers, 
+                "splits": splits}
         
 def get_rec_chains(rec_line_list, 
                    gt_line_list, 
@@ -276,13 +349,13 @@ def get_rec_chains(rec_line_list,
         
         rec_chains.append(rec_chain)
 
-    return rec_chains
+    return rec_chains, gt_volume
         
 
 def get_rec_line(rec_line, correction=np.array([0,0,0])):
     if isinstance(rec_line, str):
         g1 = graphs.g1_graph.G1(0)
-        g1.load(line)
+        g1.load(rec_line)
 
     elif isinstance(rec_line, graphs.g1_graph.G1):
         g1 = rec_line
