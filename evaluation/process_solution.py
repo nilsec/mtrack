@@ -3,6 +3,7 @@ import preprocessing
 import graphs
 from dda3 import DDA3
 import numpy as np
+import os
 import pdb
 
 def get_solution_lines(solution_dir, output_dir, nml=False, scale=None):
@@ -70,12 +71,18 @@ def lines_to_nml(line_list_gt,
             preprocessing.g1_to_nml(g1, line.replace(".gt", "_kfy.nml"), 
                                     knossify=True)
 
+def get_line_list(directory):
+    lines = os.listdir(directory)
+    lines = [os.path.join(directory, f) for f in lines if f.endswith(".gt")]
+    return lines 
+
 def get_volume(line_list, dimensions, correction=np.array([0,0,0])):
     canvas = np.zeros([dimensions[2], dimensions[1], dimensions[0]])
     
     print "Interpolate Nodes..."
     label = 1
     for line in line_list:
+        print label, "/", len(line_list)
         g1 = graphs.g1_graph.G1(0)
         g1.load(line)
         
