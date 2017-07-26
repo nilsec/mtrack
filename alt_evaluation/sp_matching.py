@@ -46,8 +46,10 @@ class GtVolume(object):
     def __init__(self):
         self.id_dict = {}
         self.ids = set()
+        self.id_to_file = {}
 
-    def add_volume(self, volume, id):
+    def add_volume(self, volume, id, file_name):
+        self.id_to_file[id] = file_name
         self.ids.add(id)
         non_zero = np.nonzero(volume)
         non_zero = np.vstack([p for p in non_zero]).T
@@ -75,11 +77,15 @@ class GtVolume(object):
         return canvas
 
 class RecChain(graphs.graph.G):
-    def __init__(self):
+    def __init__(self, line_id, file_name):
         G.__init__(self, 0, None)
         G.new_edge_property(self, "weight", dtype="short")
         G.new_vertex_property(self, "id", dtype="int")
         G.new_vertex_property(self, "layer", dtype="long")
+    
+        #Props:
+        self.line_id = line_id
+        self.file = file_name
         
         self.layers = 0
         self.previous_layer = []
@@ -202,6 +208,9 @@ class RecChain(graphs.graph.G):
 
 class ErrorGraph(graphs.graph.G):
     def __init__(self, rec_chain_list, gt_volume):
+        self.rec_chain_list = rec_chain_list
+        self.gt_volume = gt_volume
+
         self.gt_ids = gt_volume.ids
         self.rec_chain_list = rec_chain_list
         self.min_id_sets = []
@@ -339,15 +348,17 @@ def get_rec_chains(rec_line_list,
                               correction)
 
     rec_chains = []
+    line_id = 1
     for l in rec_line_list:
         voxel_line = get_rec_line(l)
-        rec_chain = RecChain()
+        rec_chain = RecChain(line_id, file_name=l)
 
         for voxel_pos in voxel_line:
             voxel_ids = gt_volume.get_ids(tuple(voxel_pos))
             rec_chain.add_voxel(voxel_ids)
         
         rec_chains.append(rec_chain)
+        line_id += 1
 
     return rec_chains, gt_volume
         
