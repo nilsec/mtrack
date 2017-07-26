@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 import graphs
 import sp_matching
+import cProfile, pstats, StringIO
 
 class SimpleLines(unittest.TestCase):
     def setUp(self):
@@ -218,10 +219,15 @@ class ErrorGraphTestCase(FpTestCase):
 
 class ShortestPathEvalTestCase(unittest.TestCase):
     def runTest(self):
+        output_dir = "./sp_matching_benchmark"
+
         gt_line_dir = "/media/nilsec/d0/gt_mt_data/test_tracing/lines_v17_cropped"
         rec_line_dir = "/media/nilsec/d0/gt_mt_data/experiments/selection_cost_grid0404_solve_4/lines"
         dimensions = [1025, 1025, 101]
         tolerance = 50
+
+        pr = cProfile.Profile()
+        pr.enable()
 
         print sp_matching.shortest_path_eval(gt_line_dir,
                                        rec_line_dir,
@@ -230,6 +236,16 @@ class ShortestPathEvalTestCase(unittest.TestCase):
                                        tolerance,
                                        [5.,5.,50.],
                                        3)
+
+        pr.disable()
+        s = StringIO.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        ps.dump_stats(os.path.join(output_dir, "tol_50.prof"))
+ 
  
 if __name__ == "__main__":
     unittest.main()
