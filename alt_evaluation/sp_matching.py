@@ -399,6 +399,7 @@ def get_gt_volume(gt_lines, dimensions, tolerance_radius, voxel_size, correction
         canvas = np.zeros([dimensions[2], dimensions[1], dimensions[0]])
 
         if isinstance(line, str):
+            print line
             g1 = graphs.g1_graph.G1(0)
             g1.load(line)
 
@@ -425,7 +426,7 @@ def get_gt_volume(gt_lines, dimensions, tolerance_radius, voxel_size, correction
                                          voxel_size=np.array([voxel_size[2], voxel_size[1], voxel_size[0]]),
                                          marker_size_physical=tolerance_radius)
 
-        gt_volume.add_volume(line_volume, label)
+        gt_volume.add_volume(line_volume, label, line)
         label += 1 
 
     return gt_volume
