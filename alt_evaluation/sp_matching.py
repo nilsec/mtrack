@@ -8,6 +8,9 @@ from matplotlib.pyplot import cm
 import pdb
 import itertools
 import os
+from joblib import Parallel, delayed
+import multiprocessing
+import pickle
 
 def shortest_path_eval(gt_line_dir,
                        rec_line_dir,
@@ -17,7 +20,9 @@ def shortest_path_eval(gt_line_dir,
                        voxel_size,
                        min_path_length,
                        plot_sp=False,
-                       plot_error_graph=True):
+                       plot_error_graph=True,
+                       save_distance_transform=None,
+                       load_distance_transform=None):
 
     gt_lines = [os.path.join(gt_line_dir, f) for f in os.listdir(gt_line_dir) if f.endswith(".gt")]
     rec_lines = [os.path.join(rec_line_dir, f) for f in os.listdir(rec_line_dir) if f.endswith(".gt")]
@@ -27,7 +32,9 @@ def shortest_path_eval(gt_line_dir,
                                            dimensions,
                                            tolerance_radius,
                                            voxel_size,
-                                           correction=correction)
+                                           correction=correction,
+                                           load_distance_transform=load_distance_transform,
+                                           save_distance_transform=save_distance_transform)
 
     if plot_sp:
         for chain in rec_chains:
@@ -339,13 +346,18 @@ def get_rec_chains(rec_line_list,
                    dimensions, 
                    tolerance_radius,
                    voxel_size,
-                   correction=np.array([0,0,0])):
+                   correction=np.array([0,0,0]),
+                   load_distance_transform=None,
+                   save_distance_transform=None):
 
     gt_volume = get_gt_volume(gt_line_list,
                               dimensions,
                               tolerance_radius,
                               voxel_size,
-                              correction)
+                              correction,
+                              load_distance_transform,
+                              save_distance_transform)
+
 
     rec_chains = []
     line_id = 1
@@ -354,6 +366,7 @@ def get_rec_chains(rec_line_list,
         rec_chain = RecChain(line_id, file_name=l)
 
         for voxel_pos in voxel_line:
+            voxel_pos = np.array(voxel_pos) - np.array(correction)
             voxel_ids = gt_volume.get_ids(tuple(voxel_pos))
             rec_chain.add_voxel(voxel_ids)
         
@@ -390,12 +403,20 @@ def get_rec_line(rec_line, correction=np.array([0,0,0])):
     return line_points
  
 
-def get_gt_volume(gt_lines, dimensions, tolerance_radius, voxel_size, correction=np.array([0,0,0])):
+def get_gt_volume(gt_lines, 
+                  dimensions, 
+                  tolerance_radius, 
+                  voxel_size, 
+                  correction=np.array([0,0,0]),
+                  load_distance_transform=None,
+                  save_distance_transform=None):
+
     gt_volume = GtVolume()
 
     print "Interpolate Nodes..."
     label = 1
     for line in gt_lines:
+        print "Process line ", label, "/", len(gt_lines)
         canvas = np.zeros([dimensions[2], dimensions[1], dimensions[0]])
 
         if isinstance(line, str):
@@ -422,16 +443,32 @@ def get_gt_volume(gt_lines, dimensions, tolerance_radius, voxel_size, correction
             for point in skeleton_edge:
                 canvas[point[2], point[1], point[0]] = 1
 
+        if load_distance_transform is not None:
+            load_distance_transform = load_distance_transform.format(label)
+        
+        if save_distance_transform is not None:
+            save_distance_transform = save_distance_transform.format(label)
+            if not os.path.exists(os.path.dirname(save_distance_transform)):
+                os.makedirs(os.path.dirname(save_distance_transform))
+
         line_volume = enlarge_binary_map(binary_map=canvas, 
                                          voxel_size=np.array([voxel_size[2], voxel_size[1], voxel_size[0]]),
-                                         marker_size_physical=tolerance_radius)
+                                         marker_size_physical=tolerance_radius,
+                                         load_distance_transform=load_distance_transform,
+                                         save_distance_transform=save_distance_transform)
 
         gt_volume.add_volume(line_volume, label, line)
         label += 1 
 
     return gt_volume
 
-def enlarge_binary_map(binary_map, marker_size_voxel=1, voxel_size=None, marker_size_physical=None):
+
+def enlarge_binary_map(binary_map, 
+                       marker_size_voxel=1, 
+                       voxel_size=None, 
+                       marker_size_physical=None, 
+                       load_distance_transform=None,
+                       save_distance_transform=None):
     """
     Enlarge existing regions in a binary map.
     Parameters
@@ -462,8 +499,15 @@ def enlarge_binary_map(binary_map, marker_size_voxel=1, voxel_size=None, marker_
         marker_size = marker_size_voxel
     else:
         marker_size = marker_size_physical
-    binary_map = np.logical_not(binary_map)
-    binary_map = distance_transform_edt(binary_map, sampling=voxel_size)
+
+    if load_distance_transform is None:
+        binary_map = np.logical_not(binary_map)
+        binary_map = distance_transform_edt(binary_map, sampling=voxel_size)
+        if save_distance_transform is not None:
+            pickle.dump(binary_map, open(save_distance_transform, "w+"))
+    else:
+        binary_map = pickle.load(load_distance_transform)
+
     binary_map = binary_map <= marker_size
     binary_map = binary_map.astype(np.uint8)
     return binary_map
