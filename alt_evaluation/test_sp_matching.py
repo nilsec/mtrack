@@ -2,7 +2,9 @@ import unittest
 import numpy as np
 import graphs
 import sp_matching
+import os
 import cProfile, pstats, StringIO
+import evaluation
 
 class SimpleLines(unittest.TestCase):
     def setUp(self):
@@ -38,7 +40,7 @@ class GtVolumeTestCase(SimpleLines):
 
 class RecChainTestCase(unittest.TestCase):
     def runTest(self):
-        rec_chain = sp_matching.RecChain() 
+        rec_chain = sp_matching.RecChain(1, "test_file") 
         rec_chain.add_voxel([1])
         rec_chain.add_voxel([1,2,3])
         rec_chain.add_voxel([1,2])
@@ -217,6 +219,7 @@ class ErrorGraphTestCase(FpTestCase):
         error_graph.draw()
         self.assertEqual(error_graph.get_report(), self.report)
 
+"""
 class ShortestPathEvalTestCase(unittest.TestCase):
     def runTest(self):
         output_dir = "./sp_matching_benchmark"
@@ -245,7 +248,43 @@ class ShortestPathEvalTestCase(unittest.TestCase):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         ps.dump_stats(os.path.join(output_dir, "tol_50.prof"))
- 
+"""
+
+class ShortestPathEvalSmallTestCase(unittest.TestCase):
+    def runTest(self):
+        output_dir = "/media/nilsec/d0/gt_mt_data/experiments/sp_test/benchmark"
+        rec_file_small = "/media/nilsec/d0/gt_mt_data/experiments/sp_test/rec_small_v18.nml"
+        trace_file_small = "/media/nilsec/d0/gt_mt_data/experiments/sp_test/v18_cropped_small.nml"
+
+        rec_line_dir ="/media/nilsec/d0/gt_mt_data/experiments/sp_test/rec_small_lines" 
+        gt_line_dir ="/media/nilsec/d0/gt_mt_data/experiments/sp_test/trace_small_lines" 
+
+        evaluation.process_solution.get_tracing_lines(rec_file_small, rec_line_dir + "/")
+        evaluation.process_solution.get_tracing_lines(trace_file_small, gt_line_dir + "/")
+
+        dimensions = [1025, 1025, 21]
+        tolerance = 50
+
+        pr = cProfile.Profile()
+        pr.enable()
+
+        print sp_matching.shortest_path_eval(gt_line_dir,
+                                       rec_line_dir,
+                                       dimensions,
+                                       [0,0,300],
+                                       tolerance,
+                                       [5.,5.,50.],
+                                       1,
+                                       plot_sp=True)
+
+        pr.disable()
+        s = StringIO.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        ps.dump_stats(os.path.join(output_dir, "tol_50.prof"))
  
 if __name__ == "__main__":
     unittest.main()
