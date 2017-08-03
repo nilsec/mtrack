@@ -9,7 +9,6 @@ from scipy.ndimage.morphology import distance_transform_edt
 import pdb
 
 
-
 class ReebGraph(G):
     def __init__(self, gt_line_dir):
         #Init Graph Structure
@@ -63,29 +62,39 @@ class ReebGraph(G):
             print "Load Canvas Dict..."
             canvas_dict = pickle.load(open(load_canvas_dict, "r"))
 
-        z_graphs = [ZGraph(z) for z in range(dimensions[2])]
+        build_z_graphs(canvas_dict, dimensions)
 
-        for label_i, (canvas_i, line_i) in canvas_dict.iteritems():
-            print "label ", label_i, "/", len(canvas_dict.keys())
-            for label_j, (canvas_j, line_j) in canvas_dict.iteritems():
-                if label_j >= label_i
-                    canvas_ij = np.logical_and(canvas_i, canvas_j)
-                    nz_ij = np.nonzero(canvas_ij)
-                    nz_z = nz_ij[0]
-                    for z_graph in z_graphs:
-                    
-                        print "z ", z_graph.z, "/", len(z_graphs)
-                        if z_graph.z in nz_z:
-                            print label_i
-                            z_graph.add_z_vertex(label_i)
-                            z_graph.add_z_vertex(label_j)
-                            z_graph.add_z_edge(label_i, label_j)
+def build_z_graphs(canvas_dict, dimensions):
+    z_graphs = [ZGraph(z) for z in range(dimensions[2])]
+    match_volume = np.vstack([val[0] for val in canvas_dict.values()])
+    match_volume_ids = canvas_dict.keys()
 
-        print "Get cc's"
-        for g in z_graphs:
-            g.get_connected_components()
-                
-                
+    dict_length = len(canvas_dict)
+    for roll in range(dict_length):
+        print roll, "/", dict_length
+
+        match_canvas = np.roll(match_volume, roll, axis=0)
+        match_canvas_ids = np.roll(match_volume_ids, roll)
+        land = np.logical_and(match_canvas, match_volume)
+        nz_z = np.nonzero(land)[0]
+        
+        z_matches = nz_z % 2
+        id_matches = nz_z / 2
+
+        for n, z in enumerate(z_matches):
+            id_ = id_matches[n]
+            label_i = match_volume_ids[id_]
+            label_j = match_canvas_ids[id_]
+
+            z_graphs[z].add_z_vertex(label_i)
+            z_graphs[z].add_z_vertex(label_j)
+            z_graphs[z].add_z_edge(label_i, label_j)
+
+    
+    for z in z_graphs:
+        z.save("/media/nilsec/d0/gt_mt_data/experiments/z_graphs/z_{}".format(z.z))
+
+
 class ZGraph(G):
     def __init__(self, z):
         self.z = z
@@ -131,6 +140,16 @@ class ZGraph(G):
 
         print self.z, ccs
         return ccs
+
+    def save(self, path):
+        if not os.path.exists(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
+
+        pickle.dump(self.__dict__, open(path, "w+"))
+
+    def load(self, path):
+        me = pickle.load(open(path, "r"))
+        self.__dict__ = me
 
 
 def enlarge_binary_map(binary_map, 
