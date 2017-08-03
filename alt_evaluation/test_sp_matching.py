@@ -263,7 +263,7 @@ class ShortestPathEvalSmallTestCase(unittest.TestCase):
         evaluation.process_solution.get_tracing_lines(trace_file_small, gt_line_dir + "/")
 
         dimensions = [1025, 1025, 21]
-        tolerance = 50
+        tolerance = 100
 
         pr = cProfile.Profile()
         pr.enable()
@@ -274,8 +274,10 @@ class ShortestPathEvalSmallTestCase(unittest.TestCase):
                                        [0,0,300],
                                        tolerance,
                                        [5.,5.,50.],
-                                       1,
-                                       plot_sp=True)
+                                       0.3,
+                                       plot_sp=False,
+                                       save_gt_volume=output_dir + "/gt_volume_100.p",
+                                       report_output_dir=output_dir + "/report_100")
 
         pr.disable()
         s = StringIO.StringIO()
@@ -284,7 +286,7 @@ class ShortestPathEvalSmallTestCase(unittest.TestCase):
         
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        ps.dump_stats(os.path.join(output_dir, "tol_50.prof"))
+        ps.dump_stats(os.path.join(output_dir, "tol_100.prof"))
  
 if __name__ == "__main__":
     unittest.main()
