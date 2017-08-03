@@ -1,4 +1,5 @@
 import numpy as np
+import preprocessing
 from scipy.ndimage.morphology import distance_transform_edt
 import graphs
 from graphs.graph import G
@@ -10,7 +11,8 @@ import itertools
 import os
 from joblib import Parallel, delayed
 import multiprocessing
-import pickle
+import cPickle as pickle
+from shutil import copyfile
 
 def shortest_path_eval(gt_line_dir,
                        rec_line_dir,
@@ -22,7 +24,10 @@ def shortest_path_eval(gt_line_dir,
                        plot_sp=False,
                        plot_error_graph=True,
                        save_distance_transform=None,
-                       load_distance_transform=None):
+                       load_distance_transform=None,
+                       load_gt_volume=None,
+                       save_gt_volume=None,
+                       report_output_dir=None):
 
     gt_lines = [os.path.join(gt_line_dir, f) for f in os.listdir(gt_line_dir) if f.endswith(".gt")]
     rec_lines = [os.path.join(rec_line_dir, f) for f in os.listdir(rec_line_dir) if f.endswith(".gt")]
@@ -34,7 +39,9 @@ def shortest_path_eval(gt_line_dir,
                                            voxel_size,
                                            correction=correction,
                                            load_distance_transform=load_distance_transform,
-                                           save_distance_transform=save_distance_transform)
+                                           save_distance_transform=save_distance_transform,
+                                           load_gt_volume=load_gt_volume,
+                                           save_gt_volume=save_gt_volume)
 
     if plot_sp:
         for chain in rec_chains:
@@ -46,7 +53,7 @@ def shortest_path_eval(gt_line_dir,
     if plot_error_graph:
         error_graph.draw()
     
-    return error_graph.get_report()
+    return error_graph.get_report(output_dir=report_output_dir)
 
 
 class GtVolume(object):
@@ -230,7 +237,10 @@ class ErrorGraph(graphs.graph.G):
         
     def get_min_id_groups(self, id_chain, min_length):
         min_id_groups = []
-        
+        if min_length<1:
+            min_length = int(min_length * len(id_chain))
+                
+    
         for id, group in itertools.groupby(id_chain):
             if len(list(group)) >= min_length:
                 if id != (-1) and id != (-2):
@@ -251,7 +261,7 @@ class ErrorGraph(graphs.graph.G):
             self.min_id_sets.append(set(min_id_chain))
 
             rec_node = G.add_vertex(self)
-            G.set_vertex_property(self, "id", rec_node, N_rec)
+            G.set_vertex_property(self, "id", rec_node, chain.line_id)
             self.rec_layer.append(rec_node)
             rec_gt[rec_node] = tuple(set(min_id_chain))
             
@@ -299,7 +309,7 @@ class ErrorGraph(graphs.graph.G):
 
         plt.show()
 
-    def get_report(self, remove_background=True):
+    def get_report(self, remove_background=True, output_dir=None):
         print "Get report..."
         print "Remove background: ", str(remove_background)
         rec_neighbours = {}
@@ -308,6 +318,11 @@ class ErrorGraph(graphs.graph.G):
         false_negative = 0
         mergers = 0
         splits = 0
+
+        fp_ids = []
+        fn_ids = []
+        merger_dict = {}
+        split_dict = {}
 
         for rec_vertex in self.rec_layer:
             matches = G.get_neighbour_nodes(self, rec_vertex)
@@ -321,9 +336,15 @@ class ErrorGraph(graphs.graph.G):
 
             if n_matches == 0:
                 false_positive += 1
+                fp_ids.append(G.get_vertex_property(self, "id")[rec_vertex]) 
                 continue
 
-            mergers += (n_matches - 1)
+            new_mergers = n_matches - 1
+            mergers += new_mergers
+
+            if new_mergers:
+                merger_dict[G.get_vertex_property(self, "id")[rec_vertex]] =\
+                [G.get_vertex_property(self, "id")[v] for v in matches]
 
         for gt_vertex in self.gt_layer:
             matches = G.get_neighbour_nodes(self, gt_vertex)
@@ -331,11 +352,73 @@ class ErrorGraph(graphs.graph.G):
 
             if n_matches == 0:
                 false_negative += 1
+                fn_ids.append(G.get_vertex_property(self, "id")[gt_vertex])
                 continue
         
-            splits += (n_matches - 1)
+            new_splits = (n_matches - 1)
+            splits += new_splits
+            
+            if new_splits:
+                split_dict[G.get_vertex_property(self, "id")[gt_vertex]] =\
+                    [G.get_vertex_property(self, "id")[v] for v in matches]
 
-        
+        if output_dir is not None:
+            gt_id_to_file = self.gt_volume.id_to_file
+            rec_id_to_file = {rec.line_id: rec.file for rec in self.rec_chain_list}
+
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+            
+            fn_dir = os.path.join(output_dir, "false_negatives") 
+            fp_dir = os.path.join(output_dir, "false_positives") 
+            merge_dir = os.path.join(output_dir, "mergers")
+            split_dir = os.path.join(output_dir, "splits")
+            makedirs = [fn_dir, fp_dir, merge_dir, split_dir]
+            
+            for subdir in makedirs:
+                if not os.path.exists(subdir):
+                    os.makedirs(subdir)
+            
+            j = 1 
+            for fn_id in fn_ids:
+                copyfile(gt_id_to_file[fn_id], os.path.join(fn_dir, "fn_{}.gt".format(j)))
+                j += 1
+
+            j = 1
+            for fp_id in fp_ids:
+                copyfile(rec_id_to_file[fp_id], os.path.join(fp_dir, "fp_{}.gt".format(j)))
+                j += 1
+
+            j = 1
+            for merge_base, mergers_ in merger_dict.iteritems():
+                copyfile(rec_id_to_file[merge_base], 
+                         os.path.join(merge_dir, "{}_base.gt".format(j)))
+                
+                m = 1
+                for mergy in mergers_:
+                    copyfile(gt_id_to_file[mergy], 
+                             os.path.join(merge_dir, "{}_mergy_{}.gt".format(j,m)))
+                    m += 1
+                j += 1
+ 
+            j = 1
+            for split_base, spliters in split_dict.iteritems():
+                copyfile(gt_id_to_file[split_base],
+                         os.path.join(split_dir, "{}_base.gt".format(j)))
+
+                s = 1
+                for splity in spliters:
+                    copyfile(rec_id_to_file[splity],
+                             os.path.join(split_dir, "{}_splity_{}.gt".format(j,s)))
+                    s += 1
+                    
+                j += 1
+
+            for d in makedirs:
+                files = [os.path.join(d, f) for f in os.listdir(d) if f.endswith(".gt")]
+                for f in files:
+                    preprocessing.nml_io.g1_to_nml(f, f.replace(".gt", ".nml"), knossify=True)
+
         return {"fp": false_positive, 
                 "fn": false_negative, 
                 "mergers": mergers, 
@@ -348,16 +431,22 @@ def get_rec_chains(rec_line_list,
                    voxel_size,
                    correction=np.array([0,0,0]),
                    load_distance_transform=None,
-                   save_distance_transform=None):
+                   save_distance_transform=None,
+                   load_gt_volume=None,
+                   save_gt_volume=None):
 
-    gt_volume = get_gt_volume(gt_line_list,
+    if load_gt_volume is None:
+        gt_volume = get_gt_volume(gt_line_list,
                               dimensions,
                               tolerance_radius,
                               voxel_size,
                               correction,
                               load_distance_transform,
-                              save_distance_transform)
+                              save_distance_transform,
+                              save_gt_volume)
 
+    else:
+        gt_volume = pickle.load(open(load_gt_volume))
 
     rec_chains = []
     line_id = 1
@@ -366,7 +455,7 @@ def get_rec_chains(rec_line_list,
         rec_chain = RecChain(line_id, file_name=l)
 
         for voxel_pos in voxel_line:
-            voxel_pos = np.array(voxel_pos) - np.array(correction)
+            voxel_pos = np.array(voxel_pos) - np.array([correction[2], correction[1], correction[0]])
             voxel_ids = gt_volume.get_ids(tuple(voxel_pos))
             rec_chain.add_voxel(voxel_ids)
         
@@ -409,12 +498,14 @@ def get_gt_volume(gt_lines,
                   voxel_size, 
                   correction=np.array([0,0,0]),
                   load_distance_transform=None,
-                  save_distance_transform=None):
+                  save_distance_transform=None,
+                  save_gt_volume=None):
 
     gt_volume = GtVolume()
 
     print "Interpolate Nodes..."
     label = 1
+    canvas_dict = {}
     for line in gt_lines:
         print "Process line ", label, "/", len(gt_lines)
         canvas = np.zeros([dimensions[2], dimensions[1], dimensions[0]])
@@ -443,6 +534,10 @@ def get_gt_volume(gt_lines,
             for point in skeleton_edge:
                 canvas[point[2], point[1], point[0]] = 1
 
+        canvas_dict[label] = (canvas, line)
+        label += 1
+
+        """
         if load_distance_transform is not None:
             load_distance_transform = load_distance_transform.format(label)
         
@@ -459,8 +554,44 @@ def get_gt_volume(gt_lines,
 
         gt_volume.add_volume(line_volume, label, line)
         label += 1 
+        """
+    
+    num_cores = multiprocessing.cpu_count()
+    Parallel(n_jobs=num_cores, backend="threading")(delayed(wrapper)(label, canvas, gt_volume, load_distance_transform, save_distance_transform, voxel_size, tolerance_radius, line)\
+             for label, (canvas, line) in canvas_dict.iteritems())
+
+     
+    if save_gt_volume is not None:
+        pickle.dump(gt_volume, open(save_gt_volume, "w+"))
 
     return gt_volume
+
+
+def wrapper(label, 
+            canvas, 
+            gt_volume, 
+            load_distance_transform, 
+            save_distance_transform, 
+            voxel_size, 
+            tolerance_radius,
+            line):
+
+    if load_distance_transform is not None:
+            load_distance_transform = load_distance_transform.format(label)
+        
+    if save_distance_transform is not None:
+        save_distance_transform = save_distance_transform.format(label)
+
+        if not os.path.exists(os.path.dirname(save_distance_transform)):
+            os.makedirs(os.path.dirname(save_distance_transform))
+
+    line_volume = enlarge_binary_map(binary_map=canvas, 
+                                     voxel_size=np.array([voxel_size[2], voxel_size[1], voxel_size[0]]),
+                                     marker_size_physical=tolerance_radius,
+                                     load_distance_transform=load_distance_transform,
+                                     save_distance_transform=save_distance_transform)
+
+    gt_volume.add_volume(line_volume, label, line)
 
 
 def enlarge_binary_map(binary_map, 
