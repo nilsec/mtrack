@@ -1,5 +1,6 @@
 import graph_tool.all as gt
 import numpy as np
+import pdb
 
 class G:
     """
@@ -114,7 +115,12 @@ class G:
         For double, int etc. a zero is set as
         default value.
         """
-        u = self.get_vertex(u)
+        if not isinstance(u, gt.Vertex):
+            if isinstance(u, int):
+                u = self.get_vertex(u)
+            else:
+                raise ValueError("Vertex has to be int or gt.Vertex")
+
         self.g.vertex_properties[name][u] = value
 
     def get_vertex_property(self, name, u=None):
