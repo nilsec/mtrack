@@ -6,9 +6,14 @@ from scipy.spatial import KDTree
 def is_arr_in_list(arr, arr_list):
     return next((True for elem in arr_list if elem is arr), False)
 
+def merge_dicts(a, b):
+    c = a.copy()
+    c.update(b)
+    return c
+
 class OptMatch(object):
     def __init__(self, lines_gt, lines_rec, n, distance_tolerance, dummy_cost, 
-                 pair_cost_factor, max_edges, voxel_size=np.array([5.0,5.0,50.0])):
+                 pair_cost_factor, max_edges, edge_selection_cost, voxel_size=np.array([5.0,5.0,50.0])):
         assert(isinstance(lines_gt, list))
         assert(isinstance(lines_rec, list))
 
@@ -44,7 +49,7 @@ class OptMatch(object):
                                               self.inv_gt_chunk_positions[tuple(pos_0)]))
 
         self.edge_pairs, self.edge_pair_cost = self.get_edge_pairs(self.gt_rec_pairs)
-        
+
         self.backend = pylp.GurobiBackend()
 
         self.n_rec_nodes = len(self.rec_chunks.values())
@@ -79,7 +84,7 @@ class OptMatch(object):
         self.edge_start_id = start_id
         for edge_id in range(start_id, start_id + self.n_gt_rec_edges):
             self.objective.set_coefficient(edge_id,
-                                           0.0)
+                                           edge_selection_cost)
 
         start_id += self.n_gt_rec_edges
         self.edge_pair_start_id = start_id
@@ -93,6 +98,28 @@ class OptMatch(object):
             self.objective.set_coefficient(dummy_edge_id,
                                            dummy_cost)
 
+        self.node_variables = dict(zip(range(self.rec_node_start_id, self.edge_start_id),\
+                                  self.rec_chunks.keys() + self.gt_chunks.keys()))
+
+        self.edge_variables = dict(zip(range(self.edge_start_id, self.edge_pair_start_id),\
+                                  self.gt_rec_pairs))
+
+        self.edge_pair_variables = dict(zip(range(self.edge_pair_start_id, self.dummy_start_id),\
+                                       self.edge_pairs))
+
+        self.dummy_variables = dict(zip(range(self.dummy_start_id, self.dummy_start_id + self.n_dummy_edges),
+                                   zip(["d"] * self.n_dummy_edges, self.rec_chunks.keys() + self.gt_chunks.keys())))
+            
+
+        variable_list = [self.node_variables, 
+                         self.edge_variables, 
+                         self.edge_pair_variables, 
+                         self.dummy_variables]
+
+        self.variables = {}
+        for v in variable_list:
+            self.variables = merge_dicts(self.variables, v)
+
         self.backend.set_objective(self.objective)
 
         # Conflicts & Constraints
@@ -104,6 +131,14 @@ class OptMatch(object):
         dummy_constraints = self.get_dummy_constraints()
         cross_conflicts = self.get_cross_conflicts()
         id_conflicts = self.get_id_conflicts()
+        
+        for node in range(self.n_gt_nodes):
+            constraint = pylp.LinearConstraint()
+            constraint.set_coefficient(node, 1)
+            constraint.set_relation(pylp.Relation.Equal)
+            constraint.set_value(1)
+
+            #self.constraints.add(constraint)
 
         for edge_pair in edge_pair_constraints:
             # Pair implies edges
@@ -199,16 +234,60 @@ class OptMatch(object):
             constraint = pylp.LinearConstraint()
         
             for edge in id_conflict:
-                pdb.set_trace()
                 constraint.set_coefficient(edge, 1)
 
             constraint.set_relation(pylp.Relation.LessEqual)
             constraint.set_value(1)
 
             self.constraints.add(constraint)
+
+        self.backend.set_constraints(self.constraints)
+
+    def solve(self, time_limit=None):
+        print "Solve ILP with: " + str(len(self.constraints)) + " constraints and "
+        print str(self.n_tot) + " variables.\n"
+
+        if time_limit != None:
+            self.backend.set_timelimit(time_limit)
+
+        solution = pylp.Solution()
+        self.backend.solve(solution)
+       
+        non_zero = 0
+        for i in range(len(solution)):
+            if solution[i] > 0.5:
+                non_zero += 1
+
+        print "Solution found with {} non zero variables.\n".format(non_zero)
+
+        return solution
+
+    def evaluate_solution(self, solution):
+        mergers = 0
+        splits = 0
         
-        print "Yay"
-        pdb.set_trace()
+        tp_nodes = 0
+        fn_nodes = 0
+        fp_nodes = 0
+
+        selected_nodes = [self.variables[i] for i in range(0, self.edge_start_id) if solution[i] > 0.5]
+
+        selected_edges = [self.variables[i] for i in range(self.edge_start_id, self.edge_pair_start_id)\
+                          if solution[i] > 0.5]
+
+        selected_edge_pairs = [self.variables[i] for i in range(self.edge_pair_start_id, self.dummy_start_id)\
+                               if solution[i] > 0.5]
+
+        selected_dummys = [self.variables[i] for i in range(self.dummy_start_id, 
+                                                            self.dummy_start_id + self.n_dummy_edges)\
+                                                            if solution[i] > 0.5]
+
+        matches_0 = sorted(selected_edges, key=lambda x: (x[0][1], x[0][0]))
+        matches_1 = sorted(selected_edges, key=lambda x: (x[1][1], x[1][0]))
+
+        print matches_0
+        print matches_1
+        print selected_dummys
 
     def get_edge_pair_constraints(self):
         constraints = [] # constraints will be tuple of the form (edge_pair_id, edge_id_1, edge_id_2)
@@ -309,12 +388,10 @@ class OptMatch(object):
                     node_id_i = edge_i.index(node)
                     node_id_j = edge_j.index(node)
 
-                    pdb.set_trace()
-
                     if edge_i[int(not node_id_i)][0] != edge_j[int(not node_id_j)][0]:
-                        conflicts.append((edges_to_node[i], edges_to_node[j]))
+                        conflicts.append((node_edges[i], node_edges[j]))
+                        
 
-        pdb.set_trace()
         return conflicts
 
     def get_chunks(self, lines, n, l_0=0):
