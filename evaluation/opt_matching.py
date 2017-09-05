@@ -262,6 +262,28 @@ class OptMatch(object):
 
         return solution
 
+    def __match_solution_lines(self, lines, chunk_keys, chunk_matches, start_id, dummys):
+        line_matches = {line_id: [] for line_id in range(start_id, len(lines) + start_id)}
+
+        for line_id in line_matches.keys():
+            chunks = [[line_id, None] for x in chunk_keys if x[0] == line_id]
+
+            chunk_id = 0
+            for chunk, match in zip(chunks, chunk_matches):
+                chunk[1] = chunk_id
+
+                try:
+                    match_idx = [x[0] for x in chunk_matches].index(tuple(chunk))
+                    line_matches[line_id].append(chunk_matches[match_idx][1])
+                except ValueError:
+                    assert(("d", tuple(chunk)) in dummys)
+                    line_matches[line_id].append("d")
+
+                chunk_id += 1
+
+        return line_matches
+ 
+
     def evaluate_solution(self, solution):
         mergers = 0
         splits = 0
@@ -270,25 +292,30 @@ class OptMatch(object):
         fn_nodes = 0
         fp_nodes = 0
 
-        selected_nodes = [self.variables[i] for i in range(0, self.edge_start_id) if solution[i] > 0.5]
 
         selected_edges = [self.variables[i] for i in range(self.edge_start_id, self.edge_pair_start_id)\
                           if solution[i] > 0.5]
 
-        selected_edge_pairs = [self.variables[i] for i in range(self.edge_pair_start_id, self.dummy_start_id)\
-                               if solution[i] > 0.5]
 
         selected_dummys = [self.variables[i] for i in range(self.dummy_start_id, 
                                                             self.dummy_start_id + self.n_dummy_edges)\
                                                             if solution[i] > 0.5]
 
-        matches_0 = sorted(selected_edges, key=lambda x: (x[0][1], x[0][0]))
-        matches_1 = sorted(selected_edges, key=lambda x: (x[1][1], x[1][0]))
+        matches_rec_gt = sorted(selected_edges, key=lambda x: (x[0][1], x[0][0])) #(rec, gt)
+        matches_1 = sorted(selected_edges, key=lambda x: (x[1][1], x[1][0])) 
+        matches_gt_rec = [(x[1], x[0]) for x in matches_1] #(gt, rec)
 
-        print matches_0
-        print matches_1
-        print selected_dummys
+        gt_line_matches = {gt_line_id: [] for gt_line_id in range(len(self.lines_gt))}
+        rec_line_matches = {rec_line_id: [] for rec_line_id in range(len(self.lines_rec))}
 
+        print matches_gt_rec, "\n"
+
+        gt_line_matches = self.__match_solution_lines(self.lines_gt, self.gt_chunks.keys(), matches_gt_rec, 0, selected_dummys)
+        rec_line_matches = self.__match_solution_lines(self.lines_rec, self.rec_chunks.keys(), matches_rec_gt, len(self.lines_gt), selected_dummys)
+            
+        print gt_line_matches, "\n"
+        print rec_line_matches, "\n"
+        
     def get_edge_pair_constraints(self):
         constraints = [] # constraints will be tuple of the form (edge_pair_id, edge_id_1, edge_id_2)
         
