@@ -1,8 +1,14 @@
-from graphs import g1_graph
-from graphs import graph_converter
-from graphs import cost_converter
-from graphs import g2_solver
-from preprocessing import nml_io
+from graphs import g1_graph, graph_converter,\
+                   cost_converter, g2_solver
+
+from preprocessing import g1_to_nml, extract_candidates,\
+                          DirectionType, candidates_to_g1,\
+                          connect_graph_locally
+
+from postprocessing import combine_knossos_solutions,\
+                           combine_gt_solutions
+
+from timeit import default_timer as timer
 import os
 import json
 
@@ -15,6 +21,10 @@ def solve(g1,
           time_limit,
           output_dir=None,
           voxel_size=None):
+
+    """
+    Base solver given a g1 graph.
+    """
 
     vertex_cost_params = {}
     edge_cost_params = {"distance_factor": distance_factor,
@@ -66,25 +76,26 @@ def solve(g1,
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             
-        nml_io.g1_to_nml(g1_solution, 
-                         output_dir + "g1s_kno.nml", 
-                         knossos=True, 
-                         voxel_size=voxel_size)
+        g1_to_nml(g1_solution, 
+                  output_dir + "g1s_kno.nml", 
+                  knossos=True, 
+                  voxel_size=voxel_size)
 
-        nml_io.g1_to_nml(g1_solution, 
-                         output_dir + "g1s_phy.nml")
+        g1_to_nml(g1_solution, 
+                  output_dir + "g1s_phy.nml")
 
-        nml_io.g1_to_nml(g1_solution, 
-                         output_dir + "g1s_vox.nml", 
-                         voxel=True, 
-                         voxel_size=voxel_size)
+        g1_to_nml(g1_solution, 
+                  output_dir + "g1s_vox.nml", 
+                  voxel=True, 
+                  voxel_size=voxel_size)
         
         g1_solution.save(output_dir + "g1s.gt")
 
         meta_data = {"tl": time_limit,
                      "vs": voxel_size,
                      "ec": edge_cost_params,
-                     "ecc": edge_combination_cost_params}
+                     "ecc": edge_combination_cost_params,
+                     "sc": selection_cost}
 
         with open(output_dir + "meta.txt", "w+") as meta:
             json.dump(meta_data, meta)
@@ -137,17 +148,154 @@ def g2_to_g1_solution(g2_solution, g1, g2, index_maps):
     return g1
 
 
-if __name__ == "__main__":
-    base_dir = "/media/nilsec/d0/gt_mt_data/experiments/cc_dist80" 
-    ccs = os.listdir(base_dir)
-    vol = base_dir + "/" + ccs[20]
+def solve_volume(volume_dir,
+                 start_edge_prior,
+                 distance_factor,
+                 orientation_factor,
+                 comb_angle_factor,
+                 selection_cost,
+                 time_limit,
+                 output_dir,
+                 voxel_size,
+                 combine_solutions=True):
 
-    solve(vol,
-          start_edge_prior=180.0,
-          distance_factor=0.0,
-          orientation_factor=15.0,
-          comb_angle_factor=16.0,
-          selection_cost=-80.0,
-          output_dir="/media/nilsec/d0/gt_mt_data/cc_solve/",
-          time_limit=1000,
-          voxel_size=[5.0, 5.0, 50.0])
+    """
+    Solve a complete volume given connected components in .gt
+    format. The folder needs to be specified in volume_dir
+    """
+
+    start = timer()
+
+    print "Solve volume {}...".format(volume_dir)
+
+    components = [f for f in os.listdir(volume_dir[:-1]) if f[-3:] == ".gt"]
+    n_comp = len(components)
+
+    print "with {} components...".format(n_comp)
+    
+    
+    i = 0
+    for cc in components:
+        assert("phy" in cc) # assume physical coordinates
+
+        cc_output_dir = os.path.join(os.path.join(output_dir[:-1], "ccs"),\
+                                     cc[:-3]) + "/"
+
+        print "Solve cc {}/{}".format(i + 1, n_comp)
+        solve(os.path.join(volume_dir[:-1], cc),
+              start_edge_prior,
+              distance_factor,
+              orientation_factor,
+              comb_angle_factor,
+              selection_cost,
+              time_limit,
+              cc_output_dir,
+              voxel_size)
+        i += 1
+    
+    end = timer()
+    runtime = end - start
+
+    stats = {"n_comps": n_comp,
+             "runtime": runtime,
+             "volume_dir": volume_dir}
+
+    with open(output_dir + "stats.txt", "w+") as f:
+        json.dump(stats, f)
+
+    if combine_solutions:
+        print "Combine Solutions...\n"
+        combine_knossos_solutions(output_dir, output_dir + "volume.nml")
+        combine_gt_solutions(output_dir, output_dir + "volume.gt")
+        
+
+
+def solve_bb_volume(bounding_box,
+                    prob_map_stack,
+                    gs,
+                    ps,
+                    distance_threshold,
+                    start_edge_prior,
+                    distance_factor,
+                    orientation_factor,
+                    comb_angle_factor,
+                    selection_cost,
+                    time_limit,
+                    output_dir,
+                    voxel_size,
+                    combine_solutions=True):
+
+    """
+    Solve a volume constrained by a bounding box directly from 
+    the probability maps. prob_map_stack needs to be of DirectionType
+    and specify perpendicular and parallel prob map path. Bounding box
+    can also only specify the section e.g. [300, 400] leads to sections
+    300 to 400 are processed.
+    """
+
+
+    candidates = extract_candidates(prob_map_stack,
+                                                  gs,
+                                                  ps,
+                                                  voxel_size,
+                                                  bounding_box=bounding_box,
+                                                  bs_output_dir=output_dir + "binary_stack/")
+
+    g1 = candidates_to_g1(candidates, 
+                          voxel_size)
+
+    g1_connected = connect_graph_locally(g1,
+                                         distance_threshold)
+    
+    cc_list = g1_connected.get_components(min_vertices=4,
+                                          output_folder = output_dir + "cc/")
+
+    solve_volume(output_dir + "cc/",
+                 start_edge_prior,
+                 distance_factor,
+                 orientation_factor,
+                 comb_angle_factor,
+                 selection_cost,
+                 time_limit,
+                 output_dir + "solution/",
+                 voxel_size,
+                 combine_solutions)
+
+
+if __name__ == "__main__":
+
+    distance_threshold = 150
+    start_edge_prior = 180.0
+    distance_factor = 0.0
+    orientation_factor = 15.0
+    comb_angle_factor = 16.0
+    selection_cost = -80.0
+    output_dir = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_300_310/"
+    time_limit = 1000
+    voxel_size = [5.0, 5.0, 50.0]
+    bounding_box = [300, 310]
+    gs = DirectionType(0.5, 0.5)
+    ps = DirectionType(0.4, 0.4)
+
+    prob_map_stack_file_perp_test = "/media/nilsec/d0/gt_mt_data/" +\
+                               "probability_maps/test/perpendicular/stack/stack.h5"
+    
+    prob_map_stack_file_par_test = "/media/nilsec/d0/gt_mt_data/" +\
+                               "probability_maps/test/parallel/stack/stack.h5"
+ 
+    prob_map_stack = DirectionType(prob_map_stack_file_perp_test,
+                                                 prob_map_stack_file_par_test)
+ 
+    solve_bb_volume(bounding_box,
+                    prob_map_stack,
+                    gs,
+                    ps,
+                    distance_threshold,
+                    start_edge_prior,
+                    distance_factor,
+                    orientation_factor,
+                    comb_angle_factor,
+                    selection_cost,
+                    time_limit,
+                    output_dir,
+                    voxel_size) 
