@@ -130,8 +130,8 @@ def combine_lines():
 
 
 if __name__ == "__main__":
-    sol_sc_4 = "/media/nilsec/d0/gt_mt_data/experiments/selection_cost_grid0404_solve_4/solution"
-    combine_knossos_solutions(sol_sc_4, "./sol_sc_4.nml")
+    sol_sc_4 = "/media/nilsec/d0/gt_mt_data/solve_volumes/volume_1/solution"
+    combine_knossos_solutions(sol_sc_4, sol_sc_4 + "/combined.nml")
     
     #combine_lines()
     """
