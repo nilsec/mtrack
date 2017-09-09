@@ -1,7 +1,12 @@
 import pylp
+import process_solution
 import pdb
 import numpy as np
 from scipy.spatial import KDTree
+import postprocessing
+import graphs
+from dda3 import DDA3
+import os
 
 def is_arr_in_list(arr, arr_list):
     return next((True for elem in arr_list if elem is arr), False)
@@ -10,6 +15,40 @@ def merge_dicts(a, b):
     c = a.copy()
     c.update(b)
     return c
+
+def get_lines(rec_dir, gt_dir):
+    gt_lines = process_solution.get_line_list(gt_dir)
+    rec_lines = process_solution.get_line_list(rec_dir)
+
+    gt_lines = interpolate_nodes(gt_lines)
+    rec_lines = interpolate_nodes(rec_lines)
+
+    return gt_lines, rec_lines
+
+def interpolate_nodes(line_list):
+    lines = []
+
+    for line in line_list:
+        g1 = graphs.g1_graph.G1(0)
+        g1.load(line)
+
+        inter_line = []
+
+        for edge in g1.get_edge_iterator():
+            start = np.array(g1.get_position(edge.source()), dtype=int)
+            end = np.array(g1.get_position(edge.target()), dtype=int)
+            
+            dda = DDA3(start, end)
+            edge = dda.draw()
+
+            inter_line.extend(edge) # Be careful here
+                                    # the kdtree is scaled wih voxel size
+                                    # 5,5,50, i.e. we need (x,y,z)
+
+        lines.append(inter_line)
+
+    return lines
+
 
 class OptMatch(object):
     def __init__(self, lines_gt, lines_rec, n, distance_tolerance, dummy_cost, 
@@ -264,6 +303,7 @@ class OptMatch(object):
 
     def __match_solution_lines(self, lines, chunk_keys, chunk_matches, start_id, dummys):
         line_matches = {line_id: [] for line_id in range(start_id, len(lines) + start_id)}
+        stats = {"matches": 0, "dummys": 0, "switches": 0}
 
         for line_id in line_matches.keys():
             chunks = [[line_id, None] for x in chunk_keys if x[0] == line_id]
@@ -275,13 +315,41 @@ class OptMatch(object):
                 try:
                     match_idx = [x[0] for x in chunk_matches].index(tuple(chunk))
                     line_matches[line_id].append(chunk_matches[match_idx][1])
+                    stats["matches"] += 1
+
                 except ValueError:
                     assert(("d", tuple(chunk)) in dummys)
                     line_matches[line_id].append("d")
+                    stats["dummys"] += 1
+           
+                try: 
+                    before = line_matches[line_id][-2][0]
+                    after = line_matches[line_id][-1][0] 
+                    if before != after:
+                        if before != "d" and after != "d":
+                            stats["switches"] += 1
+                except IndexError:
+                    pass
 
                 chunk_id += 1
 
-        return line_matches
+    
+            # Count switches (mergers splits) but we do not
+            # want to include switches from dummy to line
+            # but the number of switches should be at least
+            # equal to the number of unique line ids
+            # import in situation like (1, d, 2)
+            # which is not captured by the try except block above
+            unique_ids = set([x[0] for x in line_matches[line_id]])
+            try:
+                unique_ids.remove("d")
+            except KeyError:
+                pass
+
+            stats["switches"] = max(stats["switches"], len(unique_ids) - 1)
+ 
+
+        return line_matches, stats
  
 
     def evaluate_solution(self, solution):
@@ -308,13 +376,22 @@ class OptMatch(object):
         gt_line_matches = {gt_line_id: [] for gt_line_id in range(len(self.lines_gt))}
         rec_line_matches = {rec_line_id: [] for rec_line_id in range(len(self.lines_rec))}
 
-        print matches_gt_rec, "\n"
+        gt_line_matches, gt_stats = self.__match_solution_lines(self.lines_gt, self.gt_chunks.keys(), matches_gt_rec, 0, selected_dummys)
+        rec_line_matches, rec_stats = self.__match_solution_lines(self.lines_rec, self.rec_chunks.keys(), matches_rec_gt, len(self.lines_gt), selected_dummys)
 
-        gt_line_matches = self.__match_solution_lines(self.lines_gt, self.gt_chunks.keys(), matches_gt_rec, 0, selected_dummys)
-        rec_line_matches = self.__match_solution_lines(self.lines_rec, self.rec_chunks.keys(), matches_rec_gt, len(self.lines_gt), selected_dummys)
-            
+        tot_eval = {"tp_chunks": rec_stats["matches"], 
+                    "fn_chunks": gt_stats["dummys"], 
+                    "fp_chunks": rec_stats["dummys"],
+                    "mergers": rec_stats["switches"],
+                    "splits": gt_stats["switches"]}
+
+        print matches_gt_rec, "\n"     
         print gt_line_matches, "\n"
         print rec_line_matches, "\n"
+
+        print gt_stats, "\n"
+        print rec_stats, "\n"
+        print tot_eval
         
     def get_edge_pair_constraints(self):
         constraints = [] # constraints will be tuple of the form (edge_pair_id, edge_id_1, edge_id_2)

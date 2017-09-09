@@ -6,107 +6,139 @@ import os
 import graphs
 import cPickle as pickle
 from scipy.ndimage.morphology import distance_transform_edt
+from scipy.sparse import *
 import pdb
+from scipy.spatial import KDTree
 
+def is_arr_in_list(arr, arr_list):
+    return next((True for elem in arr_list if elem is arr), False)
 
 class ReebGraph(G):
     def __init__(self, gt_line_dir):
         #Init Graph Structure
         G.__init__(self, 0, None)
         G.new_vertex_property(self, "id", dtype="int")
+        G.new_vertex_property(self, "id_set", dtype="vector<int>")
         G.new_vertex_property(self, "pos", dtype="vector<int>")
 
         #Raw ground truth lines in graph tools format
         self.gt_lines = [os.path.join(gt_line_dir, f) for f in os.listdir(gt_line_dir) if f.endswith(".gt")]
 
-    def build_graph(self, dimensions, correction, epsilon, save_canvas_dict=None, load_canvas_dict=None):
-        if load_canvas_dict is None:
-            canvas = np.zeros([dimensions[2], dimensions[1], dimensions[0]])
+    def get_z_graphs(self, dimensions, correction, epsilon, voxel_size=np.array([5.,5.,50.])):
+        assert(isinstance(voxel_size, np.ndarray))
+        line_dict = {n: [] for n in range(1, len(self.gt_lines) + 1)}
 
-            canvas_dict = {}
-            line_dict = {n: [] for n in range(1, len(self.gt_lines) + 1)}
+        label = 1
+        for line in self.gt_lines:
+            g1 = graphs.g1_graph.G1(0)
+            g1.load(line)
 
-            label = 1
-            for line in self.gt_lines:
-                g1 = graphs.g1_graph.G1(0)
-                g1.load(line)
+            for edge in g1.get_edge_iterator():
+                start = np.array(g1.get_position(edge.source()), dtype=int)
+                start -= correction
+                end = np.array(g1.get_position(edge.target()), dtype=int)
+                end -= correction
 
-                for edge in g1.get_edge_iterator():
-                    start = np.array(g1.get_position(edge.source()), dtype=int)
-                    start -= correction
-                    end = np.array(g1.get_position(edge.target()), dtype=int)
-                    end -= correction
+                dda = evaluation.DDA3(start, end)
+                skeleton_edge = dda.draw()
+                            
+                line_dict[label].extend(skeleton_edge)
 
-                    dda = evaluation.DDA3(start, end)
-                    skeleton_edge = dda.draw()
-                    line_dict[label].extend(skeleton_edge)
-            
-                    for point in skeleton_edge:
-                        canvas[point[2], point[1], point[0]] = 1
+            label += 1
 
-                canvas = enlarge_binary_map(canvas, 
-                                            marker_size_voxel=1, 
-                                            voxel_size=None, 
-                                            marker_size_physical=epsilon, 
-                                            load_distance_transform=None,
-                                            save_distance_transform=None)  
+        points = []
+        [points.extend(j) for j in line_dict.values()]
+        kdtree = KDTree(points * voxel_size)
 
-                canvas_dict[label] = (canvas, line)
-                label += 1
+        pairs = kdtree.query_pairs(2 * epsilon, p=2.0, eps=0)
+        z_graphs = [ZGraph(z) for z in range(dimensions[2])]
 
-            if save_canvas_dict is not None:
-                if not os.path.exists(os.path.dirname(save_canvas_dict)):
-                    os.makedirs(os.path.dirname(save_canvas_dict))
-                pickle.dump(canvas_dict, open(save_canvas_dict, "w+"))
-        else:
-            print "Load Canvas Dict..."
-            canvas_dict = pickle.load(open(load_canvas_dict, "r"))
+        n = 1
+        n_pairs = float(len(pairs))
+        perc = 0.1
+        for pair in pairs:
+            if n/n_pairs > perc:
+                print perc * 100, "%"
+                perc += 0.1
 
-        build_z_graphs(canvas_dict, dimensions)
+            point_0 = points[pair[0]]
+            point_1 = points[pair[1]]
 
-def build_z_graphs(canvas_dict, dimensions):
-    z_graphs = [ZGraph(z) for z in range(dimensions[2])]
-    match_volume = np.vstack([val[0] for val in canvas_dict.values()])
-    match_volume_ids = canvas_dict.keys()
+            if point_0[2] != point_1[2]:
+                n += 1
+                continue
+            else:
+                z = point_0[2] # = point_1[2]
+                
+                vertices_p0 = []
+                vertices_p1 = []
+                for line_id, line_points in line_dict.iteritems():
+                    if is_arr_in_list(point_0, line_points):
+                        v0 = z_graphs[z].add_z_vertex(line_id)
+                        if v0 is not None:
+                            vertices_p0.append(v0)
+                            #G.set_vertex_property(self, "pos", v0, point_0)
+                            
+ 
+                    if is_arr_in_list(point_1, line_points):
+                        v1 = z_graphs[z].add_z_vertex(line_id)
+                        if v1 is not None:
+                            vertices_p1.append(v1)
+                            #G.set_vertex_property(self, "pos", v1, point_1)
+ 
+                    for v0 in vertices_p0:
+                        for v1 in vertices_p1:
+                            z_graphs[z].add_edge(v0, v1)
 
-    dict_length = len(canvas_dict)
-    for roll in range(dict_length):
-        print roll, "/", dict_length
+            n += 1
 
-        match_canvas = np.roll(match_volume, roll, axis=0)
-        match_canvas_ids = np.roll(match_volume_ids, roll)
-        land = np.logical_and(match_canvas, match_volume)
-        nz_z = np.nonzero(land)[0]
-        
-        z_matches = nz_z % 2
-        id_matches = nz_z / 2
+        for g in z_graphs:
+            g.save("/media/nilsec/d0/gt_mt_data/experiments/z_graphs_200/z_{}".format(g.z))
 
-        for n, z in enumerate(z_matches):
-            id_ = id_matches[n]
-            label_i = match_volume_ids[id_]
-            label_j = match_canvas_ids[id_]
+    def build_graph(self, z_graphs):
+        id_range = range(1, len(self.gt_lines) + 1)
 
-            z_graphs[z].add_z_vertex(label_i)
-            z_graphs[z].add_z_vertex(label_j)
-            z_graphs[z].add_z_edge(label_i, label_j)
-
+        for line_id in id_range:
+            for z_graph in z_graphs:
+                if z_graph.ccs is None:
+                    if z_graph.vertex_ids:
+                        z_graph.get_connected_components()
+                    else:
+                        continue
+                    
+                    for id_set in z_graph.ccs:
+                        if line_id in id_set:
+                            v = G.add_vertex(self)
+                            G.set_vertex_property(self, "id", line_id)
+                
     
-    for z in z_graphs:
-        z.save("/media/nilsec/d0/gt_mt_data/experiments/z_graphs/z_{}".format(z.z))
+             
 
-
+             
+            
+            
+            
+            
+        
+        return 0
+                
+                
 class ZGraph(G):
     def __init__(self, z):
         self.z = z
         G.__init__(self, 0, None)
         G.new_vertex_property(self, "id", dtype="int")
+        G.new_vertex_property(self, "pos", dtype="vector<int>")
         self.vertex_ids = []
+        self.ccs = None
 
     def add_z_vertex(self, id_):
         if not (id_ in self.vertex_ids):
             self.vertex_ids.append(id_)
             v = G.add_vertex(self)
             G.set_vertex_property(self, "id", v, id_)
+            return v
+        return None
 
     def get_z_vertex(self, id_):
         v_id = None
@@ -121,12 +153,19 @@ class ZGraph(G):
     def get_id(self, vertex):
         return G.get_vertex_property(self, "id")[vertex]
 
-    def add_z_edge(self, id1, id2):
+    def add_z_edge(self, v1, v2):
+        if v1 != v2:
+            G.add_edge(self, v1, v2)
+
+    def add_z_edge_by_id(self, id1, id2):
         if id1 != id2:
             G.add_edge(self, self.get_z_vertex(id1), self.get_z_vertex(id2))
 
     def get_connected_components(self):
-        masks, hist = G.get_component_masks(self)
+        try:
+            masks, hist = G.get_component_masks(self)
+        except:
+            pdb.set_trace()
         ccs = []
         for mask in masks:
             G.set_vertex_filter(self, mask)
@@ -139,6 +178,7 @@ class ZGraph(G):
             G.set_vertex_filter(self, None)
 
         print self.z, ccs
+        self.ccs = ccs
         return ccs
 
     def save(self, path):
@@ -150,6 +190,18 @@ class ZGraph(G):
     def load(self, path):
         me = pickle.load(open(path, "r"))
         self.__dict__ = me
+
+def process_z_graphs(z_folder):
+    z_list = os.listdir(z_folder)
+    z_graph_list = []
+    for path in z_list:
+        z_graph = ZGraph(0)
+        z_graph.load(os.path.join(z_folder, path))
+        if z_graph.z != 20:
+            z_graph.get_connected_components()
+            z_graph_list.append(z_graph)
+
+    
 
 
 def enlarge_binary_map(binary_map, 
@@ -204,9 +256,7 @@ def enlarge_binary_map(binary_map,
 if __name__ == "__main__":
     rg = ReebGraph("/media/nilsec/d0/gt_mt_data/experiments/sp_test/trace_small_lines")
     output_dir = "/media/nilsec/d0/gt_mt_data/experiments/reeb_graph_test"
-    rg.build_graph(dimensions=[1025, 1025, 21], 
+    rg.get_z_graphs(dimensions=[1025, 1025, 21], 
                    correction=[0,0,300], 
-                   epsilon=50, 
-                   load_canvas_dict=output_dir + "/canvas_dict.p")
-            
-             
+                   epsilon=100)
+    process_z_graphs("/media/nilsec/d0/gt_mt_data/experiments/z_graphs_200")

@@ -14,8 +14,8 @@ import multiprocessing
 import cPickle as pickle
 from shutil import copyfile
 
-def shortest_path_eval(gt_line_dir,
-                       rec_line_dir,
+def shortest_path_eval(gt_lines,
+                       rec_lines,
                        dimensions,
                        correction,
                        tolerance_radius,
@@ -29,11 +29,24 @@ def shortest_path_eval(gt_line_dir,
                        save_gt_volume=None,
                        report_output_dir=None):
 
-    gt_lines = [os.path.join(gt_line_dir, f) for f in os.listdir(gt_line_dir) if f.endswith(".gt")]
-    rec_lines = [os.path.join(rec_line_dir, f) for f in os.listdir(rec_line_dir) if f.endswith(".gt")]
+    if isinstance(gt_lines, str):
+        gt_lines = [os.path.join(gt_lines, f) for f in os.listdir(gt_lines) if f.endswith(".gt")]
+    if isinstance(rec_lines, str):
+        rec_lines = [os.path.join(rec_lines, f) for f in os.listdir(rec_lines) if f.endswith(".gt")]
     
     rec_chains, gt_volume = get_rec_chains(rec_lines,
                                            gt_lines,
+                                           dimensions,
+                                           tolerance_radius,
+                                           voxel_size,
+                                           correction=correction,
+                                           load_distance_transform=load_distance_transform,
+                                           save_distance_transform=save_distance_transform,
+                                           load_gt_volume=load_gt_volume,
+                                           save_gt_volume=save_gt_volume)
+
+    gt_chains, rec_volume = get_rec_chains(gt_lines,
+                                           rec_lines,
                                            dimensions,
                                            tolerance_radius,
                                            voxel_size,
@@ -47,13 +60,19 @@ def shortest_path_eval(gt_line_dir,
         for chain in rec_chains:
             chain.get_shortest_path(True)
 
-    error_graph = ErrorGraph(rec_chains, gt_volume)
-    error_graph.get_sp_matching(min_path_length)
+    error_graph_gt = ErrorGraph(rec_chains, gt_volume)
+    error_graph_gt.get_sp_matching(min_path_length)
+
+    error_graph_rec = ErrorGraph(gt_chains, rec_volume)
+    error_graph_rec.get_sp_matching(min_path_length)
     
     if plot_error_graph:
-        error_graph.draw()
+        error_graph_gt.draw()
+        error_graph_rec.draw()
     
-    return error_graph.get_report(output_dir=report_output_dir)
+    print "REC_VOL: ", error_graph_rec.get_report(output_dir=report_output_dir + "/rec_vol")
+    print "GT_VOL: ", error_graph_gt.get_report(output_dir=report_output_dir + "/gt_vol")
+    return 0
 
 
 class GtVolume(object):

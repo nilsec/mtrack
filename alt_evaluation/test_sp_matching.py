@@ -203,6 +203,119 @@ class FpTestCase(unittest.TestCase):
         self.report = {"fp": 1, "fn": 0, "mergers": 0, "splits": 0}
 
 
+class FakeMergeTestCase(unittest.TestCase):
+    def setUp(self):
+        N = 10
+        gt_line_1 = graphs.g1_graph.G1(N)
+
+        rec_line_1 = graphs.g1_graph.G1(N)
+        rec_line_2 = graphs.g1_graph.G1(N)
+    
+
+        #Make line:
+        for v in range(N - 1):
+            gt_line_1.add_edge(v, v+1)
+
+            rec_line_2.add_edge(v, v+1)
+            rec_line_1.add_edge(v, v+1)
+
+        z = 2.0
+        for v in gt_line_1.get_vertex_iterator():
+            gt_line_1.set_position(v, np.array([10.0, 10.0, z]))
+            z += 1
+
+        pos_r_1 =  [np.array([4.0, 4.0, 2.0]),
+                    np.array([4.0, 4.0, 3.0]),
+                    np.array([4.0, 4.0, 4.0]),
+                    np.array([5.0, 5.0, 5.0]), 
+                    np.array([6.0, 6.0, 6.0]), 
+                    np.array([7.0, 7.0, 7.0]),
+                    np.array([8.0, 8.0, 8.0]),
+                    np.array([8.0, 8.0, 9.0]),
+                    np.array([8.0, 8.0, 10.0]),
+                    np.array([8.0, 8.0, 11.0])]
+
+        pos_r_2 =  [np.array([16.0, 16.0, 2.0]),
+                    np.array([16.0, 16.0, 3.0]),
+                    np.array([16.0, 16.0, 4.0]),
+                    np.array([15.0, 15.0, 5.0]), 
+                    np.array([15.0, 15.0, 6.0]), 
+                    np.array([15.0, 15.0, 7.0]),
+                    np.array([14.0, 14.0, 8.0]),
+                    np.array([14.0, 14.0, 9.0]),
+                    np.array([13.0, 13.0, 10.0]),
+                    np.array([12.0, 12.0, 11.0])]
+ 
+
+        for v, pos in zip(rec_line_1.get_vertex_iterator(), pos_r_1):
+            rec_line_1.set_position(v, pos)
+
+        for v, pos in zip(rec_line_2.get_vertex_iterator(), pos_r_2):
+            rec_line_2.set_position(v, pos)
+
+        self.gt_lines = [gt_line_1]
+        self.rec_lines = [rec_line_1, rec_line_2]
+
+        self.report = {"fp": 0, "fn": 0, "mergers": 1, "splits": 0}
+
+class FakeSplitTestCase(unittest.TestCase):
+    def setUp(self):
+        N = 10
+        gt_line_1 = graphs.g1_graph.G1(N)
+        gt_line_2 = graphs.g1_graph.G1(N)
+
+        rec_line_1 = graphs.g1_graph.G1(N)
+    
+
+        #Make line:
+        for v in range(N - 1):
+            rec_line_1.add_edge(v, v+1)
+
+            gt_line_2.add_edge(v, v+1)
+            gt_line_1.add_edge(v, v+1)
+
+        z = 2.0
+        for v in rec_line_1.get_vertex_iterator():
+            rec_line_1.set_position(v, np.array([10.0, 10.0, z]))
+            z += 1
+
+        pos_r_1 =  [np.array([4.0, 4.0, 2.0]),
+                    np.array([4.0, 4.0, 3.0]),
+                    np.array([4.0, 4.0, 4.0]),
+                    np.array([5.0, 5.0, 5.0]), 
+                    np.array([6.0, 6.0, 6.0]), 
+                    np.array([7.0, 7.0, 7.0]),
+                    np.array([8.0, 8.0, 8.0]),
+                    np.array([8.0, 8.0, 9.0]),
+                    np.array([8.0, 8.0, 10.0]),
+                    np.array([8.0, 8.0, 11.0])]
+
+        pos_r_2 =  [np.array([16.0, 16.0, 2.0]),
+                    np.array([16.0, 16.0, 3.0]),
+                    np.array([16.0, 16.0, 4.0]),
+                    np.array([15.0, 15.0, 5.0]), 
+                    np.array([15.0, 15.0, 6.0]), 
+                    np.array([15.0, 15.0, 7.0]),
+                    np.array([14.0, 14.0, 8.0]),
+                    np.array([14.0, 14.0, 9.0]),
+                    np.array([13.0, 13.0, 10.0]),
+                    np.array([12.0, 12.0, 11.0])]
+ 
+
+        for v, pos in zip(gt_line_1.get_vertex_iterator(), pos_r_1):
+            gt_line_1.set_position(v, pos)
+
+        for v, pos in zip(gt_line_2.get_vertex_iterator(), pos_r_2):
+            gt_line_2.set_position(v, pos)
+
+        self.gt_lines = [gt_line_1, gt_line_2]
+        self.rec_lines = [rec_line_1]
+
+        self.report = {"fp": 0, "fn": 0, "mergers": 1, "splits": 0}
+ 
+
+
+
 class ErrorGraphTestCase(FpTestCase):
     def runTest(self):
         rec_chains, gt_volume = sp_matching.get_rec_chains(self.rec_lines,
@@ -218,6 +331,21 @@ class ErrorGraphTestCase(FpTestCase):
         error_graph.get_sp_matching(3)
         error_graph.draw()
         self.assertEqual(error_graph.get_report(), self.report)
+
+class ShortestPathEvalTinyTestCase(FakeSplitTestCase):
+    def runTest(self):
+        dimensions = [20,20,20]
+        tolerance = 50.0
+        sp_matching.shortest_path_eval(self.gt_lines,
+                                       self.rec_lines,
+                                       dimensions,
+                                       [0,0,0],
+                                       tolerance,
+                                       [5.,5.,50.],
+                                       1)
+ 
+
+         
 
 """
 class ShortestPathEvalTestCase(unittest.TestCase):
@@ -263,12 +391,12 @@ class ShortestPathEvalSmallTestCase(unittest.TestCase):
         evaluation.process_solution.get_tracing_lines(trace_file_small, gt_line_dir + "/")
 
         dimensions = [1025, 1025, 21]
-        tolerance = 100
+        tolerance = 50
 
         pr = cProfile.Profile()
         pr.enable()
 
-        print sp_matching.shortest_path_eval(gt_line_dir,
+        sp_matching.shortest_path_eval(gt_line_dir,
                                        rec_line_dir,
                                        dimensions,
                                        [0,0,300],
@@ -276,8 +404,7 @@ class ShortestPathEvalSmallTestCase(unittest.TestCase):
                                        [5.,5.,50.],
                                        0.3,
                                        plot_sp=False,
-                                       save_gt_volume=output_dir + "/gt_volume_100.p",
-                                       report_output_dir=output_dir + "/report_100")
+                                       report_output_dir="/media/nilsec/d0/gt_mt_data/experiments/sp_test/benchmark/report_2")
 
         pr.disable()
         s = StringIO.StringIO()
@@ -286,7 +413,7 @@ class ShortestPathEvalSmallTestCase(unittest.TestCase):
         
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        ps.dump_stats(os.path.join(output_dir, "tol_100.prof"))
+        ps.dump_stats(os.path.join(output_dir, "tol_50.prof"))
  
 if __name__ == "__main__":
     unittest.main()
