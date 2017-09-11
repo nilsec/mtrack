@@ -21,7 +21,8 @@ def solve(g1,
           selection_cost,
           time_limit,
           output_dir=None,
-          voxel_size=None):
+          voxel_size=None,
+          z_correction=None):
 
     """
     Base solver given a g1 graph.
@@ -67,7 +68,7 @@ def solve(g1,
     g2_solution = solver.solve(time_limit=time_limit)
 
     print "Get G1 solution..."
-    g1_solution = g2_to_g1_solution(g2_solution, g1, g2, index_maps)
+    g1_solution = g2_to_g1_solution(g2_solution, g1, g2, index_maps, z_correction=z_correction)
     
 
     
@@ -105,7 +106,7 @@ def solve(g1,
     return g1_solution
 
 
-def g2_to_g1_solution(g2_solution, g1, g2, index_maps, voxel_size=[5.,5.,50.]):
+def g2_to_g1_solution(g2_solution, g1, g2, index_maps, voxel_size=[5.,5.,50.], z_correction=None):
     g1_selected_edges = set()
     g1_selected_vertices = set()
 
@@ -130,7 +131,12 @@ def g2_to_g1_solution(g2_solution, g1, g2, index_maps, voxel_size=[5.,5.,50.]):
         if v in g1_selected_vertices:
             vertex_mask.append(True)
             # Revert the z-position to lie on the section:
-            z_shift = 0.5 * voxel_size[2]
+            z_factor = 0.5
+
+            if z_correction is not None:
+                z_factor += 1
+
+            z_shift = z_factor * voxel_size[2]
             pos = g1.get_position(v)
             pos[2] += z_shift
             g1.set_position(v, np.array(pos))
@@ -164,7 +170,8 @@ def solve_volume(volume_dir,
                  time_limit,
                  output_dir,
                  voxel_size,
-                 combine_solutions=True):
+                 combine_solutions=True,
+                 z_correction=None):
 
     """
     Solve a complete volume given connected components in .gt
@@ -197,7 +204,8 @@ def solve_volume(volume_dir,
               selection_cost,
               time_limit,
               cc_output_dir,
-              voxel_size)
+              voxel_size,
+              z_correction=z_correction)
 
         i += 1
     
@@ -231,23 +239,44 @@ def solve_bb_volume(bounding_box,
                     time_limit,
                     output_dir,
                     voxel_size,
-                    combine_solutions=True):
+                    combine_solutions=True,
+                    z_correction=1):
 
     """
     Solve a volume constrained by a bounding box directly from 
     the probability maps. prob_map_stack needs to be of DirectionType
     and specify perpendicular and parallel prob map path. Bounding box
-    can also only specify the section e.g. [300, 400] leads to sections
-    300 to 400 are processed.
+    can also only specify the sections e.g. [300, 400] will crop the
+    sections from the prob maps in the following way:
+    for slice in range(300, 400)
+        stack.append(prob_map_stack[:,:,slice])
+
+    That is slices 300 - 399 will be processed. Note that the first slice
+    is indexed with 0. In order to align the predictions with a tracing/knossos
+    where the first slice is indexed with 1 the output of the 
+    pipeline will need to be z_corrected:
+        solution[x,y,z+1] == tracing[x,y,z]
+
+    Thus a bb of [0, 10] = [0,1,...,9] will correspond to a tracing in sections
+    [1, 2, ..., 10].
     """
 
 
+    if z_correction is not None:
+        if z_correction != 1:
+            raise Warning("z correction != 1. Make sure this is correct.")
+
+        assert(len(bounding_box) == 2)
+        assert(bounding_box[0] > 0)
+        bounding_box[0] -= z_correction
+        bounding_box[1] -= z_correction
+
     candidates = extract_candidates(prob_map_stack,
-                                                  gs,
-                                                  ps,
-                                                  voxel_size,
-                                                  bounding_box=bounding_box,
-                                                  bs_output_dir=output_dir + "binary_stack/")
+                                    gs,
+                                    ps,
+                                    voxel_size,
+                                    bounding_box=bounding_box,
+                                    bs_output_dir=output_dir + "binary_stack/")
 
     g1 = candidates_to_g1(candidates, 
                           voxel_size)
@@ -267,7 +296,8 @@ def solve_bb_volume(bounding_box,
                  time_limit,
                  output_dir + "solution/",
                  voxel_size,
-                 combine_solutions)
+                 combine_solutions,
+                 z_correction)
 
 
 if __name__ == "__main__":
@@ -278,12 +308,19 @@ if __name__ == "__main__":
     orientation_factor = 15.0
     comb_angle_factor = 16.0
     selection_cost = -80.0
-    output_dir = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_300_310/"
     time_limit = 1000
     voxel_size = [5.0, 5.0, 50.0]
-    bounding_box = [300, 310]
+    z_correction = 1
+    bounding_box = [300, 310] # specify slices here in terms of tracing coords. i.e. 1-n_slices.
+                              # we can do that because we specified the z_correction = 1
+
     gs = DirectionType(0.5, 0.5)
     ps = DirectionType(0.4, 0.4)
+
+    output_dir = "/media/nilsec/d0/gt_mt_data/" +\
+                 "solve_volumes/test_volume_{}_{}/".format(bounding_box[0],
+                                                           bounding_box[1] - 1)
+ 
 
     prob_map_stack_file_perp_test = "/media/nilsec/d0/gt_mt_data/" +\
                                "probability_maps/test/perpendicular/stack/stack.h5"
@@ -306,4 +343,5 @@ if __name__ == "__main__":
                     selection_cost,
                     time_limit,
                     output_dir,
-                    voxel_size) 
+                    voxel_size,
+                    z_correction=z_correction) 
