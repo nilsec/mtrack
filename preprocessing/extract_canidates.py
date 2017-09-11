@@ -158,7 +158,7 @@ def get_binary_stack(prob_map_stack_file,
             y_lim = None
 
         for slice_id in slices:
-            print "Process slice {}".format(slice_id)
+            print "Process slice {} (data format, range[0,n_slices])".format(slice_id)
             if x_lim is None:
                 prob_map = prob_map_stack[:, :, slice_id]
 
