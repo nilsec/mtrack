@@ -7,6 +7,7 @@ import os
 import pdb
 
 def get_solution_lines(solution_dir, output_dir, nml=False, scale=None):
+    raise Warning("Getting solution lines from cc's is buggy. Use get_lines on the comb volume instead")
     gt_solutions = postprocessing.get_solutions(solution_dir, ".gt")
     line_list_gt = []
 
@@ -39,6 +40,28 @@ def get_tracing_lines(tracing, output_dir, nml=False):
 
     lines = g1_tracing.get_components(min_vertices=1, output_folder=output_dir)
     
+    if nml:
+        lines_to_nml(lines, knossify=True)
+
+    return lines
+
+def get_lines(volume, output_dir, voxel_size=[5.0,5.0,50.0], nml=False):
+    if volume.endswith(".nml"):
+        gt = False
+        volume = preprocessing.nml_to_g1(volume, None)
+    else:
+        assert(volume.endswith(".gt"))
+        gt = True
+        g1 = graphs.G1(0)
+        g1.load(volume)
+        volume = g1
+ 
+    if gt:
+        for v in volume.get_vertex_iterator():
+            pos_scaled = np.array([g1.get_position(v)[j]/voxel_size[j] for j in range(3)]) 
+        
+    lines = volume.get_components(min_vertices=1, output_folder=output_dir)
+
     if nml:
         lines_to_nml(lines, knossify=True)
 
