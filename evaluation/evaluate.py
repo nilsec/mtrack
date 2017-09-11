@@ -1,80 +1,52 @@
-import pyted
 import numpy as np
-import pickle
+from opt_matching import OptMatch, get_lines
+from process_solution import get_solution_lines, get_tracing_lines, get_lines
 import os
-import process_solution
-import json
 
-def evaluate_lines(tracing_line_dir, 
-                   rec_line_dir, 
-                   distance_threshold, 
-                   voxel_size,
-                   dimensions,
-                   correction):
+def evaluate(tracing_file, 
+             solution_file,
+             chunk_size,
+             distance_tolerance,
+             dummy_cost,
+             edge_selection_cost,
+             pair_cost_factor,
+             max_edges,
+             voxel_size=[5.,5.,50.]):
 
-    print "Get line list..."
-    tracing_lines = process_solution.get_line_list(tracing_line_dir)
-    rec_lines = process_solution.get_line_list(rec_line_dir)
-
-    print "Get tracing volume..."
-    tracing_volume = process_solution.get_volume(tracing_lines, dimensions, correction)
-    print "Get rec volume..."
-    rec_volume = process_solution.get_volume(rec_lines, dimensions, correction)
-
-    report = evaluate_skeleton(tracing_volume,
-                               rec_volume,
-                               distance_threshold,
-                               voxel_size,
-                               from_skeleton=False)
-
-    return report
-    
-
-def evaluate_skeleton(tracing_volume, reconstruction_volume, distance_threshold, 
-                      voxel_size, background_label=0.0, report_ted=True, 
-                      report_rand=True, report_voi=True, verbose=True, 
-                      from_skeleton=True):
-
-    print "Start Evaluation..."
+    line_base_dir = None
+    if cc_solution_dir[-1] == "/":
+        line_base_dir = os.path.dirname(cc_solution_dir[:-1]) + "/lines"
+    else:
+        line_base_dir = os.path.dirname(cc_solution_dir) + "/lines"
         
-    parameters = pyted.Parameters()
-    parameters.report_ted = report_ted
-    parameters.report_rand = report_rand
-    parameters.report_voi = report_voi
-    parameters.distance_threshold = distance_threshold
-    parameters.from_skeleton = from_skeleton
-    parameters.gt_background_label = background_label
-    parameters.rec_background_label = background_label
-    parameters.have_background = True
+    tracing_lines = get_lines(tracing_file, 
+                                      line_base_dir + "/tracing/", 
+                                      nml=True)
 
-    print "Initialize TED..."
-    ted = pyted.Ted(parameters)
-    print "Create Report...\n"
+    rec_lines = get_lines(solution_file, 
+                          line_base_dir + "/reconstruction/",
+                          nml=True)
+
+    """
+    matcher = OptMatch(tracing_lines,
+                       rec_lines,
+                       chunk_size,
+                       distance_tolerance,
+                       dummy_cost,
+                       edge_selection_cost,
+                       pair_cost_factor,
+                       max_edges)
+    """
     
-    report = ted.create_report(tracing_volume.astype(np.uint32), 
-                               reconstruction_volume.astype(np.uint32),
-                               np.array([voxel_size[2], voxel_size[1],voxel_size[0]]).astype(np.float64)) # Jan changed order to z, y, x in new ted version.
-    
-    if verbose:
-        print("\nTED report:")
-        for (k,v) in report.iteritems():
-            print("\t" + k.ljust(20) + ": " + str(v))
-
-    return report
-
 if __name__ == "__main__":
-    trace_dir = "/media/nilsec/d0/gt_mt_data/test_tracing/lines_v17_cropped"
-    rec_dir = "/media/nilsec/d0/gt_mt_data/experiments/selection_cost_grid0404_solve_4/lines"
-    distance_threshold = 100
-    voxel_size = [5.,5.,50.]
-    dimensions=[1025, 1025, 101]
-    correction = np.array([0,0,300])
+    tracing_file = "/media/nilsec/d0/gt_mt_data/test_tracing/v18_cropped_small_300_309.nml"
+    cc_solution_dir = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_300_309/solution/volume.gt"
 
-    report = evaluate_lines(trace_dir, 
-                            rec_dir, 
-                            distance_threshold,
-                            voxel_size,
-                            dimensions,
-                            correction)
-
-    json.dump(report, open("./report.json", "w+"))
+    evaluate(tracing_file, 
+             cc_solution_dir,
+             chunk_size=3,
+             distance_tolerance=100.0,
+             dummy_cost=100.0,
+             edge_selection_cost=0.0,
+             pair_cost_factor=1.0,
+             max_edges=3)
