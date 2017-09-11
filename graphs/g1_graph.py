@@ -253,7 +253,7 @@ class G1(G):
         plt.cla()
  
         print "Filter Graphs..."
-        cc_list = []
+        cc_path_list = []
         
         n = 0
         len_masks = len(component_masks)
@@ -261,14 +261,13 @@ class G1(G):
         for mask in component_masks:
             print "Filter graph {}/{}".format(n, len_masks) 
             output_file = output_folder + "cc{}_min{}_phy.gt".format(n, min_vertices)
-            cc_list.append(output_file)
+            cc_path_list.append(output_file)
             
             G.set_vertex_filter(self, mask)
             g1_masked = G1(0, G_in=self)
             g1_masked.save(output_file)
             
-            
             G.set_vertex_filter(self, None)
             n += 1
 
-        return cc_list
+        return cc_path_list
