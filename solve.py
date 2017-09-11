@@ -11,6 +11,7 @@ from postprocessing import combine_knossos_solutions,\
 from timeit import default_timer as timer
 import os
 import json
+import numpy as np
 
 def solve(g1,
           start_edge_prior,
@@ -67,6 +68,7 @@ def solve(g1,
 
     print "Get G1 solution..."
     g1_solution = g2_to_g1_solution(g2_solution, g1, g2, index_maps)
+    
 
     
     if output_dir is not None:
@@ -103,7 +105,7 @@ def solve(g1,
     return g1_solution
 
 
-def g2_to_g1_solution(g2_solution, g1, g2, index_maps):
+def g2_to_g1_solution(g2_solution, g1, g2, index_maps, voxel_size=[5.,5.,50.]):
     g1_selected_edges = set()
     g1_selected_vertices = set()
 
@@ -127,6 +129,11 @@ def g2_to_g1_solution(g2_solution, g1, g2, index_maps):
     for v in g1.get_vertex_iterator():
         if v in g1_selected_vertices:
             vertex_mask.append(True)
+            # Revert the z-position to lie on the section:
+            z_shift = 0.5 * voxel_size[2]
+            pos = g1.get_position(v)
+            pos[2] += z_shift
+            g1.set_position(v, np.array(pos))
         else:
             vertex_mask.append(False)
 
@@ -182,7 +189,7 @@ def solve_volume(volume_dir,
                                      cc[:-3]) + "/"
 
         print "Solve cc {}/{}".format(i + 1, n_comp)
-        solve(os.path.join(volume_dir[:-1], cc),
+        g1_solution = solve(os.path.join(volume_dir[:-1], cc),
               start_edge_prior,
               distance_factor,
               orientation_factor,
@@ -191,6 +198,7 @@ def solve_volume(volume_dir,
               time_limit,
               cc_output_dir,
               voxel_size)
+
         i += 1
     
     end = timer()
