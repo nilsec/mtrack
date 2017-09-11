@@ -16,7 +16,7 @@ def merge_dicts(a, b):
     c.update(b)
     return c
 
-def get_lines(rec_dir, gt_dir):
+def interpolate_lines(rec_dir, gt_dir):
     gt_lines = process_solution.get_line_list(gt_dir)
     rec_lines = process_solution.get_line_list(rec_dir)
 
