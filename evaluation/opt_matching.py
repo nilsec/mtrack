@@ -16,14 +16,11 @@ def merge_dicts(a, b):
     c.update(b)
     return c
 
-def interpolate_lines(rec_dir, gt_dir):
-    gt_lines = process_solution.get_line_list(gt_dir)
-    rec_lines = process_solution.get_line_list(rec_dir)
+def interpolate_lines(rec_line_paths, gt_line_paths):
+    gt_lines = interpolate_nodes(gt_line_paths)
+    rec_lines = interpolate_nodes(rec_line_paths)
 
-    gt_lines = interpolate_nodes(gt_lines)
-    rec_lines = interpolate_nodes(rec_lines)
-
-    return gt_lines, rec_lines
+    return rec_lines, gt_lines
 
 def interpolate_nodes(line_list):
     lines = []
@@ -56,22 +53,28 @@ class OptMatch(object):
         assert(isinstance(lines_gt, list))
         assert(isinstance(lines_rec, list))
 
+        print "Start optimal matching...\n"
+
         self.lines_gt = lines_gt
         self.lines_rec = lines_rec
         self.n = n
 
+        print "Get tracing/ground truth chunks with size {}...\n".format(self.n)
         self.gt_chunks, self.gt_chunk_positions, self.inv_gt_chunk_positions, n_lines\
             = self.get_chunks(self.lines_gt, self.n)
 
+        print "Get reconstruction chunks with size {}...\n".format(self.n)
         self.rec_chunks, self.rec_chunk_positions, self.inv_rec_chunk_positions, _\
             = self.get_chunks(self.lines_rec, self.n, l_0=n_lines)
 
-        chunk_positions = self.rec_chunk_positions.values() + self.gt_chunk_positions.values() 
+        chunk_positions = self.rec_chunk_positions.values() + self.gt_chunk_positions.values()
 
+        print "Connect chunks to each other...\n"
         self.pairs = self.connect_chunks(chunk_positions,
                                          voxel_size, 
                                          distance_tolerance)
 
+        print "Find rec/trace chunk pairs...\n"
         self.gt_rec_pairs = []
 
         for pair in self.pairs:
@@ -87,8 +90,10 @@ class OptMatch(object):
                     self.gt_rec_pairs.append((self.inv_rec_chunk_positions[tuple(pos_1)],
                                               self.inv_gt_chunk_positions[tuple(pos_0)]))
 
+        print "Get edge pairs...\n"
         self.edge_pairs, self.edge_pair_cost = self.get_edge_pairs(self.gt_rec_pairs)
 
+        print "Initialize ILP...\n"
         self.backend = pylp.GurobiBackend()
 
         self.n_rec_nodes = len(self.rec_chunks.values())
@@ -104,6 +109,7 @@ class OptMatch(object):
         self.backend.initialize(self.n_tot, 
                                 pylp.VariableType.Binary)
 
+        print "Set costs...\n"
         # Costs
         self.objective = pylp.LinearObjective(self.n_tot)
         
@@ -161,6 +167,7 @@ class OptMatch(object):
 
         self.backend.set_objective(self.objective)
 
+        print "Find constraints and conflicts...\n"
         # Conflicts & Constraints
         self.constraints = pylp.LinearConstraints()
 
@@ -280,6 +287,7 @@ class OptMatch(object):
 
             self.constraints.add(constraint)
 
+        print "Set {} constraints...\n".format(len(self.constraints))
         self.backend.set_constraints(self.constraints)
 
     def solve(self, time_limit=None):
