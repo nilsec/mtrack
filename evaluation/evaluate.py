@@ -1,6 +1,6 @@
 import numpy as np
-from opt_matching import OptMatch, get_lines
-from process_solution import get_solution_lines, get_tracing_lines, get_lines
+from opt_matching import OptMatch
+from process_solution import get_lines
 import os
 
 def evaluate(tracing_file, 
@@ -20,8 +20,8 @@ def evaluate(tracing_file,
         line_base_dir = os.path.dirname(cc_solution_dir) + "/lines"
         
     tracing_lines = get_lines(tracing_file, 
-                                      line_base_dir + "/tracing/", 
-                                      nml=True)
+                              line_base_dir + "/tracing/", 
+                              nml=True)
 
     rec_lines = get_lines(solution_file, 
                           line_base_dir + "/reconstruction/",
