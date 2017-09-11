@@ -235,6 +235,9 @@ def nml_to_g1(nml,
 
 
 if __name__ == "__main__":
-    from_nml("test_physical_connected.nml")
+    g1_to_nml("/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_300_309/solution/volume.gt",
+              "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_300_309/solution/volume_gt.nml",
+              knossos=True,
+              voxel_size=[5.,5.,50.0])
     
 
