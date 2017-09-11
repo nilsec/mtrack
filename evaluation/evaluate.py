@@ -1,7 +1,9 @@
 import numpy as np
-from opt_matching import OptMatch
+from opt_matching import OptMatch, interpolate_lines
 from process_solution import get_lines
+from graphs import G1
 import os
+import pdb
 
 def evaluate(tracing_file, 
              solution_file,
@@ -19,15 +21,16 @@ def evaluate(tracing_file,
     else:
         line_base_dir = os.path.dirname(cc_solution_dir) + "/lines"
         
-    tracing_lines = get_lines(tracing_file, 
+    tracing_line_paths = get_lines(tracing_file, 
                               line_base_dir + "/tracing/", 
                               nml=True)
 
-    rec_lines = get_lines(solution_file, 
+    rec_line_paths = get_lines(solution_file, 
                           line_base_dir + "/reconstruction/",
                           nml=True)
 
-    """
+    rec_lines, tracing_lines = interpolate_lines(rec_line_paths, tracing_line_paths)
+
     matcher = OptMatch(tracing_lines,
                        rec_lines,
                        chunk_size,
@@ -36,7 +39,8 @@ def evaluate(tracing_file,
                        edge_selection_cost,
                        pair_cost_factor,
                        max_edges)
-    """
+
+    matcher.solve()
     
 if __name__ == "__main__":
     tracing_file = "/media/nilsec/d0/gt_mt_data/test_tracing/v18_cropped_small_300_309.nml"
