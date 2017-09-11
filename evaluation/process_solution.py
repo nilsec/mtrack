@@ -22,12 +22,13 @@ def get_lines(volume, output_dir, voxel_size=[5.0,5.0,50.0], nml=False):
             pos_scaled = np.array([g1.get_position(v)[j]/voxel_size[j] for j in range(3)])
             volume.set_position(v, pos_scaled)
         
-    lines = volume.get_components(min_vertices=1, output_folder=output_dir)
+    line_paths = volume.get_components(min_vertices=1, 
+                                       output_folder=output_dir)
 
     if nml:
-        lines_to_nml(lines, knossify=True)
+        lines_to_nml(line_paths, knossify=True)
 
-    return lines
+    return line_paths
 
 def lines_to_nml(line_list_gt, 
                  knossos=False,
