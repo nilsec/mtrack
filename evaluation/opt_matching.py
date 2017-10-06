@@ -7,6 +7,8 @@ import postprocessing
 import graphs
 from dda3 import DDA3
 import os
+from shutil import copyfile
+import json
 
 def is_arr_in_list(arr, arr_list):
     return next((True for elem in arr_list if elem is arr), False)
@@ -22,7 +24,7 @@ def interpolate_lines(rec_line_paths, gt_line_paths):
 
     return rec_lines, gt_lines
 
-def interpolate_nodes(line_list):
+def interpolate_nodes(line_list, voxel_size=[5.,5.,50.]):
     lines = []
 
     for line in line_list:
@@ -31,17 +33,59 @@ def interpolate_nodes(line_list):
 
         inter_line = []
 
-        for edge in g1.get_edge_iterator():
-            start = np.array(g1.get_position(edge.source()), dtype=int)
-            end = np.array(g1.get_position(edge.target()), dtype=int)
+        #Identify start and end node:
+        start_end = []
+        start_end_norm = []
+        for v in g1.get_vertex_iterator():
+            if len(g1.get_incident_edges(v)) == 1:
+                start_end.append(v)
+                start_end_norm.append(np.linalg.norm(g1.get_position(v) * np.array(voxel_size)))
+
+        #Define the node with smaller norm as start node:
+        if g1.get_number_of_vertices() > 1:
+            if start_end_norm[0] < start_end_norm[1]:
+                start_node = start_end[0]
+                end_node = start_end[1]
+            else:
+                start_node = start_end[1]
+                end_node = start_end[0]
+        else:
+            start_node = v
+            end_node = v
             
-            dda = DDA3(start, end)
-            edge = dda.draw()
+        edge_start = start_node
+        reached_end = False
+        visited = []
+        while not reached_end:
+            neighbours = g1.get_neighbour_nodes(edge_start)
+            if len(neighbours) > 0:
+                if edge_start != start_node:
+                    if len(neighbours) != 1:
+                        edge_end_id = int(not neighbours.index(visited[-1]))
+                        edge_end = neighbours[edge_end_id]
+                    else:
+                        edge_end_id = neighbours[0]
+                        reached_end = True
+                
+                else: #Start/End nodes only have 1 neighbour
+                    edge_end = neighbours[0]
 
-            inter_line.extend(edge) # Be careful here
-                                    # the kdtree is scaled wih voxel size
-                                    # 5,5,50, i.e. we need (x,y,z)
+                start = np.array(g1.get_position(edge_start), dtype=int)
+                end = np.array(g1.get_position(edge_end), dtype=int)
 
+                dda = DDA3(start, end)
+                edge = dda.draw()
+
+                inter_line.extend(edge) # Be careful here
+                                        # the kdtree is scaled wih voxel size
+                                        # 5,5,50, i.e. we need (x,y,z)
+
+                visited.append(edge_start)
+                edge_start = edge_end
+            else:
+                inter_line.extend([np.array(g1.get_position(edge_start), dtype=int)])
+                reached_end = True
+            
         lines.append(inter_line)
 
     return lines
@@ -52,6 +96,12 @@ class OptMatch(object):
                  pair_cost_factor, max_edges, edge_selection_cost, voxel_size=np.array([5.0,5.0,50.0])):
         assert(isinstance(lines_gt, list))
         assert(isinstance(lines_rec, list))
+    
+        self.matching_parameters = {"chunk_size": n, 
+                                    "max_edges": max_edges, 
+                                    "edge_selection_cost": edge_selection_cost,
+                                    "pair_cost_factor": pair_cost_factor,
+                                    "dummy_cost": dummy_cost}
 
         print "Start optimal matching...\n"
 
@@ -73,6 +123,7 @@ class OptMatch(object):
         self.pairs = self.connect_chunks(chunk_positions,
                                          voxel_size, 
                                          distance_tolerance)
+
 
         print "Find rec/trace chunk pairs...\n"
         self.gt_rec_pairs = []
@@ -108,6 +159,8 @@ class OptMatch(object):
 
         self.backend.initialize(self.n_tot, 
                                 pylp.VariableType.Binary)
+        
+        pylp.setLogLevel()
 
         print "Set costs...\n"
         # Costs
@@ -317,7 +370,8 @@ class OptMatch(object):
             chunks = [[line_id, None] for x in chunk_keys if x[0] == line_id]
 
             chunk_id = 0
-            for chunk, match in zip(chunks, chunk_matches):
+
+            for chunk in chunks:
                 chunk[1] = chunk_id
 
                 try:
@@ -360,7 +414,7 @@ class OptMatch(object):
         return line_matches, stats
  
 
-    def evaluate_solution(self, solution):
+    def evaluate_solution(self, solution, gt_line_path_list, rec_line_path_list, base_save_folder):
         mergers = 0
         splits = 0
         
@@ -377,6 +431,7 @@ class OptMatch(object):
                                                             self.dummy_start_id + self.n_dummy_edges)\
                                                             if solution[i] > 0.5]
 
+
         matches_rec_gt = sorted(selected_edges, key=lambda x: (x[0][1], x[0][0])) #(rec, gt)
         matches_1 = sorted(selected_edges, key=lambda x: (x[1][1], x[1][0])) 
         matches_gt_rec = [(x[1], x[0]) for x in matches_1] #(gt, rec)
@@ -387,19 +442,151 @@ class OptMatch(object):
         gt_line_matches, gt_stats = self.__match_solution_lines(self.lines_gt, self.gt_chunks.keys(), matches_gt_rec, 0, selected_dummys)
         rec_line_matches, rec_stats = self.__match_solution_lines(self.lines_rec, self.rec_chunks.keys(), matches_rec_gt, len(self.lines_gt), selected_dummys)
 
-        tot_eval = {"tp_chunks": rec_stats["matches"], 
-                    "fn_chunks": gt_stats["dummys"], 
-                    "fp_chunks": rec_stats["dummys"],
+        tot_eval = {"tp": rec_stats["matches"], 
+                    "fn": gt_stats["dummys"], 
+                    "fp": rec_stats["dummys"],
                     "mergers": rec_stats["switches"],
                     "splits": gt_stats["switches"]}
 
-        print matches_gt_rec, "\n"     
-        print gt_line_matches, "\n"
-        print rec_line_matches, "\n"
+        self.save_solution(tot_eval,
+                           gt_line_matches,
+                           rec_line_matches,
+                           gt_line_path_list,
+                           rec_line_path_list,
+                           base_save_folder)
 
-        print gt_stats, "\n"
-        print rec_stats, "\n"
-        print tot_eval
+
+    def save_solution(self, tot_eval,
+                            gt_line_matches, 
+                            rec_line_matches, 
+                            gt_line_path_list, 
+                            rec_line_path_list,
+                            base_save_folder):
+
+        eval_number = 0
+        base_save_folder += "_{}"
+        while os.path.exists(base_save_folder.format(eval_number)):
+            eval_number += 1
+
+        base_save_folder = base_save_folder.format(eval_number)
+            
+            
+
+        fn_folder = os.path.join(base_save_folder, "fn")
+        fp_folder = os.path.join(base_save_folder, "fp")
+
+        if not os.path.exists(fn_folder):
+            os.makedirs(fn_folder)
+        if not os.path.exists(fp_folder):
+            os.makedirs(fp_folder)
+        
+        json.dump(tot_eval,
+                  open(os.path.join(base_save_folder, "chunk_evaluation.json"), "w+"))
+
+        line_evaluation = {"fn": 0,"fp": 0, "tp": 0, "splits": 0, "mergers": 0}
+ 
+        for gt_line, match_list in gt_line_matches.iteritems():
+            folder = os.path.join(base_save_folder, "gt/" + str(gt_line))
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+
+            dummy_chunks = 0
+            matches = {}
+            for match in match_list:
+                if not (match == "d"):
+                    rec_line_id = match[0] - len(self.lines_gt)
+
+                    copyfile(gt_line_path_list[gt_line][:-3] + "_kfy.nml", 
+                             os.path.join(folder, "BASE_gt" + str(gt_line) + ".nml"))
+  
+                    copyfile(rec_line_path_list[rec_line_id][:-3] + "_kfy.nml", 
+                             os.path.join(folder, "MATCH_rec" + str(rec_line_id) + ".nml"))
+
+                    try:
+                        matches["rec" + str(rec_line_id)] += 1
+                    except KeyError:
+                        matches["rec" + str(rec_line_id)] = 1
+                else:
+                    dummy_chunks += 1
+
+            matches["d"] = dummy_chunks
+
+            #Check for full false negatives:
+            if matches["d"] == len(match_list):
+                os.rmdir(folder)
+                line_evaluation["fn"] += 1
+
+                copyfile(gt_line_path_list[gt_line][:-3] + "_kfy.nml", 
+                         os.path.join(fn_folder, "gt" + str(gt_line) + ".nml"))
+            else:
+                json.dump(matches, 
+                          open(os.path.join(folder, "STATS_gt" + str(gt_line) + ".json"), 
+                               "w+"))
+
+                # Count number of excess rec files in folder. -2 because of base gives splits
+                splits = len([f for f in os.listdir(folder) if f.endswith(".nml")]) - 2
+                line_evaluation["splits"] += splits
+
+ 
+        #-------------------------------------------------
+
+
+        for rec_line, match_list in rec_line_matches.iteritems():
+            rec_line_id = rec_line - len(self.lines_gt)
+
+            folder = os.path.join(base_save_folder, "rec/" + str(rec_line_id))
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+
+            dummy_chunks = 0
+            matches = {}
+            for match in match_list:
+                if not (match == "d"):
+                    gt_line_id = match[0]
+
+                    copyfile(rec_line_path_list[rec_line_id][:-3] + "_kfy.nml", 
+                          os.path.join(folder, "BASE_rec" + str(rec_line_id) + ".nml"))
+  
+                    copyfile(gt_line_path_list[gt_line_id][:-3] + "_kfy.nml", 
+                          os.path.join(folder, "MATCH_gt" + str(gt_line_id) + ".nml"))
+
+                    try:
+                        matches["gt" + str(gt_line_id)] += 1
+                    except KeyError:
+                        matches["gt" + str(gt_line_id)] = 1
+
+                else:
+                    dummy_chunks += 1
+
+            matches["d"] = dummy_chunks
+
+            #Check for full false positives:
+            if matches["d"] == len(match_list):
+                os.rmdir(folder)
+                line_evaluation["fp"] += 1
+
+                copyfile(rec_line_path_list[rec_line_id][:-3] + "_kfy.nml", 
+                         os.path.join(fp_folder, "rec" + str(rec_line_id) + ".nml"))
+            else:
+                json.dump(matches, 
+                          open(os.path.join(folder, "STATS_rec" + str(rec_line_id) + ".json"), 
+                               "w+"))
+                line_evaluation["tp"] += 1
+
+                # Count number of excess gt files in folder. -2 because of base gives splits
+                mergers = len([f for f in os.listdir(folder) if f.endswith(".nml")]) - 2
+                line_evaluation["mergers"] += mergers
+ 
+
+        json.dump(line_evaluation,
+                  open(os.path.join(base_save_folder, "line_evaluation.json"), "w+"))
+
+        json.dump(self.matching_parameters,
+                  open(os.path.join(base_save_folder, "matching_params.json"), "w+"))
+ 
+ 
+                
+        
         
     def get_edge_pair_constraints(self):
         constraints = [] # constraints will be tuple of the form (edge_pair_id, edge_id_1, edge_id_2)
@@ -452,14 +639,16 @@ class OptMatch(object):
             for j in range(len(self.gt_rec_pairs)):
 
                 edge_j = self.gt_rec_pairs[j]
+                if edge_i[0][0] == edge_j[0][0]:
+                    if edge_i[1][0] == edge_j[1][0]:
 
-                if edge_i[0][1] > edge_j[0][1]:
-                    if edge_i[1][1] < edge_j[1][1]:
-                        c_i.add(j + self.edge_start_id)
-                        conflicts.append(tuple(c_i))
+                        if edge_i[0][1] > edge_j[0][1]:
+                            if edge_i[1][1] < edge_j[1][1]:
+                                c_i.add(j + self.edge_start_id)
+                                conflicts.append(tuple(c_i))
 
-                        c_i = set([i + self.edge_start_id])
-                        
+                                c_i = set([i + self.edge_start_id])
+
         return conflicts
                     
     def get_edges_to_node(self):
@@ -544,7 +733,17 @@ class OptMatch(object):
     def connect_chunks(self, chunk_positions, voxel_size, distance_tolerance):
         kdtree = KDTree(chunk_positions * voxel_size)
         pairs = kdtree.query_pairs(distance_tolerance, p=2.0, eps=0)
-       
+    
+        partner_list = []
+        for j in range(len(chunk_positions)):
+            partner = False
+            for i in range(len(chunk_positions)):
+                d = np.linalg.norm((chunk_positions[j] - chunk_positions[i]) * voxel_size) 
+                if d < distance_tolerance:
+                    if i != j:
+                        partner=True
+            partner_list.append(partner)
+
         return pairs
 
     def get_edge_pairs(self, gt_rec_pairs):
