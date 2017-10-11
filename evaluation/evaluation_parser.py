@@ -29,4 +29,10 @@ class EvaluationParser(object):
         self.evaluation_line = json.load(open(self.path_line_evaluation, "r"))
         self.params_matching = json.load(open(self.path_matching_params, "r"))
         self.params_solve = json.load(open(self.path_solve_params, "r"))
-        self.stats_solve = json.load(open(self.path_solve_stats, "r"))        
+        self.stats_solve = json.load(open(self.path_solve_stats, "r"))
+
+        f_beta = lambda tp, fn, fp, beta: ((1 + float(beta)**2) * float(tp))/((1+beta**2) * tp + beta**2 * fn + fp)
+
+        self.f_score = {"f_1": f_beta(self.evaluation_chunk["tp"], self.evaluation_chunk["fn"], self.evaluation_chunk["fp"], 1.0),
+                        "f_2": f_beta(self.evaluation_chunk["tp"], self.evaluation_chunk["fn"], self.evaluation_chunk["fp"], 2.0),
+                        "f_05": f_beta(self.evaluation_chunk["tp"], self.evaluation_chunk["fn"], self.evaluation_chunk["fp"], 0.5)}
