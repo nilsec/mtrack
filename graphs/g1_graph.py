@@ -3,7 +3,7 @@ from start_edge import StartEdge
 import numpy as np
 import mt_utils
 import os
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from numpy.core.umath_tests import inner1d
 import itertools
 import pdb
@@ -247,10 +247,10 @@ class G1(G):
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
     
-        plt.bar(range(len(hist)), hist)
-        plt.savefig(output_folder + "cc_hist.png")
-        plt.clf()
-        plt.cla()
+        #plt.bar(range(len(hist)), hist)
+        #plt.savefig(output_folder + "cc_hist.png")
+        #plt.clf()
+        #plt.cla()
  
         print "Filter Graphs..."
         cc_path_list = []
