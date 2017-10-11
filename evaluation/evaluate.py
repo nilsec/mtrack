@@ -16,7 +16,8 @@ def evaluate(tracing_file,
              max_edges,
              voxel_size=[5.,5.,50.],
              tracing_line_paths=None,
-             rec_line_paths=None):
+             rec_line_paths=None,
+             time_limit=None):
 
     line_base_dir = None
     if solution_file[-1] == "/":
@@ -49,7 +50,7 @@ def evaluate(tracing_file,
     print "LOGLEVEL:", pylp.getLogLevel()
 
 
-    solution = matcher.solve()
+    solution = matcher.solve(time_limit=time_limit)
     matcher.evaluate_solution(solution, tracing_line_paths, rec_line_paths, 
                                         os.path.dirname(line_base_dir) + "/evaluation")
     
@@ -65,13 +66,18 @@ if __name__ == "__main__":
 
     rec_line_paths = ["/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_300_309/solution/minimal_lines/reconstruction/cc6_min1_phy.gt"]
 
+    tracing_file = "/media/nilsec/d0/gt_mt_data/DL3-tracings/test/master_300_399.nml"
+    solution_file_test = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_grid1_ps0505_300_399/solution/volume.gt"
+     
+
     evaluate(tracing_file, 
-             solution_file_0303,
+             solution_file_test,
              chunk_size=10,
              distance_tolerance=100.0,
-             dummy_cost=100000,
+             dummy_cost=1000000,
              edge_selection_cost=-10.0,
              pair_cost_factor=1.0,
-             max_edges=5,
+             max_edges=3,
              tracing_line_paths=None,
-             rec_line_paths=None)
+             rec_line_paths=None,
+             time_limit=3000)
