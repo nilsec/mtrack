@@ -19,7 +19,13 @@ def evaluate_grid(grid_path,
         if os.path.exists(os.path.join(grid, "solution/evaluation_0")):
             print "Skip grid " + os.path.basename(grid)
             continue
+        if not os.path.exists(solution):
+            print "No solution file for " + os.path.basename(grid)
+            print "Skip"
+            continue
+
         print "Evaluate grid " + os.path.basename(grid)
+
         evaluate(tracing_file,
                  solution,
                  chunk_size,
