@@ -30,8 +30,8 @@ class EvaluationPlotter(object):
             if lines:
                 overlay = ""
 
-            trace_chunk = go.Bar(x=parser.evaluation_chunk.keys(),
-                                 y=parser.evaluation_chunk.values(),
+            trace_chunk = go.Bar(x=parser.f_score.keys(),
+                                 y=parser.f_score.values(),
                                  name="Chunk Evaluation",
                                  text=overlay)
 
@@ -45,9 +45,14 @@ class EvaluationPlotter(object):
 
 if __name__ == "__main__":
     parser_1 = EvaluationParser("/media/nilsec/d0/gt_mt_data" +\
-                                "/solve_volumes/test_volume_ps0304_300_309/solution",
-                                1)
+                                "/solve_volumes/grid_2/grid_2/solution",
+                                0)
+
+    parser_2 = EvaluationParser("/media/nilsec/d0/gt_mt_data" +\
+                                "/solve_volumes/grid_2/grid_36/solution",
+                                0)
 
     plotter = EvaluationPlotter()
-    plotter.construct(parser_1, overlay="parser 1")
-    plotter.plot() 
+    plotter.construct(parser_1, overlay="parser 1", lines=False)
+    plotter.construct(parser_2, overlay="parser 2", lines=False)
+    plotter.plot()
