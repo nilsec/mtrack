@@ -306,23 +306,23 @@ def solve_bb_volume(bounding_box,
 
 if __name__ == "__main__":
 
-    distance_threshold = 175 # 150
-    start_edge_prior = 180.0
+    distance_threshold = 125 # 150
+    start_edge_prior = 140.0
     distance_factor = 0.0
     orientation_factor = 15.0
     comb_angle_factor = 16.0
-    selection_cost = -80.0 # -80
-    time_limit = 2000
+    selection_cost = -90.0 # -80
+    time_limit = 5000
     voxel_size = [5.0, 5.0, 50.0]
     z_correction = 1
-    bounding_box = [300, 330] # specify slices here in terms of tracing coords. i.e. 1-n_slices.
+    bounding_box = [300, 400] # specify slices here in terms of tracing coords. i.e. 1-n_slices.
                               # we can do that because we specified the z_correction = 1
 
     gs = DirectionType(0.5, 0.5)
-    ps = DirectionType(0.4, 0.4)
+    ps = DirectionType(0.35, 0.35)
 
     output_dir = "/media/nilsec/d0/gt_mt_data/" +\
-                 "solve_volumes/validation_volume_6_ps0303_{}_{}/".format(bounding_box[0],
+                 "solve_volumes/test_volume_grid36_ps035035_{}_{}/".format(bounding_box[0],
                                                            bounding_box[1] - 1)
  
 
@@ -339,8 +339,8 @@ if __name__ == "__main__":
                                "probability_maps/validation/parallel/stack/stack.h5"
  
  
-    prob_map_stack = DirectionType(prob_map_stack_file_perp_validation,
-                                   prob_map_stack_file_par_validation)
+    prob_map_stack = DirectionType(prob_map_stack_file_perp_test,
+                                   prob_map_stack_file_par_test)
  
     solve_bb_volume(bounding_box,
                     prob_map_stack,
