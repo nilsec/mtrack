@@ -5,7 +5,15 @@ import os
 import numpy as np
 import pdb
 import pickle
+import h5py
+import neuroglancer
 
+def view(raw, seg, voxel_size, offset):
+    raw = h5py.File(raw)["data/raw"]
+    viewer = neuroglancer.Viewer(voxel_size)
+    viewer.add(raw, name="raw")
+    viewer.add(seg, name="seg", volume_type="segmentation", offset=offset)
+    print viewer
 
 def line_segment_distance(line_p0, line_p1, point):
     line_p0 = np.array(line_p0)
@@ -30,13 +38,14 @@ def line_segment_distance(line_p0, line_p1, point):
 
 
 class Cluster(OptMatch):
-    def __init__(self, chunk_size, solution_file):
+    def __init__(self, solution_file, chunk_size=None):
         self.solution_file = solution_file
         self.chunk_size = chunk_size
         self.lines_itp = self.__get_lines()
-        #self.chunks, self.chunk_positions, self.inv_gt_chunk_positions, _ = OptMatch.get_chunks(self, 
-                                                                                                #self.lines_itp, 
-                                                                                                #chunk_size)
+        if chunk_size is not None:
+            self.chunks, self.chunk_positions, self.inv_gt_chunk_positions, _ = OptMatch.get_chunks(self, 
+                                                                                                    self.lines_itp, 
+                                                                                                    chunk_size)
 
     def __get_lines(self):
         if self.solution_file[-1] == "/":
@@ -57,7 +66,7 @@ class Cluster(OptMatch):
         return lines_itp
 
 
-    def run(self, distance_threshold, voxel_size):
+    def get_distance_map(self, distance_threshold, voxel_size):
         base_chunk_map = {}
         empty_chunks = []
 
@@ -129,8 +138,8 @@ class Cluster(OptMatch):
         return min_bb, max_bb
 
 
-    def run_2(self, epsilon, offset, voxel_size):
-        canvas_base = np.zeros((100, 1024, 1024))
+    def get_overlap(self, epsilon, min_overlap, offset, voxel_size, canvas_shape, save_volume=None, dt=False):
+        canvas_base = np.zeros(canvas_shape)
         dilation = np.array(np.floor(epsilon/np.array(voxel_size)), dtype=int)
         
         # This assumes that the x,y res is the same!
@@ -154,37 +163,42 @@ class Cluster(OptMatch):
                 voxel -= offset
                 canvas[voxel[2], voxel[1], voxel[0]] = 1
             
-            """                
-            #pdb.set_trace()
-            canvas = binary_dilation(canvas[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]], struc_xy, n_xy)
-            canvas = binary_dilation(canvas, struc_all, n_z)
-            """
-            canvas = distance_transform_edt(canvas[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]], sampling=voxel_size[::-1])
-            canvas = (canvas <= epsilon).astype(np.uint8)
- 
+            if not dt:
+                canvas = binary_dilation(canvas[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]], struc_xy, n_xy)
+                canvas = binary_dilation(canvas, struc_all, n_z)
+
+            else:
+                canvas = distance_transform_edt(canvas[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]], 
+                                            sampling=voxel_size[::-1])
+
+                canvas = (canvas <= epsilon).astype(np.uint8)
+
             canvas_base[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]] += canvas
             n += 1
+
+        labeled_volume, n_components = label(canvas_base>=min_overlap)
         
-        return canvas_base
-
-
-
+        if save_volume is not None:
+            f = h5py.File(save_volume, "w")
+            group = f.create_group("data")
+            group.create_dataset("overlap", data=labeled_volume.astype(np.dtype(np.uint8)))
+ 
+        return labeled_volume.astype(np.uint8), n_components
 
 
 if __name__ == "__main__":
-    cluster = Cluster(10, "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_grid1_ps0505_300_399/solution/volume.gt")
-    base_chunk_map = cluster.run_2(epsilon=100, 
-                                   offset=np.array([0,0,300]),
-                                   voxel_size=[5.,5.,50.])
+    test_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_grid1_ps0505_300_399/solution/volume.gt" 
+    validation_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/grid_2/grid_32/solution/volume.gt"
+    cluster = Cluster(validation_solution)
+    labeled_volume, n_comps = cluster.get_overlap(epsilon=100,
+                                                  min_overlap=3, 
+                                                  offset=np.array([0,0,300]),
+                                                  voxel_size=[5.,5.,50.],
+                                                  canvas_shape=[30,1024,1024],
+                                                  save_volume="/media/nilsec/d0/gt_mt_data/data/cluster.h5")
 
-    labeled_array, num_features = label(base_chunk_map>5)
-    
-    pickle.dump(labeled_array, open("/media/nilsec/d0/gt_mt_data/cluster.p", "wb"))
-    print num_features
+    raw_test = "/media/nilsec/d0/gt_mt_data/data/Test/raw.h5"
+    raw_validation = "/media/nilsec/d0/gt_mt_data/data/Validation/raw.h5"
+    view(raw_validation, labeled_volume, voxel_size=[5.,5.,50.], offset=[0,0,300*50])
 
-    n = float(1024 * 1024 * 100)
-    print len(np.where(base_chunk_map > 1)[0])/n
-    print len(np.where(base_chunk_map > 2)[0])/n
-    print len(np.where(base_chunk_map > 3)[0])/n
-    print len(np.where(base_chunk_map > 4)[0])/n
- 
+
