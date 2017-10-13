@@ -306,8 +306,8 @@ def solve_bb_volume(bounding_box,
 
 if __name__ == "__main__":
 
-    distance_threshold = 125 # 150
-    start_edge_prior = 140.0
+    distance_threshold = 150 # 150
+    start_edge_prior = 160.0
     distance_factor = 0.0
     orientation_factor = 15.0
     comb_angle_factor = 16.0
@@ -322,7 +322,7 @@ if __name__ == "__main__":
     ps = DirectionType(0.35, 0.35)
 
     output_dir = "/media/nilsec/d0/gt_mt_data/" +\
-                 "solve_volumes/test_volume_grid36_ps035035_{}_{}/".format(bounding_box[0],
+                 "solve_volumes/test_volume_grid32_ps035035_{}_{}/".format(bounding_box[0],
                                                            bounding_box[1] - 1)
  
 
