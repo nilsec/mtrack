@@ -11,110 +11,71 @@ import pickle
 import h5py
 import neuroglancer
 
-def view(raw, seg, voxel_size, offset):
-    raw = h5py.File(raw)["data/raw"]
-    viewer = neuroglancer.Viewer(voxel_size)
-    viewer.add(raw, name="raw")
-    viewer.add(seg, name="seg", volume_type="segmentation", offset=offset)
-    print viewer
 
-def line_segment_distance(line_p0, line_p1, point):
-    line_p0 = np.array(line_p0)
-    line_p1 = np.array(line_p1)
-    point = np.array(point)
-
-    line_vec = line_p1 - line_p0
-    w_0 = point - line_p0
-    w_1 = point - line_p1
-
-    #Check if point before, after, or parallel to line segment:
-    if np.linalg.norm(line_vec) > 0:
-        if np.dot(w_0, line_vec) < 0:
-            return np.linalg.norm(point - line_p0)
-        elif np.dot(w_1, line_vec) > 0:
-            return np.linalg.norm(point - line_p1)
-        else:
-            d = np.linalg.norm(np.cross(w_0, line_vec))/np.linalg.norm(line_vec)
-            return d
-    else:
-        return None
-
-
-class Cluster(OptMatch):
-    def __init__(self, solution_file, voxel_size=[5.,5.,50], chunk_size=None):
+class VCluster(object):
+    def __init__(self, solution_file, voxel_size=[5.,5.,50]):
         self.solution_file = solution_file
-        self.chunk_size = chunk_size
+        self.voxel_size = voxel_size
+        self.lines = get_lines_from_file(solution_file)
+        self.lines_itp = interpolate_nodes(self.lines, voxel_size=voxel_size)
+    
+    @staticmethod
+    def view(raw, seg, voxel_size, offset):
+        raw = h5py.File(raw)["data/raw"]
+        viewer = neuroglancer.Viewer(voxel_size)
+        viewer.add(raw, name="raw")
+        viewer.add(seg, name="seg", volume_type="segmentation", offset=offset)
+        print viewer
+ 
+
+    def cluster(self, epsilon, min_overlap, offset, canvas_shape, save_volume=None, dt=False):
+        canvas_base = np.zeros(canvas_shape)
+        dilation = np.array(np.floor(epsilon/np.array(self.voxel_size)), dtype=int)
         
-        self.lines = self.__get_lines()
-        #self.lines_itp = interpolate_nodes(self.lines, voxel_size=voxel_size)
-        if chunk_size is not None:
-            self.chunks, self.chunk_positions, self.inv_gt_chunk_positions, _ = OptMatch.get_chunks(self, 
-                                                                                                    self.lines_itp, 
-                                                                                                    chunk_size)
+        # This assumes that the x,y res is the same!
+        assert(self.voxel_size[0] == self.voxel_size[1])
+        struc_all = generate_binary_structure(3, 1)
+        
+        struc_xy = generate_binary_structure(3, 1)
+        struc_xy[0,1,1] = False
+        struc_xy[2,1,1] = False
 
-    def __get_lines(self):
-        if self.solution_file[-1] == "/":
-            line_base_dir = os.path.dirname(self.solution_file[:-1]) + "/lines"
-        else:
-            line_base_dir = os.path.dirname(self.solution_file) + "/lines"
+        n_xy = dilation[0] - dilation[2]
+        n_z = dilation[2]
 
-        rec_line_dir = line_base_dir + "/reconstruction"
-        if not os.path.exists(rec_line_dir):
-            line_paths = get_lines(self.solution_file, 
-                                   rec_line_dir + "/", 
-                                   nml=True)
-        else:
-            line_paths = [rec_line_dir + "/" + f for f in os.listdir(rec_line_dir) if f.endswith(".gt")]
+        n = 0
+        for line in self.lines_itp:
+            print "%s/%s" % (n, len(self.lines_itp)) 
+            canvas = np.zeros(np.shape(canvas_base))
+            bb_min, bb_max = self.get_min_canvas(line, dilation, np.shape(canvas_base), offset)
+            
+            for voxel in line:
+                voxel -= offset
+                canvas[voxel[2], voxel[1], voxel[0]] = 1
+            
+            if not dt:
+                canvas = binary_dilation(canvas[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]], struc_xy, n_xy)
+                canvas = binary_dilation(canvas, struc_all, n_z)
 
-        return line_paths
+            else:
+                canvas = distance_transform_edt(canvas[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]], 
+                                            sampling=self.voxel_size[::-1])
 
+                canvas = (canvas <= epsilon).astype(np.uint8)
 
-    def get_distance_map(self, distance_threshold, voxel_size):
-        base_chunk_map = {}
-        empty_chunks = []
+            canvas_base[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]] += canvas
+            n += 1
 
-        for l_base in range(len(self.lines_itp)):
-            print "line %s/%s" % (l_base, len(self.lines_itp))
-            reached_end_base = False
-            c_base = 0
-            while not reached_end_base:
-                try:
-                    chunk = self.chunks[(l_base, c_base)]
-                    if chunk:
-                        line_p0 = np.array(voxel_size) * np.array(chunk[0])
-                        line_p1 = np.array(voxel_size) * np.array(chunk[-1])
-                    else:
-                        empty_chunks.append((l_base, c_base))
-                        c_base += 1
-                        continue
+        labeled_volume, n_components = label(canvas_base>=min_overlap)
+        
+        if save_volume is not None:
+            f = h5py.File(save_volume, "w")
+            group = f.create_group("data")
+            group.create_dataset("overlap", data=labeled_volume.astype(np.dtype(np.uint8)))
+ 
+        return labeled_volume.astype(np.uint8), n_components
 
-                except KeyError:
-                    reached_end_base = True
-                
-                base_chunk_map[(l_base, c_base)] = []
-                for l_cmp in range(l_base + 1, len(self.lines_itp)):
-                    reached_end_cmp = False
-                    c_cmp = 0
-                    while not reached_end_cmp:
-                        try:
-                            chunk_pos_vox = self.chunk_positions[(l_cmp, c_cmp)]
-                            chunk_pos_phys = np.array(voxel_size) * chunk_pos_vox
-
-                            d_base_cmp = line_segment_distance(line_p0,
-                                                               line_p1,
-                                                               chunk_pos_phys)
-                            if d_base_cmp is not None:
-                                if d_base_cmp < distance_threshold:
-                                    base_chunk_map[(l_base, c_base)].append([(l_cmp, c_cmp), d_base_cmp])
-                            
-                            c_cmp += 1
-                        except KeyError:
-                            reached_end_cmp = True
-
-                c_base += 1 
-
-        return base_chunk_map
-
+    
     def get_min_canvas(self, line, dilation, canvas_shape, offset):
         xyz = [None, None, None]
         canvas_shape = np.array(canvas_shape[::-1])
@@ -141,144 +102,98 @@ class Cluster(OptMatch):
         return min_bb, max_bb
 
 
-    def get_overlap(self, epsilon, min_overlap, offset, voxel_size, canvas_shape, save_volume=None, dt=False):
-        canvas_base = np.zeros(canvas_shape)
-        dilation = np.array(np.floor(epsilon/np.array(voxel_size)), dtype=int)
-        
-        # This assumes that the x,y res is the same!
-        assert(voxel_size[0] == voxel_size[1])
-        struc_all = generate_binary_structure(3, 1)
-        
-        struc_xy = generate_binary_structure(3, 1)
-        struc_xy[0,1,1] = False
-        struc_xy[2,1,1] = False
+class SCluster(object):
+    def __init__(self, solution_file, voxel_size=[5.,5.,50]):
+        self.solution_file = solution_file
+        self.voxel_size = voxel_size
+        self.lines = get_lines_from_file(solution_file)
 
-        n_xy = dilation[0] - dilation[2]
-        n_z = dilation[2]
-
-        n = 0
-        for line in self.lines_itp:
-            print "%s/%s" % (n, len(self.lines_itp)) 
-            canvas = np.zeros(np.shape(canvas_base))
-            bb_min, bb_max = self.get_min_canvas(line, dilation, np.shape(canvas_base), offset)
-            
-            for voxel in line:
-                voxel -= offset
-                canvas[voxel[2], voxel[1], voxel[0]] = 1
-            
-            if not dt:
-                canvas = binary_dilation(canvas[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]], struc_xy, n_xy)
-                canvas = binary_dilation(canvas, struc_all, n_z)
-
-            else:
-                canvas = distance_transform_edt(canvas[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]], 
-                                            sampling=voxel_size[::-1])
-
-                canvas = (canvas <= epsilon).astype(np.uint8)
-
-            canvas_base[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]] += canvas
-            n += 1
-
-        labeled_volume, n_components = label(canvas_base>=min_overlap)
-        
-        if save_volume is not None:
-            f = h5py.File(save_volume, "w")
-            group = f.create_group("data")
-            group.create_dataset("overlap", data=labeled_volume.astype(np.dtype(np.uint8)))
- 
-        return labeled_volume.astype(np.uint8), n_components
-
-    @staticmethod
-    def range_intersect(r1, r2):
-        return bool(range(max(r1[0], r2[0]), min(r1[-1], r2[-1])+1))
-
-    @staticmethod
-    def do_overlap(bb_0_min, bb_0_max, bb_1_min, bb_1_max):
-        if not Cluster.range_intersect(range(bb_0_min[2], bb_0_max[2]), range(bb_1_min[2], bb_1_max[2])):
-            return False
-        elif not Cluster.range_intersect(range(bb_0_min[1], bb_0_max[1]), range(bb_1_min[1], bb_1_max[1])):
-            return False
-        elif not Cluster.range_intersect(range(bb_0_min[0], bb_0_max[0]), range(bb_1_min[0], bb_1_max[0])):
-            return False
-        else:
-            return True
-
-    def get_line_nodes(self, update_orientations=True, orientation_weighting=None, voxel_size=[5.,5.,50.]):
+    def __process_lines(self, update_ori=True, weight_ori=None):
         reeb_graph = graphs.G1(0)
-        line_nodes = []
+        processed_lines = []
 
-        print "Get line nodes...\n"
+        print "Process lines...\n"
         n = 0
+
         for line in self.lines:
             print "Line %s\%s" % (n, len(self.lines))
-            g1 = graphs.g1_graph.G1(0)
-            g1.load(line)
+            l_graph = graphs.g1_graph.G1(0)
+            l_graph.load(line)
 
-            node_positions = []
-            node_orientations = []
-            node_pos_oris = []
-            reeb_vertices = []
-            reeb_line_map = {}
-            reeb_line_map_inv = {}
-            for v in g1.get_vertex_iterator():
-                node_positions.append(np.array(g1.get_position(v)))
-                
-                u = reeb_graph.add_vertex()
-                reeb_graph.set_position(u, node_positions[-1])
-                orientation_v = np.array([0.,0.,0.])
+            line_attr = {"pos": [],
+                         "ori": [],
+                         "pos_ori": [],
+                         "v_reeb": [],
+                         "v_line": []}
 
-                # Update orientation to be the mean from in and out edge
-                # constraint to positive quadrant, otherwise ill defined
-                if update_orientations:
-                    neighbours = g1.get_neighbour_nodes(v)
-                    n_neighbours = len(neighbours)
+            for v in l_graph.get_vertex_iterator():
+                pos = np.array(l_graph.get_position(v)) * np.array(self.voxel_size)
 
-                    for j in range(n_neighbours):
-                        vec_abs = np.abs(node_positions[-1] - np.array(g1.get_position(neighbours[j])))
-                        # Normalize
-                        orientation_v += vec_abs/np.linalg.norm(vec_abs)
-
-                    orientation_v /= float(n_neighbours)
-                    if orientation_weighting is not None:
-                        orientation_v *= orientation_weighting/np.sqrt(2)
+                ori = np.array([0.,0.,0.])
+                if update_ori:
+                    neighb = l_graph.get_neighbour_nodes(v)
                     
+                    for i in range(len(neighb)):
+                        vec_abs = np.abs(pos - np.array(l_graph.get_position(neighb[i])))
+                        ori += vec_abs/np.linalg.norm(vec_abs)
+                    ori /= float(len(neighb))
+                    
+                    if weight_ori is not None:
+                        ori *= weight_ori/np.sqrt(2)
                 else:
-                    orientation_v = g1.get_orientation(v)
-                        
-                node_orientations.append(orientation_v)
-                node_pos_oris.append(np.hstack((node_positions[-1] * np.array(voxel_size), node_orientations[-1])))
-                reeb_graph.set_orientation(u, orientation_v)
-                reeb_line_map[u] = v
-                reeb_line_map_inv[v] = u
-                reeb_vertices.append(u)
+                    ori = l_graph.get_orientation(v)
+ 
+                pos_ori = np.hstack((pos, ori))
+                
+                v_reeb = reeb_graph.add_vertex()
+                reeb_graph.set_position(v_reeb, pos)
+                reeb_graph.set_orientation(v_reeb, ori)
+                
+                line_attr["pos"].append(pos)
+                line_attr["ori"].append(ori)
+                line_attr["pos_ori"].append(pos_ori)
+                line_attr["v_reeb"].append(v_reeb)
+                line_attr["v_line"].append(v)
 
-            line_nodes.append([node_positions, node_orientations, node_pos_oris, reeb_vertices, reeb_line_map, g1, reeb_line_map_inv])
+            processed_lines.append(line_attr)
             n += 1
 
-        return line_nodes, reeb_graph
+        return processed_lines, reeb_graph
             
     
-    def get_kdtree_groups(self, epsilon, voxel_size, output_dir, orientation_weighting=None):
+    def cluster_vertices(self, epsilon, output_dir, use_ori=True, weight_ori=None):
 
-        line_nodes, reeb_graph = self.get_line_nodes(orientation_weighting=orientation_weighting) 
+        processed_lines, reeb_graph = self.__process_lines(update_ori=use_ori, 
+                                                           weight_ori=weight_ori) 
 
-        #pre_compute trees:
-        if orientation_weighting is None:
-            trees = [KDTree(line[0] * np.array(voxel_size)) for line in line_nodes]
+        print "Initialize trees...\n" 
+        if use_ori:
+            trees = [KDTree(line_attr["pos_ori"]) for line_attr in processed_lines]
         else:
-            trees = [KDTree(line[2]) for line in line_nodes]
+            trees = [KDTree(line_attr["pos"]) for line_attr in processed_lines]
+
         
-        for line_id in range(len(line_nodes)):
+        print "Query ball trees...\n"        
+        for line_id in range(len(processed_lines)):
             print line_id
-            for line_id_cmp in range(line_id + 1, len(line_nodes)):
+
+            for line_id_cmp in range(line_id + 1, len(processed_lines)):
                 hit = trees[line_id].query_ball_tree(trees[line_id_cmp], 2 * epsilon)
+
                 for v_line in range(len(hit)):
                     for v_comp in hit[v_line]:
-                        reeb_graph.add_edge(line_nodes[line_id][3][v_line], line_nodes[line_id_cmp][3][v_comp])
+                        reeb_graph.add_edge(processed_lines[line_id]["v_reeb"][v_line], 
+                                            processed_lines[line_id_cmp]["v_reeb"][v_comp])
         
-        if not os.path.exists(os.path.join(output_dir, "reeb_ccs")):
-            os.makedirs(os.path.join(output_dir, "reeb_ccs"))
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
+        g1_to_nml(reeb_graph, 
+                  os.path.join(output_dir, "reeb_%s_%s.nml") % (int(weight_ori), int(epsilon)), 
+                  knossos=True, 
+                  voxel_size=self.voxel_size)
+
+        """
         cc_path_list = reeb_graph.get_components(1, os.path.join(output_dir, "reeb_ccs"))
         reduced_reeb_graph = graphs.G1(0)
         
@@ -319,113 +234,55 @@ class Cluster(OptMatch):
                             reduced_partner_node = reduced_v
 
                     reduced_reeb_graph.add_edge(reduced_base_node, reduced_partner_node)
-                            
-        g1_to_nml(reeb_graph, os.path.join(output_dir, "reeb_%s_%s.nml") % (orientation_weighting, epsilon), 
-                                           knossify=True, 
-                                           voxel_size=voxel_size)
         
         g1_to_nml(reduced_reeb_graph, os.path.join(output_dir, "reduced_reeb_%s_%s.nml") % (orientation_weighting, epsilon), 
                                            knossify=True, 
                                            voxel_size=voxel_size)
-            
+        """ 
 
-    def get_groups(self, epsilon, offset, voxel_size, canvas_shape):
-        dilation = np.array(np.floor(epsilon/np.array(voxel_size)), dtype=int)
-        
-        # This assumes that the x,y res is the same!
-        assert(voxel_size[0] == voxel_size[1])
-        struc_all = generate_binary_structure(3, 1)
-        
-        struc_xy = generate_binary_structure(3, 1)
-        struc_xy[0,1,1] = False
-        struc_xy[2,1,1] = False
+def get_lines_from_file(solution_file):
+    if solution_file[-1] == "/":
+        line_base_dir = os.path.dirname(solution_file[:-1]) + "/lines"
+    else:
+        line_base_dir = os.path.dirname(solution_file) + "/lines"
 
-        n_xy = dilation[0] - dilation[2]
-        n_z = dilation[2]
-        
-        canvas_dict = {}
+    rec_line_dir = line_base_dir + "/reconstruction"
+    if not os.path.exists(rec_line_dir):
+        line_paths = get_lines(solution_file, 
+                               rec_line_dir + "/", 
+                               nml=True)
+    else:
+        line_paths = [rec_line_dir + "/" + f for f in os.listdir(rec_line_dir) if f.endswith(".gt")]
 
-        line_id = 0
-        for line in self.lines_itp:
-            print "%s/%s" % (line_id, len(self.lines_itp)) 
-            bb_min, bb_max = self.get_min_canvas(line, dilation, canvas_shape, offset)
-            try:
-                canvas = canvas_dict[line_id]
-            except KeyError:
-                canvas = np.zeros(canvas_shape)
+    return line_paths
 
-                for voxel in line:
-                    v = voxel - offset
-                    canvas[v[2], v[1], v[0]] = 1
-
-                canvas = binary_dilation(canvas[bb_min[2]:bb_max[2], 
-                                                    bb_min[1]:bb_max[1], 
-                                                    bb_min[0]:bb_max[0]], 
-                                                    struc_xy, n_xy)
-                        
-                canvas = binary_dilation(canvas, struc_all, n_z)
-                canvas_dict[line_id] = canvas
- 
-            line_id_cmp = line_id + 1
-            for line_cmp in self.lines_itp[line_id + 1:]:
-                bb_min_cmp, bb_max_cmp = self.get_min_canvas(line_cmp, dilation, canvas_shape, offset)
-                
-                # check if bb's overlap, if not skip canvas creation
-                if not Cluster.do_overlap(bb_min, bb_max, bb_min_cmp, bb_max_cmp):
-                    line_id_cmp += 1
-                    continue
-                else:
-                    canvas_both = np.zeros(canvas_shape)
-                    
-                    try:
-                        canvas_cmp = canvas_dict[line_id_cmp]
-                    except KeyError:
-                        canvas_cmp = np.zeros(canvas_shape)
-                    
-                        for voxel_cmp in line_cmp:
-                            v_cmp = voxel_cmp - offset
-                            canvas_cmp[v_cmp[2], v_cmp[1], v_cmp[0]] = 1
-
-                        canvas_cmp = binary_dilation(canvas_cmp[bb_min_cmp[2]:bb_max_cmp[2], 
-                                                                bb_min_cmp[1]:bb_max_cmp[1], 
-                                                                bb_min_cmp[0]:bb_max_cmp[0]], 
-                                                                struc_xy, n_xy)
-
-                        canvas_cmp = binary_dilation(canvas_cmp, struc_all, n_z)
-                        canvas_dict[line_id_cmp] = canvas_cmp
-                    
-                    canvas_both[bb_min[2]:bb_max[2], bb_min[1]:bb_max[1], bb_min[0]:bb_max[0]] += canvas
-                    canvas_both[bb_min_cmp[2]:bb_max_cmp[2], bb_min_cmp[1]:bb_max_cmp[1], bb_min_cmp[0]:bb_max_cmp[0]] += canvas_cmp
-                    print line_id, line_id_cmp, "\n", np.where(canvas_both == 2), "\n\n"
-
-                    line_id_cmp += 1
-
-            line_id += 1
- 
-        return 0
- 
-
-
+    
 if __name__ == "__main__":
     test_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_grid32_ps035035_300_399/solution/volume.gt" 
     validation_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/grid_2/grid_32/solution/volume.gt"
-    """
-    cluster = Cluster(test_solution)
-    labeled_volume, n_comps = cluster.get_overlap(epsilon=75,
-                                                  min_overlap=2, 
-                                                  offset=np.array([0,0,300]),
-                                                  voxel_size=[5.,5.,50.],
-                                                  canvas_shape=[100,1024,1024],
-                                                  save_volume="/media/nilsec/d0/gt_mt_data/data/Test/cluster.h5")
+    vc = False
+    sc = True
+   
+    
+    #Volume Cluster 
+    if vc:
+        vcluster = VCluster(test_solution, voxel_size=[5.,5.,50.])
+        labeled_volume, n_comps = vcluster.cluster(epsilon=75,
+                                                   min_overlap=2, 
+                                                   offset=np.array([0,0,300]),
+                                                   canvas_shape=[100,1024,1024],
+                                                   save_volume="/media/nilsec/d0/gt_mt_data/data/Test/vcluster.h5")
 
-    raw_test = "/media/nilsec/d0/gt_mt_data/data/Test/raw_split.h5"
-    raw_validation = "/media/nilsec/d0/gt_mt_data/data/Validation/raw.h5"
-    view(raw_test, labeled_volume, voxel_size=[5.,5.,50.], offset=[0,0,300*50])
-    """
-    cluster = Cluster(test_solution)
-    cluster.get_kdtree_groups(epsilon=100, 
-                              output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/v1",
-                              orientation_weighting=float(500),
-                              voxel_size=[5.,5.,50.])
+        raw_test = "/media/nilsec/d0/gt_mt_data/data/Test/raw_split.h5"
+        raw_validation = "/media/nilsec/d0/gt_mt_data/data/Validation/raw.h5"
+        VCluster.view(raw_test, labeled_volume, voxel_size=[5.,5.,50.], offset=[0,0,300*50])
+
+    #Skeleton Cluster
+    if sc:
+        scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
+        scluster.cluster_vertices(epsilon=100, 
+                                  output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/v1",
+                                  use_ori=True,
+                                  weight_ori=float(500))
 
 
