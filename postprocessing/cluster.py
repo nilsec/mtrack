@@ -219,6 +219,7 @@ class Cluster(OptMatch):
             node_pos_oris = []
             reeb_vertices = []
             reeb_line_map = {}
+            reeb_line_map_inv = {}
             for v in g1.get_vertex_iterator():
                 node_positions.append(np.array(g1.get_position(v)))
                 
@@ -248,9 +249,10 @@ class Cluster(OptMatch):
                 node_pos_oris.append(np.hstack((node_positions[-1] * np.array(voxel_size), node_orientations[-1])))
                 reeb_graph.set_orientation(u, orientation_v)
                 reeb_line_map[u] = v
+                reeb_line_map_inv[v] = u
                 reeb_vertices.append(u)
 
-            line_nodes.append([node_positions, node_orientations, node_pos_oris, reeb_vertices, reeb_line_map, g1])
+            line_nodes.append([node_positions, node_orientations, node_pos_oris, reeb_vertices, reeb_line_map, g1, reeb_line_map_inv])
             n += 1
 
         return line_nodes, reeb_graph
@@ -279,6 +281,8 @@ class Cluster(OptMatch):
 
         cc_path_list = reeb_graph.get_components(1, os.path.join(output_dir, "reeb_ccs"))
         reduced_reeb_graph = graphs.G1(0)
+        
+        cc_vertex_map = {}
 
         for cc in cc_path_list:
             cc_graph = graphs.G1(0)
@@ -288,9 +292,34 @@ class Cluster(OptMatch):
             mean_position = np.rint(np.mean(positions, axis=1))
             mean_orientation = np.mean(orientations, axis=1)
             v = reduced_reeb_graph.add_vertex()
+            cc_vertex_map[v] = [u for u in cc_graph.get_vertex_iterator()]
             reduced_reeb_graph.set_position(v, mean_position)
             reduced_reeb_graph.set_orientation(v, mean_orientation)
 
+        
+        i = 0
+        for line in line_nodes:
+            print "Connect line %s" % i
+            i += 1
+            reeb_line_map = line[4]
+            reeb_line_map_inv = line[6]
+            g1_line = line[5]
+            reeb_vertices = line[3]
+            
+            for reeb_node in reeb_vertices:
+                line_node = reeb_line_map[reeb_node]
+                line_neighbours = g1_line.get_neighbour_nodes(line_node)
+
+                for v in line_neighbours:
+                    reeb_node_neighbour = reeb_line_map_inv[v]
+                    for reduced_v, reeb_list_v in cc_vertex_map.iteritems():
+                        if reeb_node in reeb_list_v:
+                            reduced_base_node = reduced_v
+                        if reeb_node_neighbour in reeb_list_v:
+                            reduced_partner_node = reduced_v
+
+                    reduced_reeb_graph.add_edge(reduced_base_node, reduced_partner_node)
+                            
         g1_to_nml(reeb_graph, os.path.join(output_dir, "reeb_%s_%s.nml") % (orientation_weighting, epsilon), 
                                            knossify=True, 
                                            voxel_size=voxel_size)
@@ -396,7 +425,7 @@ if __name__ == "__main__":
     cluster = Cluster(test_solution)
     cluster.get_kdtree_groups(epsilon=100, 
                               output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/v1",
-                              orientation_weighting=float(300),
+                              orientation_weighting=float(500),
                               voxel_size=[5.,5.,50.])
 
 
