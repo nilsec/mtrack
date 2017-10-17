@@ -51,8 +51,10 @@ def g1_to_nml(g1,
     edges_elem = doc.createElement("edges")
 
     g1_index_map = g1.get_vertex_index_map()
-
+    
+    n_vertices = 0
     for v in g1.get_vertex_iterator():
+        n_vertices += 1
         node_elem = doc.createElement("node")
         
         # g1 graph is assumed to always contain
@@ -116,7 +118,7 @@ def g1_to_nml(g1,
     if not os.path.isdir(os.path.dirname(output_file)):
         os.makedirs(os.path.dirname(output_file))
 
-    with open(output_file, "w+") as f:
+    with open(output_file.replace(".nml", "_%s.nml" % n_vertices), "w+") as f:
         f.write(doc)
 
     print "G1 graph written to {}".format(output_file)
@@ -231,13 +233,28 @@ def nml_to_g1(nml,
 
     return g1
     
-    
+
+def g1_dir_to_nml(directory, knossos=False, knossify=False, voxel_size=[5.,5.,50.]):
+    if not os.path.exists(os.path.join(directory, "nml")):
+        os.makedirs(os.path.join(directory, "nml"))
+
+    gt_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".gt")]
+    for f in gt_files:
+        g1_to_nml(f, 
+                  os.path.join(directory, "nml") + "/" + os.path.basename(f).replace(".gt", ".nml"), 
+                  knossos=knossos, 
+                  knossify=knossify, 
+                  voxel_size=voxel_size)
+        
 
 
 if __name__ == "__main__":
+    """
     g1_to_nml("/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_300_309/solution/volume.gt",
               "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_300_309/solution/volume_gt.nml",
               knossos=True,
               voxel_size=[5.,5.,50.0])
+    """
+    g1_dir_to_nml("/media/nilsec/d0/gt_mt_data/experiments/clustering/v1/reeb_ccs", knossos=True)
     
 
