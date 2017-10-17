@@ -1,4 +1,5 @@
 from evaluation import OptMatch, get_lines, interpolate_nodes
+from gravgrid import GravGrid
 import graphs
 from scipy.ndimage.morphology import generate_binary_structure, binary_dilation, distance_transform_edt
 from scipy.ndimage.measurements import label
@@ -120,7 +121,6 @@ class SCluster(object):
         n = 0
         v0 = 0
         for line in self.lines:
-            print "Line %s\%s" % (n, len(self.lines))
             l_graph = graphs.g1_graph.G1(0)
             l_graph.load(line)
 
@@ -187,8 +187,6 @@ class SCluster(object):
         
         print "Query ball trees...\n"        
         for line_id in range(len(processed_lines)):
-            print line_id
-
             for line_id_cmp in range(line_id + 1, len(processed_lines)):
                 hit = trees[line_id].query_ball_tree(trees[line_id_cmp], 2 * epsilon)
 
@@ -210,7 +208,7 @@ class SCluster(object):
 
     def cluster_lines(self, 
                       epsilon, 
-                      min_hits, 
+                      p_hits, 
                       min_lines,
                       remove_aps,
                       min_k,
@@ -234,7 +232,6 @@ class SCluster(object):
 
         print "Query ball trees...\n"        
         for line_id in range(len(processed_lines)):
-            print line_id
 
             for line_id_cmp in range(line_id + 1, len(processed_lines)):
                 hits = trees[line_id].query_ball_tree(trees[line_id_cmp], 2 * epsilon)
@@ -244,7 +241,7 @@ class SCluster(object):
                     if hit:
                         n_hits += 1
 
-                if n_hits >= min_hits:
+                if n_hits/float(len(hits)) >= p_hits:
                     line_graph.add_edge(line_id, line_id_cmp)
 
         cc_path_list = line_graph.get_components(min_lines, os.path.join(output_dir, "line_ccs/"), remove_aps, min_k, sbm)
@@ -255,7 +252,6 @@ class SCluster(object):
         print "Combine Lines.."
         n = 0
         for cc in cc_path_list:
-            print "%s/%s" % (n, len(cc_path_list))
             cc_graph = graphs.G1(0)
             cc_graph.load(cc)
             
@@ -319,7 +315,6 @@ class SCluster(object):
     def connect_cluster(self, reduced_reeb_graph, output_dir):
         print "Connect reduced cluster...\n"
         for v in reduced_reeb_graph.get_vertex_iterator():
-            print "%s/%s" % (v, reduced_reeb_graph.get_number_of_vertices())
             v_vertices = reduced_reeb_graph.get_vertex_property("line_vertices", v)
             for u in range(int(v) + 1, reduced_reeb_graph.get_number_of_vertices()):
                 u_neighbours = reduced_reeb_graph.get_vertex_property("line_neighbours", u)
@@ -392,13 +387,14 @@ if __name__ == "__main__":
                          min_k=1)
 
     if sc_lines:
-        scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
-        scluster.cluster_lines(epsilon=75, 
-                      min_hits=5, 
-                      min_lines=5,
-                      remove_aps=False,
-                      min_k=1,
-                      sbm=False,
-                      output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/v6", 
-                      use_ori=True, 
-                      weight_ori=float(700))
+        for p_hit in [0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
+            scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
+            scluster.cluster_lines(epsilon=75, 
+                                   p_hits=0.6, 
+                                   min_lines=3,
+                                   remove_aps=False,
+                                   min_k=1,
+                                   sbm=False,
+                                   output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/v7_phit0%s_min_%s" % (int(p_hit * 10),3), 
+                                   use_ori=True, 
+                                   weight_ori=float(700))
