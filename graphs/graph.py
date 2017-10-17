@@ -4,9 +4,7 @@ import pdb
 
 class G:
     """
-    Wrapper class for the G1 graph.
-    If we decide to change the backend in the future
-    we only need to change the corresponding methods.
+    Base graph class
     """
     def __init__(self, N, G_in=None):
         if G_in is None:
@@ -19,7 +17,6 @@ class G:
     def get_shortest_path(self, source, target, weights):
         vertex_list, edge_list = gt.shortest_path(self.g, source, target, weights)
         return vertex_list, edge_list
-        
 
     def get_number_of_edges(self):
         return self.g.num_edges()
@@ -191,6 +188,38 @@ class G:
     def set_vertex_filter(self, vertex_property):
         self.g.set_vertex_filter(vertex_property)
 
+    def get_articulation_points(self):
+        bicomp_ep, articulation_vp, nc = gt.label_biconnected_components(self.g)
+        naps = articulation_vp.a == 0
+        naps_vp = self.g.new_vertex_property("bool")
+        naps_vp.a = naps
+        return naps_vp
+
+    def get_sbm_masks(self):
+        print "Minimize Block Model..."
+        state = gt.minimize_blockmodel_dl(self.g)
+        
+        print "Generate_masks"
+        masks = []
+        max_comp = state.B
+        
+        for label in range(0, max_comp):
+            binary_mask = state.b.a == label
+            
+            cc_vp = self.g.new_vertex_property("bool")
+            cc_vp.a = binary_mask
+            masks.append(cc_vp)
+
+        return masks
+
+    def get_kcore_mask(self, min_k):
+        kval_vp = gt.kcore_decomposition(self.g)
+        mask = kval_vp.a >= min_k
+        mask_vp = self.g.new_vertex_property("bool")
+        mask_vp.a = mask
+        return mask_vp
+        
+ 
     def get_component_masks(self, min_vertices=0):
         component_vp, hist = gt.label_components(self.g, 
                                                  directed=False,

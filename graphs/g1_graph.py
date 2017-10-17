@@ -240,9 +240,23 @@ class G1(G):
         return edge_combination_cost
  
 
-    def get_components(self, min_vertices, output_folder):
-        print "Find connected components...\n"
-        component_masks, hist = G.get_component_masks(self, min_vertices)
+    def get_components(self, min_vertices, output_folder, remove_aps=False, min_k=1, sbm=False):
+        print "Get components..."
+        if remove_aps:
+            print "Remove articulation points..."
+            naps_vp = G.get_articulation_points(self)
+            G.set_vertex_filter(self, naps_vp)
+
+        if min_k > 1:
+            kcore_vp = G.get_kcore_mask(self, min_k)
+            G.set_vertex_filter(self, kcore_vp)
+
+        if sbm:
+            print "Find SBM partition..."
+            component_masks = G.get_sbm_masks(self)
+        else:
+            print "Find connected components..."
+            component_masks, hist = G.get_component_masks(self, min_vertices)
 
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
