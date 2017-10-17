@@ -5,6 +5,7 @@ from scipy.ndimage.measurements import label
 from scipy.spatial import KDTree
 import os
 from preprocessing import g1_to_nml
+from combine_solutions import combine_knossos_solutions
 import numpy as np
 import pdb
 import pickle
@@ -110,11 +111,14 @@ class SCluster(object):
 
     def __process_lines(self, update_ori=True, weight_ori=None):
         reeb_graph = graphs.G1(0)
+        reeb_graph.new_vertex_property("line_neighbours", dtype="vector<int>")
+        reeb_graph.new_vertex_property("line_vertex", dtype="int")
+
         processed_lines = []
 
         print "Process lines...\n"
         n = 0
-
+        v0 = 0
         for line in self.lines:
             print "Line %s\%s" % (n, len(self.lines))
             l_graph = graphs.g1_graph.G1(0)
@@ -124,15 +128,18 @@ class SCluster(object):
                          "ori": [],
                          "pos_ori": [],
                          "v_reeb": [],
-                         "v_line": []}
+                         "v_line": [],
+                         "l_graph": l_graph}
 
+            n_line_vertices = 0
+            v0 += n_line_vertices
             for v in l_graph.get_vertex_iterator():
                 pos = np.array(l_graph.get_position(v)) * np.array(self.voxel_size)
 
                 ori = np.array([0.,0.,0.])
+                neighb = l_graph.get_neighbour_nodes(v)
+                
                 if update_ori:
-                    neighb = l_graph.get_neighbour_nodes(v)
-                    
                     for i in range(len(neighb)):
                         vec_abs = np.abs(pos - np.array(l_graph.get_position(neighb[i])))
                         ori += vec_abs/np.linalg.norm(vec_abs)
@@ -146,6 +153,9 @@ class SCluster(object):
                 pos_ori = np.hstack((pos, ori))
                 
                 v_reeb = reeb_graph.add_vertex()
+                reeb_graph.set_vertex_property("line_neighbours", v_reeb, np.array(neighb, dtype=int) + v0)
+                reeb_graph.set_vertex_property("line_vertex", v_reeb, int(v) + v0)
+
                 reeb_graph.set_position(v_reeb, pos)
                 reeb_graph.set_orientation(v_reeb, ori)
                 
@@ -153,7 +163,9 @@ class SCluster(object):
                 line_attr["ori"].append(ori)
                 line_attr["pos_ori"].append(pos_ori)
                 line_attr["v_reeb"].append(v_reeb)
-                line_attr["v_line"].append(v)
+                line_attr["v_line"].append(int(v) + v0)
+                
+                n_line_vertices += 1
 
             processed_lines.append(line_attr)
             n += 1
@@ -193,52 +205,141 @@ class SCluster(object):
                   knossos=True, 
                   voxel_size=self.voxel_size)
 
-        """
-        cc_path_list = reeb_graph.get_components(1, os.path.join(output_dir, "reeb_ccs"))
-        reduced_reeb_graph = graphs.G1(0)
+        return reeb_graph
+
+
+    def cluster_lines(self, 
+                      epsilon, 
+                      min_hits, 
+                      min_lines,
+                      remove_aps,
+                      min_k,
+                      sbm,
+                      output_dir, 
+                      use_ori=True, 
+                      weight_ori=None):
         
-        cc_vertex_map = {}
+        processed_lines, _ = self.__process_lines(update_ori=use_ori, 
+                                                           weight_ori=weight_ori) 
+
+        print "Initialize trees...\n" 
+        if use_ori:
+            trees = [KDTree(line_attr["pos_ori"]) for line_attr in processed_lines]
+        else:
+            trees = [KDTree(line_attr["pos"]) for line_attr in processed_lines]
+
+        line_graph = graphs.G1(0)
+        for v_id in range(len(processed_lines)):
+            line_graph.add_vertex()
+
+        print "Query ball trees...\n"        
+        for line_id in range(len(processed_lines)):
+            print line_id
+
+            for line_id_cmp in range(line_id + 1, len(processed_lines)):
+                hits = trees[line_id].query_ball_tree(trees[line_id_cmp], 2 * epsilon)
+                n_hits = 0
+
+                for hit in hits:
+                    if hit:
+                        n_hits += 1
+
+                if n_hits >= min_hits:
+                    line_graph.add_edge(line_id, line_id_cmp)
+
+        cc_path_list = line_graph.get_components(min_lines, os.path.join(output_dir, "line_ccs/"), remove_aps, min_k, sbm)
+
+        if not cc_path_list:
+            raise Warning("No matching lines")
+
+        print "Combine Lines.."
+        n = 0
+        for cc in cc_path_list:
+            print "%s/%s" % (n, len(cc_path_list))
+            cc_graph = graphs.G1(0)
+            cc_graph.load(cc)
+            
+            line_cluster = graphs.G1(0)
+            
+            line_cluster_dir = os.path.join(output_dir, "line_cluster/c%s" % n) 
+            if not os.path.exists(line_cluster_dir):
+                os.makedirs(line_cluster_dir)
+            
+            for v in cc_graph.get_vertex_iterator():
+                l_graph = processed_lines[int(v)]["l_graph"]
+                g1_to_nml(l_graph,
+                          line_cluster_dir + "/line_%s.nml" % int(v),
+                          knossify=True,
+                          voxel_size=self.voxel_size)
+                
+            combine_knossos_solutions(line_cluster_dir, os.path.join(output_dir, "combined/combined_%s.nml" % n), tag="line")
+            n += 1            
+
+        return 0
+ 
+    def reduce_cluster(self, reeb_graph, output_dir, min_vertices, remove_aps, min_k, sbm):
+        print "Reduce cluster...\n"
+        cc_path_list = reeb_graph.get_components(min_vertices, os.path.join(output_dir, "reeb_ccs/"), remove_aps, min_k, sbm)
+        
+        reduced_reeb_graph = graphs.G1(0)
+        reduced_reeb_graph.new_vertex_property("line_neighbours", "vector<int>")
+        reduced_reeb_graph.new_vertex_property("line_vertices", "vector<int>")
 
         for cc in cc_path_list:
             cc_graph = graphs.G1(0)
             cc_graph.load(cc)
-            positions = cc_graph.get_position_array()
-            orientations = cc_graph.get_orientation_array()
-            mean_position = np.rint(np.mean(positions, axis=1))
-            mean_orientation = np.mean(orientations, axis=1)
-            v = reduced_reeb_graph.add_vertex()
-            cc_vertex_map[v] = [u for u in cc_graph.get_vertex_iterator()]
-            reduced_reeb_graph.set_position(v, mean_position)
-            reduced_reeb_graph.set_orientation(v, mean_orientation)
 
-        
-        i = 0
-        for line in line_nodes:
-            print "Connect line %s" % i
-            i += 1
-            reeb_line_map = line[4]
-            reeb_line_map_inv = line[6]
-            g1_line = line[5]
-            reeb_vertices = line[3]
+            g1_to_nml(cc_graph, 
+                      os.path.join(output_dir, "reeb_ccs/nml/%s" % os.path.basename(cc).replace(".gt", ".nml")), 
+                      knossos=True, 
+                      voxel_size=self.voxel_size)
             
-            for reeb_node in reeb_vertices:
-                line_node = reeb_line_map[reeb_node]
-                line_neighbours = g1_line.get_neighbour_nodes(line_node)
+            cc_positions = cc_graph.get_position_array()
+            cc_orientations = cc_graph.get_orientation_array()
+            
+            cc_mean_position = np.mean(cc_positions, axis=1)
+            cc_mean_orientation = np.mean(cc_orientations, axis=1)
 
-                for v in line_neighbours:
-                    reeb_node_neighbour = reeb_line_map_inv[v]
-                    for reduced_v, reeb_list_v in cc_vertex_map.iteritems():
-                        if reeb_node in reeb_list_v:
-                            reduced_base_node = reduced_v
-                        if reeb_node_neighbour in reeb_list_v:
-                            reduced_partner_node = reduced_v
+            v_reduced = reduced_reeb_graph.add_vertex()
+            reduced_reeb_graph.set_position(v_reduced, cc_mean_position)
+            reduced_reeb_graph.set_orientation(v_reduced, cc_mean_orientation)
 
-                    reduced_reeb_graph.add_edge(reduced_base_node, reduced_partner_node)
-        
-        g1_to_nml(reduced_reeb_graph, os.path.join(output_dir, "reduced_reeb_%s_%s.nml") % (orientation_weighting, epsilon), 
-                                           knossify=True, 
-                                           voxel_size=voxel_size)
-        """ 
+            cc_line_vertices = []
+            cc_line_neighbours = set()
+           
+            for v in cc_graph.get_vertex_iterator():
+                [cc_line_neighbours.add(u) for u in cc_graph.get_vertex_property("line_neighbours", v)]
+                cc_line_vertices.append(cc_graph.get_vertex_property("line_vertex", v))
+            
+            reduced_reeb_graph.set_vertex_property("line_neighbours", v_reduced, np.array([u for u in cc_line_neighbours], dtype=int))
+            reduced_reeb_graph.set_vertex_property("line_vertices", v_reduced, np.array(cc_line_vertices, dtype=int))
+
+        return reduced_reeb_graph
+
+    def connect_cluster(self, reduced_reeb_graph, output_dir):
+        print "Connect reduced cluster...\n"
+        for v in reduced_reeb_graph.get_vertex_iterator():
+            print "%s/%s" % (v, reduced_reeb_graph.get_number_of_vertices())
+            v_vertices = reduced_reeb_graph.get_vertex_property("line_vertices", v)
+            for u in range(int(v) + 1, reduced_reeb_graph.get_number_of_vertices()):
+                u_neighbours = reduced_reeb_graph.get_vertex_property("line_neighbours", u)
+                intersect = np.intersect1d(v_vertices, u_neighbours)
+                if intersect.size:
+                    reduced_reeb_graph.add_edge(u,v)
+
+        g1_to_nml(reduced_reeb_graph, 
+                  os.path.join(output_dir, "reduced_reeb.nml"), 
+                  knossos=True, 
+                  voxel_size=self.voxel_size)
+
+        return reduced_reeb_graph
+
+
+    def cluster(self, epsilon, output_dir, use_ori=True, weight_ori=None, min_vertices=1, remove_aps=False, min_k=1, sbm=False):
+        reeb_graph = self.cluster_vertices(epsilon, output_dir, use_ori, weight_ori)
+        reduced_graph = self.reduce_cluster(reeb_graph, output_dir, min_vertices=min_vertices, remove_aps=remove_aps, min_k=min_k, sbm=sbm)
+        connected_graph = self.connect_cluster(reduced_graph, output_dir)
+
 
 def get_lines_from_file(solution_file):
     if solution_file[-1] == "/":
@@ -261,7 +362,8 @@ if __name__ == "__main__":
     test_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_grid32_ps035035_300_399/solution/volume.gt" 
     validation_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/grid_2/grid_32/solution/volume.gt"
     vc = False
-    sc = True
+    sc_vertices = False
+    sc_lines=True
    
     
     #Volume Cluster 
@@ -278,11 +380,25 @@ if __name__ == "__main__":
         VCluster.view(raw_test, labeled_volume, voxel_size=[5.,5.,50.], offset=[0,0,300*50])
 
     #Skeleton Cluster
-    if sc:
+    if sc_vertices:
         scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
-        scluster.cluster_vertices(epsilon=100, 
-                                  output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/v1",
-                                  use_ori=True,
-                                  weight_ori=float(500))
+        scluster.cluster(epsilon=50, 
+                         output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/v3",
+                         use_ori=True,
+                         weight_ori=float(700),
+                         min_vertices=3,
+                         remove_aps=True,
+                         sbm=False,
+                         min_k=1)
 
-
+    if sc_lines:
+        scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
+        scluster.cluster_lines(epsilon=75, 
+                      min_hits=5, 
+                      min_lines=5,
+                      remove_aps=False,
+                      min_k=1,
+                      sbm=False,
+                      output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/v6", 
+                      use_ori=True, 
+                      weight_ori=float(700))
