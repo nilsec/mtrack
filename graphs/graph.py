@@ -127,13 +127,14 @@ class G:
         else:
             return self.g.vertex_properties[name]
 
-    def new_edge_property(self, name, dtype):
-        ep = self.g.new_edge_property(dtype)
+    def new_edge_property(self, name, dtype, vals=None):
+        ep = self.g.new_edge_property(dtype, vals=vals)
         self.g.edge_properties[name] = ep
         return ep
 
-    def set_edge_property(self, name, u, v, value):
-        e = self.get_edge(u, v)
+    def set_edge_property(self, name, u, v, value, e=None):
+        if e is None:
+            e = self.get_edge(u, v)
         self.g.edge_properties[name][e] = value
     
     def get_edge_property(self, name, u=None, v=None):
@@ -195,22 +196,44 @@ class G:
         naps_vp.a = naps
         return naps_vp
 
-    def get_sbm_masks(self):
-        print "Minimize Block Model..."
-        state = gt.minimize_blockmodel_dl(self.g)
+    def get_sbm_masks(self, nested=False, edge_weights=False, rec_types="real-exponential"):
+        if not nested:
+            print "Minimize block model..."
+            state = gt.minimize_blockmodel_dl(self.g)
+        else:
+            if edge_weights:
+                print "Minimize bested block model with edge weights"
+                state_args = dict(recs=[self.g.ep.weight], rec_types=[rec_types])
+            else:
+                print "Minimize nested block model"
+                state_args = {}
+            state = gt.minimize_nested_blockmodel_dl(self.g, state_args=dict(recs=[self.g.ep.weight],
+                                                                             rec_types=[rec_types])) 
+            states = state.get_levels()
+            #state.draw()
         
         print "Generate_masks"
-        masks = []
-        max_comp = state.B
-        
-        for label in range(0, max_comp):
-            binary_mask = state.b.a == label
-            
-            cc_vp = self.g.new_vertex_property("bool")
-            cc_vp.a = binary_mask
-            masks.append(cc_vp)
+        mask_list = []
+        if not nested:
+            states = [state]
 
-        return masks
+        for state in states:
+            max_comp = state.B
+            masks = []
+            for label in range(0, max_comp):
+                print state.b.a
+                print len(state.b.a)
+                binary_mask = state.b.a == label
+            
+                cc_vp = self.g.new_vertex_property("bool")
+                try:
+                    cc_vp.a = binary_mask
+                    masks.append(cc_vp)
+                except:
+                    continue
+
+            mask_list.append(masks)
+        return mask_list
 
     def get_kcore_mask(self, min_k):
         kval_vp = gt.kcore_decomposition(self.g)
