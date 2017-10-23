@@ -1,5 +1,4 @@
 from evaluation import OptMatch, get_lines, interpolate_nodes
-from gravgrid import GravGrid
 import graphs
 from scipy.ndimage.morphology import generate_binary_structure, binary_dilation, distance_transform_edt
 from scipy.ndimage.measurements import label
@@ -15,11 +14,14 @@ import neuroglancer
 
 
 class VCluster(object):
-    def __init__(self, solution_file, voxel_size=[5.,5.,50]):
+    def __init__(self, solution_file, voxel_size=[5.,5.,50], lines=None):
         self.solution_file = solution_file
         self.voxel_size = voxel_size
-        self.lines = get_lines_from_file(solution_file)
-        self.lines_itp = interpolate_nodes(self.lines, voxel_size=voxel_size)
+        if lines is None:
+            self.lines = get_lines_from_file(solution_file)
+            self.lines_itp = interpolate_nodes(self.lines, voxel_size=voxel_size)
+        else:
+            self.lines_itp = lines
     
     @staticmethod
     def view(raw, seg, voxel_size, offset):
@@ -110,19 +112,27 @@ class SCluster(object):
         self.voxel_size = voxel_size
         self.lines = get_lines_from_file(solution_file)
 
-    def __process_lines(self, update_ori=True, weight_ori=None):
+    def __process_lines(self, update_ori=True, weight_ori=None, lines=None):
         reeb_graph = graphs.G1(0)
         reeb_graph.new_vertex_property("line_neighbours", dtype="vector<int>")
         reeb_graph.new_vertex_property("line_vertex", dtype="int")
 
         processed_lines = []
 
-        print "Process lines...\n"
+        print "Process lines..."
         n = 0
         v0 = 0
-        for line in self.lines:
-            l_graph = graphs.g1_graph.G1(0)
-            l_graph.load(line)
+
+        if lines is None:
+            lines = self.lines
+
+        for line in lines:
+            if isinstance(line, str):
+                l_graph = graphs.g1_graph.G1(0)
+                l_graph.load(line)
+            else:
+                l_graph = line
+            
 
             line_attr = {"pos": [],
                          "ori": [],
@@ -173,19 +183,20 @@ class SCluster(object):
         return processed_lines, reeb_graph
             
     
-    def cluster_vertices(self, epsilon, output_dir, use_ori=True, weight_ori=None):
+    def cluster_vertices(self, epsilon, output_dir, use_ori=True, weight_ori=None, lines=None):
 
         processed_lines, reeb_graph = self.__process_lines(update_ori=use_ori, 
-                                                           weight_ori=weight_ori) 
+                                                           weight_ori=weight_ori,
+                                                           lines=lines) 
 
-        print "Initialize trees...\n" 
+        print "Initialize trees..." 
         if use_ori:
             trees = [KDTree(line_attr["pos_ori"]) for line_attr in processed_lines]
         else:
             trees = [KDTree(line_attr["pos"]) for line_attr in processed_lines]
 
         
-        print "Query ball trees...\n"        
+        print "Query ball trees..."        
         for line_id in range(len(processed_lines)):
             for line_id_cmp in range(line_id + 1, len(processed_lines)):
                 hit = trees[line_id].query_ball_tree(trees[line_id_cmp], 2 * epsilon)
@@ -207,20 +218,24 @@ class SCluster(object):
 
 
     def cluster_lines(self, 
-                      epsilon, 
+                      epsilon_lines, 
                       p_hits, 
                       min_lines,
                       remove_aps,
                       min_k,
                       sbm,
+                      nested,
+                      edge_weights,
                       output_dir, 
                       use_ori=True, 
-                      weight_ori=None):
+                      weight_ori=None,
+                      epsilon_vertices=None,
+                      v_cluster=None):
         
         processed_lines, _ = self.__process_lines(update_ori=use_ori, 
                                                            weight_ori=weight_ori) 
 
-        print "Initialize trees...\n" 
+        print "Initialize trees..." 
         if use_ori:
             trees = [KDTree(line_attr["pos_ori"]) for line_attr in processed_lines]
         else:
@@ -230,21 +245,39 @@ class SCluster(object):
         for v_id in range(len(processed_lines)):
             line_graph.add_vertex()
 
-        print "Query ball trees...\n"        
+        edge_weight = line_graph.new_edge_property("weight", "float")
+        print "Query ball trees..."        
+        weights = []
         for line_id in range(len(processed_lines)):
-
+            print line_id
             for line_id_cmp in range(line_id + 1, len(processed_lines)):
-                hits = trees[line_id].query_ball_tree(trees[line_id_cmp], 2 * epsilon)
+                #print "cmp %s" % line_id_cmp
+                hits = trees[line_id].query_ball_tree(trees[line_id_cmp], 2 * epsilon_lines)
                 n_hits = 0
 
                 for hit in hits:
                     if hit:
                         n_hits += 1
 
-                if n_hits/float(len(hits)) >= p_hits:
+                if n_hits>=1 and edge_weights:
                     line_graph.add_edge(line_id, line_id_cmp)
+                    weights.append(n_hits/float(len(hits)))                    
+                    #line_graph.set_edge_property("weight", line_id, line_id_cmp, n_hits/float(len(hits)), e)
+                    #assert(sbm)
+                elif p_hits is not None:
+                    if n_hits/float(len(hits)) >= p_hits:
+                        line_graph.add_edge(line_id, line_id_cmp)
+ 
 
-        cc_path_list = line_graph.get_components(min_lines, os.path.join(output_dir, "line_ccs/"), remove_aps, min_k, sbm)
+        edge_weight = line_graph.new_edge_property("weight", "float", vals=weights)
+ 
+        cc_path_list = line_graph.get_components(min_lines, 
+                                                 os.path.join(output_dir, "line_ccs/"), 
+                                                 remove_aps, 
+                                                 min_k, 
+                                                 sbm,
+                                                 nested,
+                                                 edge_weights)
 
         if not cc_path_list:
             raise Warning("No matching lines")
@@ -261,20 +294,26 @@ class SCluster(object):
             if not os.path.exists(line_cluster_dir):
                 os.makedirs(line_cluster_dir)
             
+            l_graph_cluster = []
             for v in cc_graph.get_vertex_iterator():
                 l_graph = processed_lines[int(v)]["l_graph"]
                 g1_to_nml(l_graph,
                           line_cluster_dir + "/line_%s.nml" % int(v),
                           knossify=True,
                           voxel_size=self.voxel_size)
-                
+                l_graph_cluster.append(l_graph)
+
+            if epsilon_vertices is not None:
+                self.cluster(epsilon_vertices, output_dir + "/lv_cluster", lines=l_graph_cluster, weight_ori=weight_ori)
+
             combine_knossos_solutions(line_cluster_dir, os.path.join(output_dir, "combined/combined_%s.nml" % n), tag="line")
             n += 1            
 
         return 0
+
  
     def reduce_cluster(self, reeb_graph, output_dir, min_vertices, remove_aps, min_k, sbm):
-        print "Reduce cluster...\n"
+        print "Reduce cluster..."
         cc_path_list = reeb_graph.get_components(min_vertices, os.path.join(output_dir, "reeb_ccs/"), remove_aps, min_k, sbm)
         
         reduced_reeb_graph = graphs.G1(0)
@@ -313,7 +352,7 @@ class SCluster(object):
         return reduced_reeb_graph
 
     def connect_cluster(self, reduced_reeb_graph, output_dir):
-        print "Connect reduced cluster...\n"
+        print "Connect reduced cluster..."
         for v in reduced_reeb_graph.get_vertex_iterator():
             v_vertices = reduced_reeb_graph.get_vertex_property("line_vertices", v)
             for u in range(int(v) + 1, reduced_reeb_graph.get_number_of_vertices()):
@@ -330,8 +369,8 @@ class SCluster(object):
         return reduced_reeb_graph
 
 
-    def cluster(self, epsilon, output_dir, use_ori=True, weight_ori=None, min_vertices=1, remove_aps=False, min_k=1, sbm=False):
-        reeb_graph = self.cluster_vertices(epsilon, output_dir, use_ori, weight_ori)
+    def cluster(self, epsilon, output_dir, use_ori=True, weight_ori=None, min_vertices=1, remove_aps=False, min_k=1, sbm=False, lines=None):
+        reeb_graph = self.cluster_vertices(epsilon, output_dir, use_ori, weight_ori, lines=lines)
         reduced_graph = self.reduce_cluster(reeb_graph, output_dir, min_vertices=min_vertices, remove_aps=remove_aps, min_k=min_k, sbm=sbm)
         connected_graph = self.connect_cluster(reduced_graph, output_dir)
 
@@ -387,14 +426,22 @@ if __name__ == "__main__":
                          min_k=1)
 
     if sc_lines:
-        for p_hit in [0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
-            scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
-            scluster.cluster_lines(epsilon=75, 
-                                   p_hits=0.6, 
-                                   min_lines=3,
-                                   remove_aps=False,
-                                   min_k=1,
-                                   sbm=False,
-                                   output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/v7_phit0%s_min_%s" % (int(p_hit * 10),3), 
-                                   use_ori=True, 
-                                   weight_ori=float(700))
+        p_hits=None
+        epsilon_lines=100
+        min_lines=1
+        weight_ori = 700
+        epsilon_vertices = 50
+
+        scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
+        scluster.cluster_lines(epsilon_lines=epsilon_lines, 
+                               p_hits=p_hits, 
+                               min_lines=min_lines,
+                               remove_aps=False,
+                               min_k=1,
+                               sbm=True,
+                               nested=True,
+                               edge_weights=True,
+                               output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/el{}_ev{}_min{}_ph{}_wo{}_waps_sbm".format(epsilon_lines, epsilon_vertices, min_lines, p_hits, weight_ori), 
+                               use_ori=True, 
+                               weight_ori=float(weight_ori),
+                               epsilon_vertices=epsilon_vertices)
