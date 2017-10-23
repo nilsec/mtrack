@@ -240,7 +240,7 @@ class G1(G):
         return edge_combination_cost
  
 
-    def get_components(self, min_vertices, output_folder, remove_aps=False, min_k=1, sbm=False):
+    def get_components(self, min_vertices, output_folder, remove_aps=False, min_k=1, sbm=False, nested=False, edge_weights=False):
         print "Get components..."
         if remove_aps:
             print "Remove articulation points..."
@@ -253,7 +253,7 @@ class G1(G):
 
         if sbm:
             print "Find SBM partition..."
-            component_masks = G.get_sbm_masks(self)
+            component_masks = G.get_sbm_masks(self, nested, edge_weights)
         else:
             print "Find connected components..."
             component_masks, hist = G.get_component_masks(self, min_vertices)
@@ -271,17 +271,24 @@ class G1(G):
         
         n = 0
         len_masks = len(component_masks)
-
-        for mask in component_masks:
-            print "Filter graph {}/{}".format(n, len_masks) 
-            output_file = output_folder + "cc{}_min{}_phy.gt".format(n, min_vertices)
-            cc_path_list.append(output_file)
+        if not nested:
+            component_mask_list = [component_masks]
+        else:
+            component_mask_list = component_masks
+        cm = 0
+        for component_masks in component_mask_list:
+            for mask in component_masks:
+                print "Filter graph {}/{}".format(n, len_masks) 
+                output_file = output_folder.replace("/", "_%s/" % cm) + "cc{}_min{}_phy.gt".format(n, min_vertices)
+                list_cc_path_list.append(output_file)
             
-            G.set_vertex_filter(self, mask)
-            g1_masked = G1(0, G_in=self)
-            g1_masked.save(output_file)
+                G.set_vertex_filter(self, mask)
+                g1_masked = G1(0, G_in=self)
+                if not os.path.exists(os.path.dirname(output_file)):
+                    os.makedirs(os.path.dirname(output_file))
+                g1_masked.save(output_file)
             
-            G.set_vertex_filter(self, None)
-            n += 1
-
+                G.set_vertex_filter(self, None)
+                n += 1
+            cm += 1
         return cc_path_list
