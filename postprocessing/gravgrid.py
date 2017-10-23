@@ -32,11 +32,11 @@ class GravGrid(object):
         for r in r_ij:
             sum_ += (r/np.linalg.norm(r))/np.dot(r, r)
 
-        dx2 = -self.g * sum_ * dt**2
-        return dx2
+        dx2 = self.g * sum_ * dt**2
+        return np.clip(dx2,a_min=-1.0, a_max=1.0)
 
     def get_dx1(self, x0, x1, it, cycles):
-        dx1 = (x1 - x0)/(1. + (0.03 * (1 - it/float(cycles))))
+        dx1 = (x1 - x0)
         return dx1
 
     def solve(self, cycles, dt):
@@ -57,11 +57,18 @@ class GravGrid(object):
 
                 #print j
                 #print dx1, dx2, "\n"
-                x_j1 = self.points[j] + dx1 + dx2/2. 
+                if it == 0:
+                    v0 = np.array([0.,0.,0.])
+                else:
+                    v0 = np.array([0.,0.,0.])
+                x_j1 = self.points[j] + dx2/dt + v0 + dx2
                 self.points[j] = x_j1
 
+            colors = ["red", "blue", "green", "orange", "black"]
+            n = 0
             for p in self.points:
-                plt.scatter(p[0], p[1])
+                plt.scatter(p[0], p[1], color=colors[n])
+                n += 1
             plt.pause(0.05)
             
             print self.points
@@ -69,7 +76,8 @@ class GravGrid(object):
 
 if __name__ == "__main__":
     grav_grid = GravGrid()
-    grav_grid.add_point(np.array([-100.0, 0., 0.])) 
-    grav_grid.add_point(np.array([100.0, 0., 0.]))
-    grav_grid.add_point(np.array([0.,0.,0.]))
-    grav_grid.solve(1000, dt=0.00001)
+    grav_grid.add_point(np.array([-10.0, 0., 0.])) 
+    grav_grid.add_point(np.array([10.0, 0., 0.]))
+    grav_grid.add_point(np.array([10.0, 10.0, 0.0]))
+    grav_grid.add_point(np.array([-10.,10.,0.]))
+    grav_grid.solve(1000, dt=1.0)
