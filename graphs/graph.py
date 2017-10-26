@@ -38,7 +38,7 @@ class G:
             return edges[0]
         except IndexError:
             raise ValueError("Nonexistent edge: ({},{})".format(u, v))
- 
+
     def add_vertex(self):
         """
         Add vertex and return 
@@ -100,9 +100,12 @@ class G:
         """
         return self.g.get_edges()
 
-    def new_vertex_property(self, name, dtype):
+    def new_vertex_property(self, name, dtype, set_vp=True, value=None):
         vp = self.g.new_vertex_property(dtype)
-        self.g.vertex_properties[name] = vp
+        if value is not None:
+            vp.a = value
+        if set_vp:
+            self.g.vertex_properties[name] = vp
         return vp
 
     def set_vertex_property(self, name, u, value):
@@ -196,27 +199,20 @@ class G:
         naps_vp.a = naps
         return naps_vp
 
-    def get_sbm_masks(self, nested=False, edge_weights=False, rec_types="real-exponential"):
-        if not nested:
-            print "Minimize block model..."
-            state = gt.minimize_blockmodel_dl(self.g)
+    def get_nested_sbm_masks(self, edge_weights, rec_types="real-exponential"):
+        if edge_weights:
+            print "Minimize bested block model with edge weights..."
+            state_args = dict(recs=[self.g.ep.weight], rec_types=[rec_types])
         else:
-            if edge_weights:
-                print "Minimize bested block model with edge weights"
-                state_args = dict(recs=[self.g.ep.weight], rec_types=[rec_types])
-            else:
-                print "Minimize nested block model"
-                state_args = {}
-            state = gt.minimize_nested_blockmodel_dl(self.g, state_args=dict(recs=[self.g.ep.weight],
-                                                                             rec_types=[rec_types])) 
-            states = state.get_levels()
-            #state.draw()
+            print "Minimize nested block model..."
+            state_args = {}
         
-        print "Generate_masks"
-        mask_list = []
-        if not nested:
-            states = [state]
+        state = gt.minimize_nested_blockmodel_dl(self.g, state_args=dict(recs=[self.g.ep.weight], 
+                                                     rec_types=[rec_types]))
+        states = state.get_levels()
 
+        print "Generate masks..."
+        mask_list = []
         for state in states:
             max_comp = state.B
             masks = []
@@ -233,7 +229,26 @@ class G:
                     continue
 
             mask_list.append(masks)
+
         return mask_list
+ 
+ 
+    def get_sbm_masks(self):
+        print "Minimize block model..."
+        state = gt.minimize_blockmodel_dl(self.g)
+        
+        print "Generate masks..."
+        max_comp = state.B
+        masks = []
+        for label in range(0, max_comp):
+            print state.b.a
+            print len(state.b.a)
+            binary_mask = state.b.a == label
+            
+            cc_vp = self.g.new_vertex_property("bool")
+            cc_vp.a = binary_mask
+            masks.append(cc_vp)
+        return masks
 
     def get_kcore_mask(self, min_k):
         kval_vp = gt.kcore_decomposition(self.g)
@@ -241,7 +256,18 @@ class G:
         mask_vp = self.g.new_vertex_property("bool")
         mask_vp.a = mask
         return mask_vp
-        
+
+    def get_min_cut_masks(self):
+        min_cut, partition = gt.min_cut(self.g, self.g.ep.weight)
+        print "min cut: ", min_cut
+ 
+        masks = []
+        for p in [0,1]:
+            mask_vp = self.g.new_vertex_property("bool")
+            mask_vp.a = partition.a == p
+            masks.append(mask_vp)
+
+        return masks
  
     def get_component_masks(self, min_vertices=0):
         component_vp, hist = gt.label_components(self.g, 
