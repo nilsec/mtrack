@@ -207,14 +207,15 @@ class SCluster(object):
                 #print "cmp %s" % line_id_cmp
                 hits = trees[line_id].query_ball_tree(trees[line_id_cmp], 2 * epsilon_lines)
                 n_hits = 0
-
                 for hit in hits:
                     if hit:
                         n_hits += 1
 
                 if n_hits>=1 :
+                    len_line = float(len(processed_lines[line_id]["v_line"]))
+                    len_line_cmp = float(len(processed_lines[line_id_cmp]["v_line"]))
                     line_graph.add_edge(line_id, line_id_cmp)
-                    weights.append(n_hits/float(len(hits)))                    
+                    weights.append(n_hits/(len_line + len_line_cmp))
 
         edge_weight = line_graph.new_edge_property("weight", "float", vals=weights)
         return line_graph, processed_lines
@@ -314,7 +315,7 @@ def get_lines_from_file(solution_file):
 
     
 if __name__ == "__main__":
-    test_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_grid32_ps035035_300_399/solution/volume.gt" 
+    test_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_grid1_ps0505_300_399/solution/volume.gt" 
     validation_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/grid_2/grid_32/solution/volume.gt"
     vc = False
     sc_lines=True
@@ -340,7 +341,7 @@ if __name__ == "__main__":
 
         output_base_dir ="/media/nilsec/d0/gt_mt_data/experiments/line_clustering"
         output_dir = os.path.join(output_base_dir, 
-                                  "hsc/el{}_wo{}".format(epsilon_lines, 
+                                  "hsc/grid1_el{}_wo{}".format(epsilon_lines, 
                                                           weight_ori)
                                  )
 
