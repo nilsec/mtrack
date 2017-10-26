@@ -182,58 +182,9 @@ class SCluster(object):
 
         return processed_lines, reeb_graph
             
-    
-    def cluster_vertices(self, epsilon, output_dir, use_ori=True, weight_ori=None, lines=None):
-
-        processed_lines, reeb_graph = self.__process_lines(update_ori=use_ori, 
-                                                           weight_ori=weight_ori,
-                                                           lines=lines) 
-
-        print "Initialize trees..." 
-        if use_ori:
-            trees = [KDTree(line_attr["pos_ori"]) for line_attr in processed_lines]
-        else:
-            trees = [KDTree(line_attr["pos"]) for line_attr in processed_lines]
-
-        
-        print "Query ball trees..."        
-        for line_id in range(len(processed_lines)):
-            for line_id_cmp in range(line_id + 1, len(processed_lines)):
-                hit = trees[line_id].query_ball_tree(trees[line_id_cmp], 2 * epsilon)
-
-                for v_line in range(len(hit)):
-                    for v_comp in hit[v_line]:
-                        reeb_graph.add_edge(processed_lines[line_id]["v_reeb"][v_line], 
-                                            processed_lines[line_id_cmp]["v_reeb"][v_comp])
-        
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-        g1_to_nml(reeb_graph, 
-                  os.path.join(output_dir, "reeb_%s_%s.nml") % (int(weight_ori), int(epsilon)), 
-                  knossos=True, 
-                  voxel_size=self.voxel_size)
-
-        return reeb_graph
-
-
-    def cluster_lines(self, 
-                      epsilon_lines, 
-                      p_hits, 
-                      min_lines,
-                      remove_aps,
-                      min_k,
-                      sbm,
-                      nested,
-                      edge_weights,
-                      output_dir, 
-                      use_ori=True, 
-                      weight_ori=None,
-                      epsilon_vertices=None,
-                      v_cluster=None):
-        
+    def build_line_graph(self, epsilon_lines, use_ori=True, weight_ori=None):
         processed_lines, _ = self.__process_lines(update_ori=use_ori, 
-                                                           weight_ori=weight_ori) 
+                                                  weight_ori=weight_ori) 
 
         print "Initialize trees..." 
         if use_ori:
@@ -242,8 +193,10 @@ class SCluster(object):
             trees = [KDTree(line_attr["pos"]) for line_attr in processed_lines]
 
         line_graph = graphs.G1(0)
+        line_graph.new_vertex_property("line_id", "int")
         for v_id in range(len(processed_lines)):
-            line_graph.add_vertex()
+            v = line_graph.add_vertex()
+            line_graph.set_vertex_property("line_id", v, v_id)
 
         edge_weight = line_graph.new_edge_property("weight", "float")
         print "Query ball trees..."        
@@ -259,120 +212,88 @@ class SCluster(object):
                     if hit:
                         n_hits += 1
 
-                if n_hits>=1 and edge_weights:
+                if n_hits>=1 :
                     line_graph.add_edge(line_id, line_id_cmp)
                     weights.append(n_hits/float(len(hits)))                    
-                    #line_graph.set_edge_property("weight", line_id, line_id_cmp, n_hits/float(len(hits)), e)
-                    #assert(sbm)
-                elif p_hits is not None:
-                    if n_hits/float(len(hits)) >= p_hits:
-                        line_graph.add_edge(line_id, line_id_cmp)
- 
 
         edge_weight = line_graph.new_edge_property("weight", "float", vals=weights)
- 
-        cc_path_list = line_graph.get_components(min_lines, 
-                                                 os.path.join(output_dir, "line_ccs/"), 
-                                                 remove_aps, 
-                                                 min_k, 
-                                                 sbm,
-                                                 nested,
-                                                 edge_weights)
+        return line_graph, processed_lines
 
-        if not cc_path_list:
+    def get_high_connectivity_cluster(self, epsilon_lines, use_ori, weight_ori, output_dir):
+        line_graph, processed_lines = self.build_line_graph(epsilon_lines, use_ori, weight_ori)
+        hcs = line_graph.get_hcs(line_graph, remove_singletons=2)
+        c = 0
+        n = 0
+        for cluster in hcs:
+            print cluster.get_number_of_vertices()
+
+            line_cluster_dir = os.path.join(output_dir, "line_cluster_c%s/c%s" % (c, n)) 
+            if not os.path.exists(line_cluster_dir):
+                os.makedirs(line_cluster_dir)
+ 
+            l_graph_cluster = []
+            for v in cluster.get_vertex_iterator():
+                line_id = cluster.get_vertex_property("line_id", v)
+                l_graph = processed_lines[line_id]["l_graph"]
+                g1_to_nml(l_graph,
+                          line_cluster_dir + "/line_%s.nml" % line_id,
+                          knossify=True,
+                          voxel_size=self.voxel_size)
+                l_graph_cluster.append(l_graph)
+                n += 1
+
+            combine_knossos_solutions(line_cluster_dir, 
+                                      os.path.join(output_dir, 
+                                                   "combined/combined_%s.nml" % c), 
+                                                   tag="line")
+            c += 1
+            
+  
+    def fit_nested_line_sbm(self, 
+                            epsilon_lines, 
+                            output_dir, 
+                            use_ori=True, 
+                            weight_ori=None):
+        
+        
+        line_graph, processed_lines = self.build_line_graph(epsilon_lines, use_ori, weight_ori)
+ 
+        level_path_list = line_graph.get_sbm(output_dir, nested=True, edge_weights=True)
+
+        if not level_path_list:
             raise Warning("No matching lines")
 
         print "Combine Lines.."
         n = 0
-        for cc in cc_path_list:
-            cc_graph = graphs.G1(0)
-            cc_graph.load(cc)
+        l = 0
+        for cc_path_list in level_path_list:
+            for cc in cc_path_list:
+                cc_graph = graphs.G1(0)
+                cc_graph.load(cc)
             
-            line_cluster = graphs.G1(0)
+                line_cluster = graphs.G1(0)
             
-            line_cluster_dir = os.path.join(output_dir, "line_cluster/c%s" % n) 
-            if not os.path.exists(line_cluster_dir):
-                os.makedirs(line_cluster_dir)
+                line_cluster_dir = os.path.join(output_dir, "line_cluster_l%s/c%s" % (l, n)) 
+                if not os.path.exists(line_cluster_dir):
+                    os.makedirs(line_cluster_dir)
             
-            l_graph_cluster = []
-            for v in cc_graph.get_vertex_iterator():
-                l_graph = processed_lines[int(v)]["l_graph"]
-                g1_to_nml(l_graph,
-                          line_cluster_dir + "/line_%s.nml" % int(v),
-                          knossify=True,
-                          voxel_size=self.voxel_size)
-                l_graph_cluster.append(l_graph)
+                l_graph_cluster = []
+                for v in cc_graph.get_vertex_iterator():
+                    l_graph = processed_lines[int(v)]["l_graph"]
+                    g1_to_nml(l_graph,
+                              line_cluster_dir + "/line_%s.nml" % int(v),
+                              knossify=True,
+                              voxel_size=self.voxel_size)
+                    l_graph_cluster.append(l_graph)
 
-            if epsilon_vertices is not None:
-                self.cluster(epsilon_vertices, output_dir + "/lv_cluster", lines=l_graph_cluster, weight_ori=weight_ori)
-
-            combine_knossos_solutions(line_cluster_dir, os.path.join(output_dir, "combined/combined_%s.nml" % n), tag="line")
-            n += 1            
+                combine_knossos_solutions(line_cluster_dir, 
+                                          os.path.join(output_dir, 
+                                                       "combined_l%s/combined_%s.nml" % (l, n)), 
+                                                       tag="line")
+                n += 1
+            l += 1
 
         return 0
-
- 
-    def reduce_cluster(self, reeb_graph, output_dir, min_vertices, remove_aps, min_k, sbm):
-        print "Reduce cluster..."
-        cc_path_list = reeb_graph.get_components(min_vertices, os.path.join(output_dir, "reeb_ccs/"), remove_aps, min_k, sbm)
-        
-        reduced_reeb_graph = graphs.G1(0)
-        reduced_reeb_graph.new_vertex_property("line_neighbours", "vector<int>")
-        reduced_reeb_graph.new_vertex_property("line_vertices", "vector<int>")
-
-        for cc in cc_path_list:
-            cc_graph = graphs.G1(0)
-            cc_graph.load(cc)
-
-            g1_to_nml(cc_graph, 
-                      os.path.join(output_dir, "reeb_ccs/nml/%s" % os.path.basename(cc).replace(".gt", ".nml")), 
-                      knossos=True, 
-                      voxel_size=self.voxel_size)
-            
-            cc_positions = cc_graph.get_position_array()
-            cc_orientations = cc_graph.get_orientation_array()
-            
-            cc_mean_position = np.mean(cc_positions, axis=1)
-            cc_mean_orientation = np.mean(cc_orientations, axis=1)
-
-            v_reduced = reduced_reeb_graph.add_vertex()
-            reduced_reeb_graph.set_position(v_reduced, cc_mean_position)
-            reduced_reeb_graph.set_orientation(v_reduced, cc_mean_orientation)
-
-            cc_line_vertices = []
-            cc_line_neighbours = set()
-           
-            for v in cc_graph.get_vertex_iterator():
-                [cc_line_neighbours.add(u) for u in cc_graph.get_vertex_property("line_neighbours", v)]
-                cc_line_vertices.append(cc_graph.get_vertex_property("line_vertex", v))
-            
-            reduced_reeb_graph.set_vertex_property("line_neighbours", v_reduced, np.array([u for u in cc_line_neighbours], dtype=int))
-            reduced_reeb_graph.set_vertex_property("line_vertices", v_reduced, np.array(cc_line_vertices, dtype=int))
-
-        return reduced_reeb_graph
-
-    def connect_cluster(self, reduced_reeb_graph, output_dir):
-        print "Connect reduced cluster..."
-        for v in reduced_reeb_graph.get_vertex_iterator():
-            v_vertices = reduced_reeb_graph.get_vertex_property("line_vertices", v)
-            for u in range(int(v) + 1, reduced_reeb_graph.get_number_of_vertices()):
-                u_neighbours = reduced_reeb_graph.get_vertex_property("line_neighbours", u)
-                intersect = np.intersect1d(v_vertices, u_neighbours)
-                if intersect.size:
-                    reduced_reeb_graph.add_edge(u,v)
-
-        g1_to_nml(reduced_reeb_graph, 
-                  os.path.join(output_dir, "reduced_reeb.nml"), 
-                  knossos=True, 
-                  voxel_size=self.voxel_size)
-
-        return reduced_reeb_graph
-
-
-    def cluster(self, epsilon, output_dir, use_ori=True, weight_ori=None, min_vertices=1, remove_aps=False, min_k=1, sbm=False, lines=None):
-        reeb_graph = self.cluster_vertices(epsilon, output_dir, use_ori, weight_ori, lines=lines)
-        reduced_graph = self.reduce_cluster(reeb_graph, output_dir, min_vertices=min_vertices, remove_aps=remove_aps, min_k=min_k, sbm=sbm)
-        connected_graph = self.connect_cluster(reduced_graph, output_dir)
 
 
 def get_lines_from_file(solution_file):
@@ -396,7 +317,6 @@ if __name__ == "__main__":
     test_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_grid32_ps035035_300_399/solution/volume.gt" 
     validation_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/grid_2/grid_32/solution/volume.gt"
     vc = False
-    sc_vertices = False
     sc_lines=True
    
     
@@ -413,35 +333,22 @@ if __name__ == "__main__":
         raw_validation = "/media/nilsec/d0/gt_mt_data/data/Validation/raw.h5"
         VCluster.view(raw_test, labeled_volume, voxel_size=[5.,5.,50.], offset=[0,0,300*50])
 
-    #Skeleton Cluster
-    if sc_vertices:
-        scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
-        scluster.cluster(epsilon=50, 
-                         output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/v3",
-                         use_ori=True,
-                         weight_ori=float(700),
-                         min_vertices=3,
-                         remove_aps=True,
-                         sbm=False,
-                         min_k=1)
 
     if sc_lines:
-        p_hits=None
         epsilon_lines=100
-        min_lines=1
-        weight_ori = 700
-        epsilon_vertices = 50
+        weight_ori = 900
+
+        output_base_dir ="/media/nilsec/d0/gt_mt_data/experiments/line_clustering"
+        output_dir = os.path.join(output_base_dir, 
+                                  "hsc/el{}_wo{}".format(epsilon_lines, 
+                                                          weight_ori)
+                                 )
 
         scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
-        scluster.cluster_lines(epsilon_lines=epsilon_lines, 
-                               p_hits=p_hits, 
-                               min_lines=min_lines,
-                               remove_aps=False,
-                               min_k=1,
-                               sbm=True,
-                               nested=True,
-                               edge_weights=True,
-                               output_dir="/media/nilsec/d0/gt_mt_data/experiments/clustering/el{}_ev{}_min{}_ph{}_wo{}_waps_sbm".format(epsilon_lines, epsilon_vertices, min_lines, p_hits, weight_ori), 
-                               use_ori=True, 
-                               weight_ori=float(weight_ori),
-                               epsilon_vertices=epsilon_vertices)
+        scluster.get_high_connectivity_cluster(epsilon_lines, use_ori=True, weight_ori=weight_ori, output_dir=output_dir)
+        """
+        scluster.fit_nested_line_sbm(epsilon_lines, 
+                                     output_dir, 
+                                     use_ori=True, 
+                                     weight_ori=weight_ori)
+        """ 
