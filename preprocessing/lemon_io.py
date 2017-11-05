@@ -6,7 +6,7 @@ def g1_to_lemon(g1,
                 output_file):
     
     lgf_file = open(output_file, "w+")
-    lgf_file.write("@nodes\nlabel position\n")
+    lgf_file.write("@nodes\nlabel positions\n")
     label = 0
     # Define a mapping from old 
     # to new labels/node ids:
