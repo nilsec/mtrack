@@ -15,7 +15,7 @@ def plot_grid_eval(grid_path):
             print os.path.basename(grid)
         except IOError:
             continue
-        plotter.construct(parser, lines=False, overlay=os.path.basename(grid))
+        plotter.construct(parser, lines=True, chunks=False, overlay=os.path.basename(grid))
     
     plotter.plot()
 
