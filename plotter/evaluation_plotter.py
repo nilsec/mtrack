@@ -19,8 +19,8 @@ class EvaluationPlotter(object):
                   overlay=""):
         
         if lines:
-            trace_line = go.Bar(x=parser.evaluation_line.keys(),
-                                y=parser.evaluation_line.values(),
+            trace_line = go.Bar(x=parser.f_score_l.keys(),
+                                y=parser.f_score_l.values(),
                                 name="Line Evaluation",
                                 text=overlay)
 
@@ -30,8 +30,8 @@ class EvaluationPlotter(object):
             if lines:
                 overlay = ""
 
-            trace_chunk = go.Bar(x=parser.f_score.keys(),
-                                 y=parser.f_score.values(),
+            trace_chunk = go.Bar(x=parser.f_score_c.keys(),
+                                 y=parser.f_score_c.values(),
                                  name="Chunk Evaluation",
                                  text=overlay)
 
