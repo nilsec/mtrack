@@ -11,17 +11,22 @@ import pdb
 import pickle
 import h5py
 import neuroglancer
+import skeletopyze
 
 
 class VCluster(object):
-    def __init__(self, solution_file, voxel_size=[5.,5.,50], lines=None):
+    def __init__(self, solution_file, voxel_size=[5.,5.,50], lines=None, lines_itp=None):
         self.solution_file = solution_file
         self.voxel_size = voxel_size
-        if lines is None:
+        if lines is None and lines_itp is None:
             self.lines = get_lines_from_file(solution_file)
             self.lines_itp = interpolate_nodes(self.lines, voxel_size=voxel_size)
+        elif lines is not None and lines_itp is None:
+            self.lines = lines
+            self.lines_itp = interpolate_nodes(self.lines, voxel_size=voxel_size)
         else:
-            self.lines_itp = lines
+            self.lines_itp = lines_itp
+        
     
     @staticmethod
     def view(raw, seg, voxel_size, offset):
@@ -73,6 +78,8 @@ class VCluster(object):
         labeled_volume, n_components = label(canvas_base>=min_overlap)
         
         if save_volume is not None:
+            if not os.path.exists(os.path.dirname(save_volume)):
+                os.makedirs(os.path.dirname(save_volume))
             f = h5py.File(save_volume, "w")
             group = f.create_group("data")
             group.create_dataset("overlap", data=labeled_volume.astype(np.dtype(np.uint8)))
@@ -154,6 +161,8 @@ class SCluster(object):
                         vec_abs = np.abs(pos - np.array(l_graph.get_position(neighb[i])))
                         ori += vec_abs/np.linalg.norm(vec_abs)
                     ori /= float(len(neighb))
+
+                    l_graph.set_orientation(v, ori)
                     
                     if weight_ori is not None:
                         ori *= weight_ori/np.sqrt(2)
@@ -220,17 +229,18 @@ class SCluster(object):
         edge_weight = line_graph.new_edge_property("weight", "float", vals=weights)
         return line_graph, processed_lines
 
-    def get_high_connectivity_cluster(self, epsilon_lines, use_ori, weight_ori, output_dir):
+    def get_high_connectivity_cluster(self, epsilon_lines, use_ori, weight_ori, remove_singletons, output_dir):
         line_graph, processed_lines = self.build_line_graph(epsilon_lines, use_ori, weight_ori)
-        hcs = line_graph.get_hcs(line_graph, remove_singletons=2)
+        hcs = line_graph.get_hcs(line_graph, remove_singletons=remove_singletons)
         c = 0
         n = 0
+        cluster_list = []
         for cluster in hcs:
             print cluster.get_number_of_vertices()
 
             line_cluster_dir = os.path.join(output_dir, "line_cluster_c%s/c%s" % (c, n)) 
             if not os.path.exists(line_cluster_dir):
-                os.makedirs(line_cluster_dir)
+                os.makedirs(line_cluster_dir + "/gt")
  
             l_graph_cluster = []
             for v in cluster.get_vertex_iterator():
@@ -241,13 +251,17 @@ class SCluster(object):
                           knossify=True,
                           voxel_size=self.voxel_size)
                 l_graph_cluster.append(l_graph)
+                #l_graph.save(os.path.join(line_cluster_dir, "gt/line_%s.gt") % line_id)
                 n += 1
-
+            
+            cluster_list.append(l_graph_cluster)
             combine_knossos_solutions(line_cluster_dir, 
                                       os.path.join(output_dir, 
                                                    "combined/combined_%s.nml" % c), 
                                                    tag="line")
             c += 1
+
+        return cluster_list
             
   
     def fit_nested_line_sbm(self, 
@@ -313,10 +327,35 @@ def get_lines_from_file(solution_file):
 
     return line_paths
 
+def baseline_test():
+    candidates = extract_candidates(prob_map_stack,
+                                    gs,
+                                    ps,
+                                    voxel_size,
+                                    bounding_box=bounding_box,
+                                    bs_output_dir=None)
+
+    g1=candidates_to_g1(candidates, voxel_size)
+    g1_connected = connect_graph_locally(g1, distance_threshold)
+    hcs = g1_connected.get_hcs(g1_connected, remove_singletons=remove_singletons)
+
+    j = 0
+    for cluster in hcs:
+        vcluster = VCluster(0, lines=lines)
+        vcluster.cluster(epsilon=100,
+                         min_overlap=2,
+                         offset=np.array([0,0,300]),
+                         canvas_shape=[100,1024,1024],
+                         save_volume=output_dir + "/volumes/lvcluster_{}.h5".format(j))
+        j += 1
+ 
+    
+    
+
     
 if __name__ == "__main__":
-    test_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_grid1_ps0505_300_399/solution/volume.gt" 
-    validation_solution = "/media/nilsec/d0/gt_mt_data/solve_volumes/grid_2/grid_32/solution/volume.gt"
+    test_solution = "/media/nilsec/m1/gt_mt_data/solve_volumes/test_volume_grid32_ps035035_300_399/solution/volume.gt" 
+    validation_solution = "/media/nilsec/m1/gt_mt_data/solve_volumes/grid_2/grid_32/solution/volume.gt"
     vc = False
     sc_lines=True
    
@@ -328,25 +367,40 @@ if __name__ == "__main__":
                                                    min_overlap=2, 
                                                    offset=np.array([0,0,300]),
                                                    canvas_shape=[100,1024,1024],
-                                                   save_volume="/media/nilsec/d0/gt_mt_data/data/Test/vcluster.h5")
+                                                   save_volume="/media/nilsec/m1/gt_mt_data/data/Test/vcluster.h5")
 
-        raw_test = "/media/nilsec/d0/gt_mt_data/data/Test/raw_split.h5"
-        raw_validation = "/media/nilsec/d0/gt_mt_data/data/Validation/raw.h5"
+        raw_test = "/media/nilsec/m1/gt_mt_data/data/Test/raw_split.h5"
+        raw_validation = "/media/nilsec/m1/gt_mt_data/data/Validation/raw.h5"
         VCluster.view(raw_test, labeled_volume, voxel_size=[5.,5.,50.], offset=[0,0,300*50])
 
 
     if sc_lines:
-        epsilon_lines=100
-        weight_ori = 900
+        epsilon_lines=75
+        weight_ori = 1500
+        rs = 1
 
-        output_base_dir ="/media/nilsec/d0/gt_mt_data/experiments/line_clustering"
+        output_base_dir ="/media/nilsec/m1/gt_mt_data/experiments/lv_clustering"
         output_dir = os.path.join(output_base_dir, 
-                                  "hsc/grid1_el{}_wo{}".format(epsilon_lines, 
-                                                          weight_ori)
+                                  "hsc/test_grid32_el{}_wo{}_rs{}".format(epsilon_lines, 
+                                                                    weight_ori,
+                                                                    rs)
                                  )
 
         scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
-        scluster.get_high_connectivity_cluster(epsilon_lines, use_ori=True, weight_ori=weight_ori, output_dir=output_dir)
+        cluster = scluster.get_high_connectivity_cluster(epsilon_lines, 
+                                                         use_ori=True, 
+                                                         weight_ori=weight_ori,
+                                                         remove_singletons=rs, 
+                                                         output_dir=output_dir)
+        j = 0
+        for lines in cluster:
+            vcluster = VCluster(0, lines=lines)
+            vcluster.cluster(epsilon=100,
+                             min_overlap=1,
+                             offset=np.array([0,0,300]),
+                             canvas_shape=[100,1024,1024],
+                             save_volume=output_dir + "/volumes/lvcluster_{}.h5".format(j))
+            j += 1
         """
         scluster.fit_nested_line_sbm(epsilon_lines, 
                                      output_dir, 
