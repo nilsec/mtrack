@@ -28,8 +28,12 @@ def interpolate_nodes(line_list, voxel_size=[5.,5.,50.]):
     lines = []
 
     for line in line_list:
-        g1 = graphs.g1_graph.G1(0)
-        g1.load(line)
+        if isinstance(line, str):
+            g1 = graphs.g1_graph.G1(0)
+            g1.load(line)
+        else:
+            g1 = line
+        
 
         inter_line = []
 
