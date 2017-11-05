@@ -1,4 +1,5 @@
 *.swp
+*.lgf
 *.pyc
 *.nml
 *.gt
