@@ -115,4 +115,4 @@ if __name__ == "__main__":
     #volume_to_g1(tube)
     #skeletonize("volume.lgf")
     #skeletonize_volume("/media/nilsec/m1/gt_mt_data/experiments/lv_clustering/hsc/test_grid1_el100_wo900_rs0/volumes/lvcluster_0.h5",)
-    skeletonize_volumes("/media/nilsec/m1/gt_mt_data/experiments/lv_clustering/hsc/test_grid32_el75_wo1000_rs1/volumes", "./skeletons32_75_1000_1")
+    skeletonize_volumes("/media/nilsec/m1/gt_mt_data/experiments/lv_clustering/hsc/test_grid32_el75_wo1500_rs1/volumes", "./skeletons32_75_1500_1")
