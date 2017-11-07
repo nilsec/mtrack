@@ -13,6 +13,8 @@ import os
 import json
 import numpy as np
 from shutil import copyfile
+from copy import deepcopy
+
 
 def solve(g1,
           start_edge_prior,
@@ -265,7 +267,7 @@ def solve_bb_volume(bounding_box,
     [1, 2, ..., 10].
     """
 
-
+    bounding_box = deepcopy(bounding_box)
     if z_correction is not None:
         if z_correction != 1:
             raise Warning("z correction != 1. Make sure this is correct.")
@@ -274,6 +276,8 @@ def solve_bb_volume(bounding_box,
         assert(bounding_box[0] > 0)
         bounding_box[0] -= z_correction
         bounding_box[1] -= z_correction
+        print "bounding box: ", bounding_box[0]
+        print "z_correction: ", z_correction
 
     candidates = extract_candidates(prob_map_stack,
                                     gs,
