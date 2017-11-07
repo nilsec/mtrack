@@ -19,17 +19,17 @@ if __name__ == "__main__":
                       "selection_cost":[-70., -80., -90.],
                       "ps": [ps_0, ps_1, ps_2, ps_3]}
 
-    prob_map_stack_file_perp_validation = "/media/nilsec/d0/gt_mt_data/" +\
+    prob_map_stack_file_perp_validation = "/media/nilsec/m1/gt_mt_data/" +\
                                "probability_maps/validation/perpendicular/stack/stack.h5"
     
-    prob_map_stack_file_par_validation = "/media/nilsec/d0/gt_mt_data/" +\
+    prob_map_stack_file_par_validation = "/media/nilsec/m1/gt_mt_data/" +\
                                "probability_maps/validation/parallel/stack/stack.h5"
 
     prob_map_stack = DirectionType(prob_map_stack_file_perp_validation,
                                    prob_map_stack_file_par_validation)
 
-    output_dir = "/media/nilsec/d0/gt_mt_data/" +\
-                 "solve_volumes/grid_2"
+    output_dir = "/media/nilsec/m1/gt_mt_data/" +\
+                 "solve_volumes/grid_3"
  
  
     solve_parameter = {"bounding_box": [300, 330],
@@ -41,15 +41,19 @@ if __name__ == "__main__":
                        "output_dir": output_dir}
 
     grid = Grid(grid_parameter)
-    
-    grid_files = [os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.endswith(".p")]
+    grid_files = []
+    try: 
+        grid_files = [os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.endswith(".p")]
+    except OSError:
+        pass
 
-    if os.path.getmtime(grid_files[0]) > os.path.getmtime(grid_files[1]):
-        n = 0
-    else:
-        n = 1
+    if grid_files:
+        if os.path.getmtime(grid_files[0]) > os.path.getmtime(grid_files[1]):
+            n = 0
+        else:
+            n = 1
 
-    grid.load(grid_files[n])
+        grid.load(grid_files[n])
     grid.run(f_solve=solve.solve_bb_volume,
              f_solve_parameter=solve_parameter,
              save_grid=True,
