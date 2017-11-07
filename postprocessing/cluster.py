@@ -14,6 +14,44 @@ import neuroglancer
 import skeletopyze
 
 
+def skeletonize(solution_file, 
+                output_dir,
+                epsilon_lines,
+                epsilon_volumes,
+                min_overlap_volumes,
+                canvas_shape,
+                offset,
+                orientation_factor,
+                remove_singletons,
+                use_ori=True,
+                voxel_size=[5.,5.,50.]):
+
+    scluster = SCluster(solution_file, voxel_size=[5.,5.,50.])
+    cluster = scluster.get_high_connectivity_cluster(epsilon_lines, 
+                                                     use_ori=True, 
+                                                     weight_ori=orientation_factor,
+                                                     remove_singletons=remove_singletons, 
+                                                     output_dir=output_dir + "/lines")
+    j = 0
+    skeletons = []
+    for lines in cluster:
+        vcluster = VCluster(0, lines=lines)
+        volume, n_comps = vcluster.cluster(epsilon=epsilon_volumes,
+                                           min_overlap=min_overlap_volumes,
+                                           offset=offset,
+                                           canvas_shape=canvas_shape,
+                                           save_volume=output_dir + "/volumes/v_{}.h5".format(j))
+
+        skeleton = vcluster.skeletonize_volume(volume, 
+                                               output_dir + "/skeletons/s_{}".format(j), 
+                                               offset, 
+                                               voxel_size=voxel_size)
+        skeletons.append(skeleton)
+        j += 1
+
+    return skeletons
+
+
 class VCluster(object):
     def __init__(self, solution_file, voxel_size=[5.,5.,50], lines=None, lines_itp=None):
         self.solution_file = solution_file
@@ -59,6 +97,7 @@ class VCluster(object):
             bb_min, bb_max = self.get_min_canvas(line, dilation, np.shape(canvas_base), offset)
             
             for voxel in line:
+                print voxel
                 voxel -= offset
                 canvas[voxel[2], voxel[1], voxel[0]] = 1
             
@@ -85,6 +124,38 @@ class VCluster(object):
             group.create_dataset("overlap", data=labeled_volume.astype(np.dtype(np.uint8)))
  
         return labeled_volume.astype(np.uint8), n_components
+
+    def skeletonize_volume(self, volume, output_path, offset, voxel_size=[5.,5.,50.]):
+        if isinstance(volume, str):
+            f = h5py.File(volume)
+            volume = f["data/overlap"].value
+        else:
+            assert(isinstance(volume, np.ndarray))
+
+        params = skeletopyze.Parameters()
+        res = skeletopyze.point_f3()
+        res.__setitem__(0,5.)
+        res.__setitem__(1,5.)
+        res.__setitem__(2,50.)
+
+        b = skeletopyze.get_skeleton_graph(volume, params, res)
+
+        skeleton = graphs.G1(0)
+        for n in b.nodes():
+            v = skeleton.add_vertex()
+            skeleton.set_position(v, np.array([b.locations(n).x() + offset[0], 
+                                               b.locations(n).y() + offset[1], 
+                                               b.locations(n).z() + offset[2]])) 
+        for e in b.edges():
+            skeleton.add_edge(e.u, e.v)
+        
+        if output_path is not None:
+            if not os.path.exists(os.path.dirname(output_path)):
+                os.makedirs(os.path.dirname(output_path))
+            skeleton.save(output_path + ".gt")
+            g1_to_nml(skeleton, output_path + ".nml", knossify=True)
+
+        return skeleton       
 
     
     def get_min_canvas(self, line, dilation, canvas_shape, offset):
@@ -327,7 +398,14 @@ def get_lines_from_file(solution_file):
 
     return line_paths
 
-def baseline_test():
+def baseline_test(prob_map_stack,
+                  gs,
+                  ps,
+                  bounding_box,
+                  remove_singletons,
+                  distance_threshold,
+                  voxel_size=[5.,5.,50.]):
+
     candidates = extract_candidates(prob_map_stack,
                                     gs,
                                     ps,
@@ -341,69 +419,23 @@ def baseline_test():
 
     j = 0
     for cluster in hcs:
-        vcluster = VCluster(0, lines=lines)
-        vcluster.cluster(epsilon=100,
-                         min_overlap=2,
-                         offset=np.array([0,0,300]),
-                         canvas_shape=[100,1024,1024],
-                         save_volume=output_dir + "/volumes/lvcluster_{}.h5".format(j))
+        g1_to_nml(cluster, "/media/nilsec/m1/gt_mt_data/experiments/candidate_cut/c_{}".format(j))
         j += 1
- 
-    
-    
 
     
 if __name__ == "__main__":
-    test_solution = "/media/nilsec/m1/gt_mt_data/solve_volumes/test_volume_grid32_ps035035_300_399/solution/volume.gt" 
-    validation_solution = "/media/nilsec/m1/gt_mt_data/solve_volumes/grid_2/grid_32/solution/volume.gt"
-    vc = False
-    sc_lines=True
-   
-    
-    #Volume Cluster 
-    if vc:
-        vcluster = VCluster(test_solution, voxel_size=[5.,5.,50.])
-        labeled_volume, n_comps = vcluster.cluster(epsilon=75,
-                                                   min_overlap=2, 
-                                                   offset=np.array([0,0,300]),
-                                                   canvas_shape=[100,1024,1024],
-                                                   save_volume="/media/nilsec/m1/gt_mt_data/data/Test/vcluster.h5")
+    test_solution = "/media/nilsec/m1/gt_mt_data/solve_volumes/test_volume_grid1_ps0505_300_399/solution/volume.gt" 
+    validation_solution = "/media/nilsec/m1/gt_mt_data/solve_volumes/grid_2/grid_88/solution/volume.gt"
+    output_dir = "/media/nilsec/m1/gt_mt_data/solve_skeletons/experiments/e1"
 
-        raw_test = "/media/nilsec/m1/gt_mt_data/data/Test/raw_split.h5"
-        raw_validation = "/media/nilsec/m1/gt_mt_data/data/Validation/raw.h5"
-        VCluster.view(raw_test, labeled_volume, voxel_size=[5.,5.,50.], offset=[0,0,300*50])
-
-
-    if sc_lines:
-        epsilon_lines=75
-        weight_ori = 1500
-        rs = 1
-
-        output_base_dir ="/media/nilsec/m1/gt_mt_data/experiments/lv_clustering"
-        output_dir = os.path.join(output_base_dir, 
-                                  "hsc/test_grid32_el{}_wo{}_rs{}".format(epsilon_lines, 
-                                                                    weight_ori,
-                                                                    rs)
-                                 )
-
-        scluster = SCluster(test_solution, voxel_size=[5.,5.,50.])
-        cluster = scluster.get_high_connectivity_cluster(epsilon_lines, 
-                                                         use_ori=True, 
-                                                         weight_ori=weight_ori,
-                                                         remove_singletons=rs, 
-                                                         output_dir=output_dir)
-        j = 0
-        for lines in cluster:
-            vcluster = VCluster(0, lines=lines)
-            vcluster.cluster(epsilon=100,
-                             min_overlap=1,
-                             offset=np.array([0,0,300]),
-                             canvas_shape=[100,1024,1024],
-                             save_volume=output_dir + "/volumes/lvcluster_{}.h5".format(j))
-            j += 1
-        """
-        scluster.fit_nested_line_sbm(epsilon_lines, 
-                                     output_dir, 
-                                     use_ori=True, 
-                                     weight_ori=weight_ori)
-        """ 
+    skeletonize(solution_file=validation_solution, 
+                output_dir=output_dir,
+                epsilon_lines=150,
+                epsilon_volumes=100,
+                min_overlap_volumes=1,
+                canvas_shape=[100, 1025, 1025],
+                offset=np.array([0,0,300]),
+                orientation_factor=1000,
+                remove_singletons=3,
+                use_ori=True,
+                voxel_size=[5.,5.,50.])
