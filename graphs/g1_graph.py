@@ -361,13 +361,11 @@ class G1(G):
         len_masks = len(masks)
         for mask in masks:
             print "Filter graph {}/{}".format(n, len_masks) 
-            output_file = output_folder.replace("/", "_%s/" % cm) + "cc{}_min{}_phy.gt".format(n, min_vertices)
+            output_file = output_folder + "cc{}_min{}_phy.gt".format(n, min_vertices)
             cc_path_list.append(output_file)
             
             G.set_vertex_filter(self, mask)
             g1_masked = G1(0, G_in=self)
-            if not os.path.exists(os.path.dirname(output_file)):
-                os.makedirs(os.path.dirname(output_file))
             g1_masked.save(output_file)
             
             G.set_vertex_filter(self, None)
