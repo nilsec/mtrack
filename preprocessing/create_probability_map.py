@@ -3,6 +3,44 @@ import glob
 import h5py
 import numpy as np
 
+def slices_to_chunks(input_dir, output_dir, chunks):
+    """
+    The input dir should contain the probability
+    maps of the volume z-slice wise in h5 format.
+    This function produces h5 files of chunk sizes
+    corresponding to the given chunk list.
+    """
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    z_slices = glob.glob(input_dir + '/*.h5')
+    z_slices.sort()
+
+    f0 = h5py.File(z_slices[0])
+    s0 = f0["exported_data"].value
+    f0.close()
+ 
+    for chunk in chunks:
+        limits = chunk.limits
+        slices = z_slices[limits[2][0]:limits[2][1]]
+ 
+        h5_chunk = np.zeros(chunk.shape, dtype=s0.dtype)
+
+        z = 0
+        for z_slice in slices:
+            f = h5py.File(z_slice)
+            data = f["exported_data"].value
+            f.close()
+            
+            h5_chunk[z,:,:] = data[limits[0][0]:limits[0][1], limits[1][0]:limits[1][1], 0]
+        
+        f = h5py.File(output_dir + "/chunk_{}.h5".format(chunk.id), 'w')
+        f.create_dataset('exported_data', data=h5_chunk)
+        f["exported_data"].attrs.create("chunk_id", chunk.id)
+        f["exported_data"].attrs.create("limits", limits)
+        f.close()
+
 def from_h5_to_h5stack(input_directory, output_file):
     input_files = glob.glob(input_directory + '*.h5')
     input_files.sort()
