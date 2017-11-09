@@ -13,6 +13,7 @@ class Chunk(object):
         self.limits = [None, None, None] # Convention: this is saved always in vox coordinates
         self.shape = np.array([None, None, None])
         self.voxel_size = np.array(voxel_size)
+        self.id = None
         
     def get_shape(self, phys=False):
         if phys:
@@ -68,6 +69,7 @@ class Chunker(object):
         self.voxel_size = np.array(voxel_size)
         self.volume = self.__init_volume(volume_shape, offset)
         self.chunks = []
+        self.n_chunks = 0
 
     def __init_volume(self, volume_shape, offset):
         volume = Chunk(self.voxel_size)
@@ -118,6 +120,7 @@ class Chunker(object):
                                    reduced_limits_max_dim_phys[0][1],
                                    phys=True)
 
+
         reduced_chunk_1 = Chunk(self.voxel_size)
         for dim in range(3):
             reduced_chunk_1.set_limits(dim, 
@@ -128,8 +131,15 @@ class Chunker(object):
                                    reduced_limits_max_dim_phys[1][0],
                                    reduced_limits_max_dim_phys[1][1],
                                    phys=True)
+        
 
         if np.all(reduced_chunk_0.shape <= self.max_chunk_shape) and np.all(reduced_chunk_1.shape <= self.max_chunk_shape):
+
+            reduced_chunk_0.id = self.n_chunks
+            self.n_chunks += 1
+            reduced_chunk_1.id = self.n_chunks
+            self.n_chunks += 1
+
             self.chunks.append(reduced_chunk_0)
             self.chunks.append(reduced_chunk_1)
         else:
