@@ -483,7 +483,7 @@ if __name__ == "__main__":
                  output_dir,
                  voxel_size,
                  z_correction=1,
-                 min_vertices=4) 
+                 min_vertices=20) 
   
     """
     solve_bb_volume(bounding_box,
