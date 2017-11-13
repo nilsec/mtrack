@@ -3,6 +3,19 @@ import os
 from grid import Grid
 from preprocessing import DirectionType
 
+def skip_condition(distance_threshold, 
+                   start_edge_prior,
+                   distance_factor,
+                   orientation_factor,
+                   comb_angle_factor,
+                   selection_cost,
+                   ps):
+
+    if ps.par == 0.35 and ps.perp == 0.35:
+        return True
+    else:
+        return False
+
 
 if __name__ == "__main__":
 
@@ -20,10 +33,10 @@ if __name__ == "__main__":
                       "ps": [ps_0, ps_1, ps_2, ps_3]}
 
     prob_map_stack_file_perp_validation = "/media/nilsec/m1/gt_mt_data/" +\
-                               "probability_maps/validation/perpendicular/stack/stack.h5"
+                               "probability_maps/validation/perpendicular/stack/stack_corrected.h5"
     
     prob_map_stack_file_par_validation = "/media/nilsec/m1/gt_mt_data/" +\
-                               "probability_maps/validation/parallel/stack/stack.h5"
+                               "probability_maps/validation/parallel/stack/stack_corrected.h5"
 
     prob_map_stack = DirectionType(prob_map_stack_file_perp_validation,
                                    prob_map_stack_file_par_validation)
@@ -58,4 +71,5 @@ if __name__ == "__main__":
              f_solve_parameter=solve_parameter,
              save_grid=True,
              verbose=True,
-             skip_runs=[35]) # Oom for run 10
+             skip_runs=[35],
+             skip_condition=skip_condition) # Oom for run 10
