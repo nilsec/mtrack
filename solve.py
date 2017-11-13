@@ -3,7 +3,8 @@ from graphs import g1_graph, graph_converter,\
 
 from preprocessing import g1_to_nml, extract_candidates,\
                           DirectionType, candidates_to_g1,\
-                          connect_graph_locally
+                          connect_graph_locally, Chunker,\
+                          slices_to_chunks
 
 from postprocessing import combine_knossos_solutions,\
                            combine_gt_solutions
@@ -14,6 +15,9 @@ import json
 import numpy as np
 from shutil import copyfile
 from copy import deepcopy
+import glob
+import h5py
+import pdb
 
 
 def solve(g1,
@@ -25,7 +29,8 @@ def solve(g1,
           time_limit,
           output_dir=None,
           voxel_size=None,
-          z_correction=None):
+          z_correction=None,
+          chunk_shift=np.array([0.,0.,0.])):
 
     """
     Base solver given a g1 graph.
@@ -71,7 +76,7 @@ def solve(g1,
     g2_solution = solver.solve(time_limit=time_limit)
 
     print "Get G1 solution..."
-    g1_solution = g2_to_g1_solution(g2_solution, g1, g2, index_maps, z_correction=z_correction)
+    g1_solution = g2_to_g1_solution(g2_solution, g1, g2, index_maps, z_correction=z_correction, chunk_shift=chunk_shift)
     
 
     
@@ -109,7 +114,7 @@ def solve(g1,
     return g1_solution
 
 
-def g2_to_g1_solution(g2_solution, g1, g2, index_maps, voxel_size=[5.,5.,50.], z_correction=None):
+def g2_to_g1_solution(g2_solution, g1, g2, index_maps, voxel_size=[5.,5.,50.], z_correction=None, chunk_shift=np.array([0.,0.,0.])):
     g1_selected_edges = set()
     g1_selected_vertices = set()
 
@@ -142,7 +147,9 @@ def g2_to_g1_solution(g2_solution, g1, g2, index_maps, voxel_size=[5.,5.,50.], z
             z_shift = z_factor * voxel_size[2]
             pos = g1.get_position(v)
             pos[2] += z_shift
+            pos += chunk_shift * np.array(voxel_size)
             g1.set_position(v, np.array(pos))
+
         else:
             vertex_mask.append(False)
 
@@ -174,7 +181,8 @@ def solve_volume(volume_dir,
                  output_dir,
                  voxel_size,
                  combine_solutions=True,
-                 z_correction=None):
+                 z_correction=None,
+                 chunk_shift=np.array([0.,0.,0.])):
 
     """
     Solve a complete volume given connected components in .gt
@@ -208,7 +216,8 @@ def solve_volume(volume_dir,
               time_limit,
               cc_output_dir,
               voxel_size,
-              z_correction=z_correction)
+              z_correction=z_correction,
+              chunk_shift=chunk_shift)
 
         if i == 0:
             copyfile(cc_output_dir + "meta.json", output_dir + "solve_params.json")
@@ -222,14 +231,15 @@ def solve_volume(volume_dir,
              "runtime": runtime,
              "volume_dir": volume_dir}
 
-    with open(output_dir + "solve_stats.json", "w+") as f:
-        json.dump(stats, f)
+    if components:
+        with open(output_dir + "solve_stats.json", "w+") as f:
+            json.dump(stats, f)
 
-    if combine_solutions:
-        print "Combine Solutions...\n"
-        combine_knossos_solutions(output_dir, output_dir + "volume.nml")
-        combine_gt_solutions(output_dir, output_dir + "volume.gt")
-        
+        if combine_solutions:
+            print "Combine Solutions...\n"
+            combine_knossos_solutions(output_dir, output_dir + "volume.nml")
+            combine_gt_solutions(output_dir, output_dir + "volume.gt")
+
 
 
 def solve_bb_volume(bounding_box,
@@ -245,6 +255,7 @@ def solve_bb_volume(bounding_box,
                     time_limit,
                     output_dir,
                     voxel_size,
+                    min_vertices=4,
                     combine_solutions=True,
                     z_correction=1):
 
@@ -292,7 +303,7 @@ def solve_bb_volume(bounding_box,
     g1_connected = connect_graph_locally(g1,
                                          distance_threshold)
     
-    cc_list = g1_connected.get_components(min_vertices=4,
+    cc_list = g1_connected.get_components(min_vertices=min_vertices,
                                           output_folder = output_dir + "cc/")
 
     solve_volume(output_dir + "cc/",
@@ -308,33 +319,136 @@ def solve_bb_volume(bounding_box,
                  z_correction)
 
 
+def solve_chunks(prob_map_slice_dir,
+                 max_chunk_shape,
+                 overlap,
+                 gs,
+                 ps,
+                 distance_threshold,
+                 start_edge_prior,
+                 distance_factor,
+                 orientation_factor,
+                 comb_angle_factor,
+                 selection_cost,
+                 time_limit,
+                 output_dir,
+                 voxel_size,
+                 min_vertices=4,
+                 volume_offset=np.array([0,0,0]),
+                 phys=False,
+                 combine_solutions=True,
+                 z_correction=None):
+
+    print "Get volume dimensions..."
+    z_slices = glob.glob(prob_map_slice_dir.par + "/*.h5")
+    f = h5py.File(z_slices[0], 'r')
+    data = f["exported_data"]
+    volume_shape = (len(z_slices), data.shape[1], data.shape[0])
+
+    print "Chunk volume..."
+    chunker = Chunker(volume_shape, 
+                      max_chunk_shape,
+                      voxel_size,
+                      overlap,
+                      offset=volume_offset,
+                      phys=phys)
+
+    chunks = chunker.chunk()
+    
+    chunk_dir = output_dir + "pm_chunks"
+    if not os.path.exists(chunk_dir):
+        os.makedirs(chunk_dir + "/parallel")
+        os.makedirs(chunk_dir + "/perpendicular")
+
+
+    print "Chunk parallel probability maps..."
+    slices_to_chunks(input_dir=prob_map_slice_dir.par,
+                     output_dir=chunk_dir + "/parallel",
+                     chunks=chunks)
+    
+    print "Chunk perpendicular probability maps..."
+    slices_to_chunks(input_dir=prob_map_slice_dir.perp,
+                     output_dir=chunk_dir + "/perpendicular",
+                     chunks=chunks)
+
+    n_chunks = len(chunks)
+    parallel_chunks = [chunk_dir + "/parallel/chunk_{}.h5".format(chunk_id) for chunk_id in range(n_chunks)]
+    perpendicular_chunks = [chunk_dir + "/perpendicular/chunk_{}.h5".format(chunk_id) for chunk_id in range(n_chunks)]
+
+    n = 0
+    for par, perp in zip(parallel_chunks[2:], perpendicular_chunks[2:]):
+        print "Solve chunk {}/{}...".format(n + 1, n_chunks)
+         
+        prob_map_stack = DirectionType(perp,
+                                       par)
+
+        candidates = extract_candidates(prob_map_stack,
+                                        gs,
+                                        ps,
+                                        voxel_size,
+                                        bounding_box=None,
+                                        bs_output_dir=None)
+
+        g1 = candidates_to_g1(candidates, 
+                              voxel_size)
+
+        g1_connected = connect_graph_locally(g1,
+                                             distance_threshold)
+    
+        cc_list = g1_connected.get_components(min_vertices=min_vertices,
+                                              output_folder = output_dir + "cc{}/".format(n))
+
+        chunk_limits = chunks[n].limits
+        chunk_shift = np.array([limit[0] for limit in chunk_limits])
+        print chunk_shift
+
+        solve_volume(output_dir + "cc{}/".format(n),
+                     start_edge_prior,
+                     distance_factor,
+                     orientation_factor,
+                     comb_angle_factor,
+                     selection_cost,
+                     time_limit,
+                     output_dir + "solution{}/".format(n),
+                     voxel_size,
+                     combine_solutions,
+                     z_correction,
+                     chunk_shift=chunk_shift)
+
+        n += 1
+ 
+        
+
+
 if __name__ == "__main__":
 
     distance_threshold = 150 # 150
-    start_edge_prior = 160.0
+    start_edge_prior = 140.0
     distance_factor = 0.0
     orientation_factor = 15.0
     comb_angle_factor = 16.0
-    selection_cost = -90.0 # -80
+    selection_cost = -80.0 # -80
     time_limit = 5000
     voxel_size = [5.0, 5.0, 50.0]
     z_correction = 1
-    bounding_box = [300, 400] # specify slices here in terms of tracing coords. i.e. 1-n_slices.
+    bounding_box = [300, 330] # specify slices here in terms of tracing coords. i.e. 1-n_slices.
                               # we can do that because we specified the z_correction = 1
 
     gs = DirectionType(0.5, 0.5)
-    ps = DirectionType(0.35, 0.35)
+    ps = DirectionType(0.45, 0.45)
 
     output_dir = "/media/nilsec/d0/gt_mt_data/" +\
                  "solve_volumes/test_volume_grid32_ps035035_{}_{}/".format(bounding_box[0],
                                                            bounding_box[1] - 1)
+
+    output_dir = "/media/nilsec/m1/gt_mt_data/solve_volumes/chunk_test_3/"
  
 
-    prob_map_stack_file_perp_test = "/media/nilsec/d0/gt_mt_data/" +\
-                               "probability_maps/test/perpendicular/stack/stack.h5"
+    prob_map_stack_file_perp_test = "/media/nilsec/m1/gt_mt_data/" +\
+                               "probability_maps/test/perpendicular/stack/stack_corrected.h5"
     
-    prob_map_stack_file_par_test = "/media/nilsec/d0/gt_mt_data/" +\
-                               "probability_maps/test/parallel/stack/stack.h5"
+    prob_map_stack_file_par_test = "/media/nilsec/m1/gt_mt_data/" +\
+                               "probability_maps/test/parallel/stack/stack_corrected.h5"
 
     prob_map_stack_file_perp_validation = "/media/nilsec/d0/gt_mt_data/" +\
                                "probability_maps/validation/perpendicular/stack/stack.h5"
@@ -345,7 +459,33 @@ if __name__ == "__main__":
  
     prob_map_stack = DirectionType(prob_map_stack_file_perp_test,
                                    prob_map_stack_file_par_test)
- 
+
+    prob_map_slice_dir = DirectionType("/media/nilsec/m1/gt_mt_data/" +\
+                                       "probability_maps/test/perpendicular",
+                                       "/media/nilsec/m1/gt_mt_data/" +\
+                                       "probability_maps/test/parallel")
+
+    max_chunk_shape = np.array([100, 1024, 1024]) # z,y,x
+    overlap = np.array([0,0,30]) # x,y,z
+
+    solve_chunks(prob_map_slice_dir,
+                 max_chunk_shape,
+                 overlap,
+                 gs,
+                 ps,
+                 distance_threshold,
+                 start_edge_prior,
+                 distance_factor,
+                 orientation_factor,
+                 comb_angle_factor,
+                 selection_cost,
+                 time_limit,
+                 output_dir,
+                 voxel_size,
+                 z_correction=1,
+                 min_vertices=4) 
+  
+    """
     solve_bb_volume(bounding_box,
                     prob_map_stack,
                     gs,
@@ -360,3 +500,4 @@ if __name__ == "__main__":
                     output_dir,
                     voxel_size,
                     z_correction=z_correction) 
+    """
