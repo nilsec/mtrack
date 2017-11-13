@@ -34,9 +34,10 @@ def slices_to_chunks(input_dir, output_dir, chunks):
             f.close()
             
             h5_chunk[z,:,:] = data[limits[0][0]:limits[0][1], limits[1][0]:limits[1][1], 0]
+            z += 1
         
         f = h5py.File(output_dir + "/chunk_{}.h5".format(chunk.id), 'w')
-        f.create_dataset('exported_data', data=h5_chunk)
+        f.create_dataset("exported_data", data=h5_chunk)
         f["exported_data"].attrs.create("chunk_id", chunk.id)
         f["exported_data"].attrs.create("limits", limits)
         f.close()
@@ -51,9 +52,9 @@ def from_h5_to_h5stack(input_directory, output_file):
         f.close()
             
         if n == 0:
-            h5stack = np.zeros((data.shape[0], data.shape[1], len(input_files)), dtype=data.dtype)
+            h5stack = np.zeros((len(input_files), data.shape[1], data.shape[0]), dtype=data.dtype)
 
-        h5stack[:, :, n] = data[:, :, 0]
+        h5stack[n, :, :] = data[:, :, 0]
     
     f = h5py.File(output_file, 'w')
     f.create_dataset('exported_data', data=h5stack)
@@ -106,4 +107,6 @@ if __name__ == "__main__":
     ilastik_project = "/media/nilsec/d0/Data_MTs/ilastik/perp.ilp"
     output_directory = '/media/nilsec/d0/gt_mt_data/probability_maps/test/perpendicular/'
     
-    get_prob_map_ilastik(input_directory, output_directory, ilastik_source_directory, ilastik_project, verbose=True)
+    #get_prob_map_ilastik(input_directory, output_directory, ilastik_source_directory, ilastik_project, verbose=True)
+    from_h5_to_h5stack("/media/nilsec/m1/gt_mt_data/probability_maps/validation/parallel/",
+                       "/media/nilsec/m1/gt_mt_data/probability_maps/validation/parallel/stack/stack_corrected.h5")
