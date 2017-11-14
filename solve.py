@@ -375,7 +375,7 @@ def solve_chunks(prob_map_slice_dir,
     parallel_chunks = [chunk_dir + "/parallel/chunk_{}.h5".format(chunk_id) for chunk_id in range(n_chunks)]
     perpendicular_chunks = [chunk_dir + "/perpendicular/chunk_{}.h5".format(chunk_id) for chunk_id in range(n_chunks)]
 
-    n = 0
+    n = 2
     for par, perp in zip(parallel_chunks[2:], perpendicular_chunks[2:]):
         print "Solve chunk {}/{}...".format(n + 1, n_chunks)
          
@@ -422,7 +422,7 @@ def solve_chunks(prob_map_slice_dir,
 
 if __name__ == "__main__":
 
-    distance_threshold = 150 # 150
+    distance_threshold = 175 # 150
     start_edge_prior = 140.0
     distance_factor = 0.0
     orientation_factor = 15.0
@@ -441,7 +441,7 @@ if __name__ == "__main__":
                  "solve_volumes/test_volume_grid32_ps035035_{}_{}/".format(bounding_box[0],
                                                            bounding_box[1] - 1)
 
-    output_dir = "/media/nilsec/m1/gt_mt_data/solve_volumes/chunk_test_3/"
+    output_dir = "/media/nilsec/m1/gt_mt_data/solve_volumes/sanity_check_new/"
  
 
     prob_map_stack_file_perp_test = "/media/nilsec/m1/gt_mt_data/" +\
@@ -468,6 +468,7 @@ if __name__ == "__main__":
     max_chunk_shape = np.array([100, 1024, 1024]) # z,y,x
     overlap = np.array([0,0,30]) # x,y,z
 
+    """
     solve_chunks(prob_map_slice_dir,
                  max_chunk_shape,
                  overlap,
@@ -484,7 +485,6 @@ if __name__ == "__main__":
                  voxel_size,
                  z_correction=1,
                  min_vertices=20) 
-  
     """
     solve_bb_volume(bounding_box,
                     prob_map_stack,
@@ -500,4 +500,3 @@ if __name__ == "__main__":
                     output_dir,
                     voxel_size,
                     z_correction=z_correction) 
-    """
