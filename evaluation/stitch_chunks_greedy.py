@@ -8,6 +8,8 @@ from scipy.spatial.distance import cdist
 import h5py
 import preprocessing
 
+def get_intersect(x,y):
+    return range(max(x[0], y[0]), min(x[-1], y[-1]) + 1)
 
 class Stitcher(object):
 
@@ -42,11 +44,15 @@ class Stitcher(object):
 
         limits_1 = attrs_1[1][1]
         limits_2 = attrs_2[1][1]
-        pdb.set_trace()
+
+        x_intersect = get_intersect(limits_1[0], limits_2[0])
+        y_intersect = get_intersect(limits_1[1], limits_2[1])
+        z_intersect = get_intersect(limits_1[2], limits_2[2])
 
 
         matches = {}
         n_line = 0
+        reached_line_2 = False
         for line_1 in chunk_1_lp:
             print "Match line {}/{}".format(n_line + 1, len(chunk_1_lp))
             line_graph_1 = graphs.G1(0)
@@ -54,7 +60,13 @@ class Stitcher(object):
 
             positions_1 = line_graph_1.get_position_array()
 
-            if max(positions_1[2]) < 147:
+            z_match = max(position_1[2]) in z_intersect or min(position_1[2]) in z_intersect
+            y_match = max(position_1[1]) in y_intersect or min(position_1[1]) in y_intersect
+            x_match = max(position_1[0]) in x_intersect or min(position_1[0]) in x_intersect
+
+            overlap = z_match and y_match and x_match 
+ 
+            if not overlap:
                 n_line += 1
                 continue
  
@@ -64,9 +76,17 @@ class Stitcher(object):
                 matches[line_1] = (line_2, 0)
                 positions_2 = line_graph_2.get_position_array()
                 
-                if min(positions_2[2]) > 157:
-                    chunk_2_lp.remove(line_2)
-                    continue
+                if not reached_line_2:
+                    z_match = max(position_2[2]) in z_intersect or min(position_2[2]) in z_intersect
+                    y_match = max(position_2[1]) in y_intersect or min(position_2[1]) in y_intersect
+                    x_match = max(position_2[0]) in x_intersect or min(position_2[0]) in x_intersect
+                    
+                    overlap = z_match and y_match and x_match
+ 
+                
+                    if not overlap:
+                        chunk_2_lp.remove(line_2)
+                        continue
 
                 d_pair = cdist(positions_1.T,
                                positions_2.T)
@@ -76,6 +96,7 @@ class Stitcher(object):
                     matches[line_1] = (line_2, n_matches)
                 
             n_line += 1
+            reached_line_2  = True
 
         k = 0
         for match, matcher in matches.iteritems():
