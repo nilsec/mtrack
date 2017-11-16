@@ -421,21 +421,3 @@ def baseline_test(prob_map_stack,
     for cluster in hcs:
         g1_to_nml(cluster, "/media/nilsec/m1/gt_mt_data/experiments/candidate_cut/c_{}".format(j))
         j += 1
-
-    
-if __name__ == "__main__":
-    test_solution = "/media/nilsec/m1/gt_mt_data/solve_volumes/chunk_test_2/solution3/volume.gt" 
-    validation_solution = "/media/nilsec/m1/gt_mt_data/solve_volumes/grid_2/grid_88/solution/volume.gt"
-    output_dir = "/media/nilsec/m1/gt_mt_data/solve_skeletons/experiments/chunk_test_2/solution3"
-
-    skeletonize(solution_file=test_solution, 
-                output_dir=output_dir,
-                epsilon_lines=150,
-                epsilon_volumes=100,
-                min_overlap_volumes=1,
-                canvas_shape=[100, 1025, 1025],
-                offset=np.array([0,0,170]),
-                orientation_factor=1000,
-                remove_singletons=3,
-                use_ori=True,
-                voxel_size=[5.,5.,50.])

@@ -118,27 +118,3 @@ def combine_gt_solutions(solution_dir, output_file):
     g1_comb.add_edge_list(edges)
     g1_comb.save(output_file)
     return g1_comb
-
-def combine_lines():
-    rec_lines_dir = "/media/nilsec/d0/gt_mt_data/experiments/selection_cost_grid0404_solve_4/lines" 
-    rec_combined = rec_lines_dir + "/combined.nml"
-    trace_lines_dir = "/media/nilsec/d0/gt_mt_data/test_tracing/lines_v17_cropped"
-    trace_combined = trace_lines_dir + "/combined.nml"
-
-    combine_knossos_solutions(rec_lines_dir, rec_combined, "kfy")
-    combine_knossos_solutions(trace_lines_dir, trace_combined, "kfy")
-
-
-if __name__ == "__main__":
-    sol_sc_4 = "/media/nilsec/d0/gt_mt_data/solve_volumes/volume_1/solution"
-    combine_knossos_solutions(sol_sc_4, sol_sc_4 + "/combined.nml")
-    
-    #combine_lines()
-    """
-    sol_89 = "/media/nilsec/d0/gt_mt_data/experiments/validation_solve_dt89" 
-    
-    for j in range(0, 10):
-        sol_89 = "/media/nilsec/d0/gt_mt_data/experiments/"\
-                 "selection_cost_grid0404_solve_{}/solution".format(j)
-        combine_knossos_solutions(sol_89, "./solutions/sc_grid0404_{}.nml".format(j))
-    """

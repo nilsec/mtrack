@@ -97,16 +97,3 @@ def get_prob_map_ilastik(input_directory, output_directory, ilastik_source_direc
     
     if verbose:
         print "Ilastik probability map written to " + output_stack
-
-
-if __name__ == "__main__":
-    ilastik_source_directory = "/usr/local/src/ilastik-1.2.0rc10-Linux/"
-    input_directory = "/media/nilsec/d0/Data_MTs/Test/raw_split/"
-    #ilastik_project = '/media/nilsec/d0/Data_MTs/ilastik/parallel_3.ilp'
-    #ilastik_project = '/media/nilsec/d0/gt_mt_data/ilastik/perpendicular.ilp'
-    ilastik_project = "/media/nilsec/d0/Data_MTs/ilastik/perp.ilp"
-    output_directory = '/media/nilsec/d0/gt_mt_data/probability_maps/test/perpendicular/'
-    
-    #get_prob_map_ilastik(input_directory, output_directory, ilastik_source_directory, ilastik_project, verbose=True)
-    from_h5_to_h5stack("/media/nilsec/m1/gt_mt_data/probability_maps/validation/parallel/",
-                       "/media/nilsec/m1/gt_mt_data/probability_maps/validation/parallel/stack/stack_corrected.h5")

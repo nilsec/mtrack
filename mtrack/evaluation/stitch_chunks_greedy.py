@@ -113,17 +113,3 @@ class Stitcher(object):
                 
 
         json.dump(matches, open("./matches.json", "w"))
-        
-
-if __name__ == "__main__":     
-    stitcher = Stitcher()
-
-    base_dir = "/media/nilsec/m1/gt_mt_data/solve_volumes/chunk_test_2"
-    stitcher.match_chunks(base_dir + "/solution2/volume.gt",
-                          base_dir + "/solution3/volume.gt",
-                          base_dir + "/pm_chunks/parallel/chunk_2.h5",
-                          base_dir + "/pm_chunks/parallel/chunk_3.h5",
-                          d=55,
-                          n_min=3,
-                          voxel_size=[5.,5.,50.],
-                          output_dir=base_dir + "/stitching23_2")

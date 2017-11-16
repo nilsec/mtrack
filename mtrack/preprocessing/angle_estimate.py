@@ -9,7 +9,6 @@ import pickle
 diam_out = 24 # Outer diameter of microtubule in nm.
 
 
-
 class MtCandidate:
     def __init__(self, position, orientation, identifier, partner_identifier=-1):
         self.position = position
@@ -18,7 +17,8 @@ class MtCandidate:
         self.partner_identifier = partner_identifier
 
     def __repr__(self):
-        return "<MtCandidateObject | position: %s, orientation: %s, id: %s, partner id: %s> \n" % (self.position, self.orientation, self.identifier, self.partner_identifier)
+        return "<MtCandidateObject | position: %s, orientation: %s, id: %s, partner id: %s> \n" %\
+        (self.position, self.orientation, self.identifier, self.partner_identifier)
 
 
 def fit_ellipse(cc, verbose=False, plot=False):
@@ -43,7 +43,8 @@ def fit_ellipse(cc, verbose=False, plot=False):
         a = prop.major_axis_length
         b = prop.minor_axis_length
         phi = prop.orientation
-        y_0, x_0 = prop.centroid # NOTE: Careful with x_0, y_0 -> x <-> columns, y <-> rows
+        y_0, x_0 = prop.centroid 
+        # NOTE: Careful with x_0, y_0 -> x <-> columns, y <-> rows
         
         cc_features.append((a,b,phi,x_0,y_0))
         
@@ -65,10 +66,12 @@ def fit_ellipse(cc, verbose=False, plot=False):
 
 def plot_ellipse(a, b, alpha, x_0, y_0):
     theta_grid = np.arange(0, 2*np.pi, 0.1)
-    ellipse_x_r = a/2.0 * np.cos(theta_grid) #NOTE Division by 2! Needed because output of prop is the diameter.
+    ellipse_x_r = a/2.0 * np.cos(theta_grid)
     ellipse_y_r = b/2.0 * np.sin(theta_grid)
-
-    if alpha<0: #NOTE: Correction applied only for plotting. Needed for correct behavior of R.
+    #NOTE Division by 2! Needed because output of prop is the diameter.
+ 
+    #NOTE: Correction applied only for plotting. Needed for correct behavior of R.
+    if alpha<0: 
         alpha = alpha + np.pi
 
     R = np.array(([np.cos(alpha),np.sin(alpha)],[-np.sin(alpha), np.cos(alpha)]))
@@ -93,8 +96,8 @@ def f_delta(d, diam_out):
     Lambda function that encodes the relationship between the length of a mt (x) and the angle to the x-y plane.
     """
 
-    return lambda x: np.arcsin(diam_out/np.sqrt(x**2 + d**2)) + np.arctan(d/x) # NOTE: We only operate in +,+ quadrant. So arctan should be fine.
-
+    # NOTE: We only operate in +,+ quadrant. So arctan should be fine.
+    return lambda x: np.arcsin(diam_out/np.sqrt(x**2 + d**2)) + np.arctan(d/x) 
 
 
 def get_orientation(cc, voxel_x, voxel_y, voxel_z, length_correction, verbose=False, plot_ellipses=False):
@@ -129,14 +132,19 @@ def get_orientation(cc, voxel_x, voxel_y, voxel_z, length_correction, verbose=Fa
     
     Returns:
     ---------------
-    5 lists containing the angle to the xy plane, to the xz plane, the centroid, the physical length, the pixel length for each labeled connected
+    5 lists containing the angle to the xy plane, to the xz plane, 
+    the centroid, the physical length, the pixel length for each labeled connected
     component in the input image.
     """
 
 
 
     cc_features = fit_ellipse(cc, verbose,  plot_ellipses)
-    assert voxel_x == voxel_y # Otherwise the length of l is wrong. Need isotropy here. Needs to be in nm.
+    assert voxel_x == voxel_y  
+    """
+    Otherwise the length of l is wrong. 
+    Need isotropy here. Needs to be in nm.
+    """
     angle_xy = []
     angle_xz = []
     length_physical = []
@@ -149,13 +157,27 @@ def get_orientation(cc, voxel_x, voxel_y, voxel_z, length_correction, verbose=Fa
     for feature in cc_features:
 
         l = (feature[0] + length_correction) * voxel_x 
-        assert l>= 0 # Otherwise we might get in trouble with ambiguities from arctan()
+        assert l>= 0 
+        """
+        Otherwise we might get in 
+        trouble with ambiguities from arctan()
+        """
 
-        gamma = feature[2] # in interval [- pi/2, + pi/2], where - indicates nw/se direction and + ne/sw direction
+        gamma = feature[2]
+        """
+        in interval [- pi/2, + pi/2], 
+        where - indicates nw/se direction and + ne/sw direction
+        """
         if l <= diam_out:
-            delta=np.pi/2 # In case the length is smaller or equal to the diameter of a mt we assume its perp. NOTE: THIS NEEDS TO BE CONSISTENT WITH POLARITY NONE TO GET PI FOR THETA!
+            delta=np.pi/2 
+        """
+        In case the length is smaller or equal to the 
+        diameter of a mt we assume its perp. 
+        NOTE: THIS NEEDS TO BE CONSISTENT WITH POLARITY NONE TO GET PI FOR THETA!
+        """
         else:
-            delta = f(l) # angle delta -> see sketches, NOTE: NEED TO HANDLE ZERO l!
+            delta = f(l) 
+            # angle delta -> see sketches, NOTE: NEED TO HANDLE ZERO l!
         
         angle_xy.append(gamma)
         angle_xz.append(delta)
@@ -222,9 +244,18 @@ def get_vector(pos_plus, angle_xz, pos_minus=None, verbose=False, plot=False):
 
 
 
-def get_candidates(cc, slice_number, voxel_x, voxel_y, voxel_z, length_correction, verbose=False, plot=False, identifier_0=0):
+def get_candidates(cc, 
+                   slice_number, 
+                   voxel_x, 
+                   voxel_y, 
+                   voxel_z, 
+                   length_correction, 
+                   verbose=False, 
+                   plot=False, 
+                   identifier_0=0):
     
-    list_angle_xy, list_angle_xz, list_centroid, list_length_physical, list_length_pixel = get_orientation(cc, voxel_x, voxel_y, voxel_z, length_correction=length_correction) #PERP CASE HANDLED IN HERE
+    list_angle_xy, list_angle_xz, list_centroid, list_length_physical, list_length_pixel =\
+        get_orientation(cc, voxel_x, voxel_y, voxel_z, length_correction=length_correction) #PERP CASE HANDLED IN HERE
     
     if plot:
         features = fit_ellipse(cc)
@@ -233,11 +264,13 @@ def get_candidates(cc, slice_number, voxel_x, voxel_y, voxel_z, length_correctio
     j = 0
     identifier = identifier_0
     
-    for angle_xy, angle_xz, centroid, length_physical, length_pixel in zip(list_angle_xy, list_angle_xz, list_centroid, list_length_physical, list_length_pixel):
+    for angle_xy, angle_xz, centroid, length_physical, length_pixel in\
+        zip(list_angle_xy, list_angle_xz, list_centroid, list_length_physical, list_length_pixel):
 
         if length_physical <= diam_out:
             spherical, cartesian = get_vector(centroid, angle_xz) # NOTE: Maybe normalize vector here
-            candidate = MtCandidate(position=centroid + (slice_number - 0.5,), orientation=cartesian, identifier=identifier)
+            candidate = MtCandidate(position=centroid + (slice_number - 0.5,), 
+                        orientation=cartesian, identifier=identifier)
             candidate_list.append(candidate)
             identifier += 1
 
@@ -283,7 +316,8 @@ def get_candidates(cc, slice_number, voxel_x, voxel_y, voxel_z, length_correctio
             position_plus = (x_plus, y_plus) + (slice_number,)
             position_minus = (x_minus, y_minus) + (slice_number,)
 
-            spherical_minus, spherical_plus, cartesian_minus, cartesian_plus = get_vector((x_plus, y_plus), angle_xz, (x_minus, y_minus))
+            spherical_minus, spherical_plus, cartesian_minus, cartesian_plus =\
+                get_vector((x_plus, y_plus), angle_xz, (x_minus, y_minus))
             
             if plot:
                 plt.figure()
@@ -299,10 +333,16 @@ def get_candidates(cc, slice_number, voxel_x, voxel_y, voxel_z, length_correctio
             position_plus = (x_0, y_0) + (slice_number - 0.5,)
             position_minus = position_plus
 
-            candidate_plus = MtCandidate(position=position_plus, orientation=cartesian_plus, identifier=identifier, partner_identifier=identifier+1)
+            candidate_plus = MtCandidate(position=position_plus, 
+                                         orientation=cartesian_plus, 
+                                         identifier=identifier, 
+                                         partner_identifier=identifier+1)
             identifier += 1            
 
-            candidate_minus = MtCandidate(position=position_minus, orientation=cartesian_minus, identifier=identifier, partner_identifier=identifier-1)
+            candidate_minus = MtCandidate(position=position_minus, 
+                                          orientation=cartesian_minus, 
+                                          identifier=identifier, 
+                                          partner_identifier=identifier-1)
             identifier += 1
 
             candidate_list.append(candidate_plus)
@@ -349,8 +389,6 @@ def get_length_correction(input_file, threshold, gaussian_sigma, voxel_x):
     return (diam_out - (l_sum/float(n)))/voxel_x
 
 
-
-
 def test_angle_estimate(voxel_x=5.0, voxel_y=5.0, voxel_z=50.0, plot=True):
     
     length_list = (1, 2, 5, 10, 20)
@@ -375,7 +413,14 @@ def test_angle_estimate(voxel_x=5.0, voxel_y=5.0, voxel_z=50.0, plot=True):
     identifier_0 = 0
 
     for cc in toy_cc_list:
-        candidate, max_identifier = get_candidates(cc, layer_, voxel_x, voxel_y, voxel_z, length_correction=0.0, plot=plot, identifier_0=identifier_0)
+        candidate, max_identifier = get_candidates(cc, 
+                                                   layer_, 
+                                                   voxel_x, 
+                                                   voxel_y, 
+                                                   voxel_z, 
+                                                   length_correction=0.0, 
+                                                   plot=plot, 
+                                                   identifier_0=identifier_0)
         identifier_0 = max_identifier
         candidate_list.extend(candidate)
         layer_ += 1
@@ -386,22 +431,3 @@ def test_angle_estimate(voxel_x=5.0, voxel_y=5.0, voxel_z=50.0, plot=True):
         print "Identifier: ", candidate.identifier
         print "Partner Identifier: ", candidate.partner_identifier
         print "\n \n"
-
-def match_nodes_with_dict(identifier_dict_path, g, position_db):
-    with open(identifier_dict_path, "r") as f:
-        id_dict = pickle.load(f)
-    
-    
-    for node in g.nx_graph.nodes_iter(data=True):
-        position = node[1]["position"]
-        identifier = position_db[position]
-        node_attributes = id_dict[identifier]
-        node[1]["identifier"] = identifier
-        node[1]["orientation"] = node_attributes[1]
-        node[1]["partner"] = node_attributes[2]
-    
-    return g
-        
-
-if __name__ == "__main__":
-    test_angle_estimate()

@@ -245,16 +245,3 @@ def g1_dir_to_nml(directory, knossos=False, knossify=False, voxel_size=[5.,5.,50
                   knossos=knossos, 
                   knossify=knossify, 
                   voxel_size=voxel_size)
-        
-
-
-if __name__ == "__main__":
-    """
-    g1_to_nml("/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_300_309/solution/volume.gt",
-              "/media/nilsec/d0/gt_mt_data/solve_volumes/test_volume_300_309/solution/volume_gt.nml",
-              knossos=True,
-              voxel_size=[5.,5.,50.0])
-    """
-    g1_dir_to_nml("/media/nilsec/d0/gt_mt_data/experiments/clustering/v1/reeb_ccs", knossos=True)
-    
-

@@ -61,9 +61,3 @@ def get_line_list(directory):
     lines = os.listdir(directory)
     lines = [os.path.join(directory, f) for f in lines if f.endswith(".gt")]
     return lines 
-
-
-if __name__ == "__main__":
-    solution_dir = "/media/nilsec/d0/gt_mt_data/experiments/benchmark05_it5_solve_1/solution"
-    output_dir = "/media/nilsec/d0/gt_mt_data/experiments/benchmark05_it5_solve_1/lines/"
-    get_lines(solution_dir, output_dir)

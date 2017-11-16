@@ -349,11 +349,6 @@ class G1(G):
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
     
-        #plt.bar(range(len(hist)), hist)
-        #plt.savefig(output_folder + "cc_hist.png")
-        #plt.clf()
-        #plt.cla()
- 
         print "Filter Graphs..."
         cc_path_list = []
         

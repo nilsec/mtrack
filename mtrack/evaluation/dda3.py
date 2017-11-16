@@ -33,8 +33,3 @@ class DDA3:
             assert(np.linalg.norm(self.line[n+1] - self.line[n]) <= np.sqrt(3))
         
         return self.line
- 
-
-if __name__ == "__main__":
-    dda = DDA3(np.array([0, 0, 0]), np.array([1, 2, 3]))
-    print dda.draw()

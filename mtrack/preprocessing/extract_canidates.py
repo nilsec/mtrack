@@ -312,26 +312,3 @@ def get_distance_histogram(positions, n_samples):
     plt.show()
 
 
-if __name__ == "__main__":
-    prob_map_stack_file_perp = "/media/nilsec/d0/gt_mt_data/" +\
-                               "probability_maps/validation/perpendicular/stack/stack.h5"
- 
-    """
-    prob_map_stack_file_perp = "/media/nilsec/d0/gt_mt_data/" +\
-                               "probability_maps/validation/perpendicular/stack/stack.h5"
-
-    prob_map_stack_file_par = "/media/nilsec/d0/gt_mt_data/" +\
-                              "probability_maps/validation/parallel/stack/stack.h5" 
- 
-    prob_map_stack_file_direction = DirectionType(prob_map_stack_file_perp, prob_map_stack_file_par)
-
-    base_dir = "/media/nilsec/d0/gt_mt_data/experiments/"
-
-    for dist in [89]:
-        candidates = pickle.load(open("candidates.p", "rb"))
-        g1 = candidates_to_g1(candidates, voxel_size)
-        g1_connected = connect_graph_locally(g1, dist)
-        cc_list = g1_connected.get_components(min_vertices=4, 
-                                              output_folder= base_dir + "cc_nopcedge_dist%s/" % dist,
-                                              voxel_size=voxel_size)
-    """
