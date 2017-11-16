@@ -1,10 +1,9 @@
-import os
-import sys
-sys.path.append(os.path.join('..', '..'))
-from xml.dom import minidom
-from preprocessing import nml_io
-import graphs
 import numpy as np
+import os
+from xml.dom import minidom
+
+from mtrack.preprocessing import nml_io
+import mtrack.graphs
 
 
 def get_solutions(solution_dir, file_tag):

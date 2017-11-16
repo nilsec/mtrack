@@ -1,10 +1,10 @@
-import postprocessing
-import preprocessing
-import graphs
-from dda3 import DDA3
 import numpy as np
 import os
-import pdb
+
+import mtrack.postprocessing
+import mtrack.preprocessing
+import mtrack.graphs
+from mtrack.evaluation.dda3 import DDA3
 
 def get_lines(volume, output_dir, voxel_size=[5.0,5.0,50.0], nml=False):
     if volume.endswith(".nml"):

@@ -1,10 +1,11 @@
 import numpy as np
-from opt_matching import OptMatch, interpolate_lines
-from process_solution import get_lines
-from graphs import G1
 import os
-import pdb
+
 import pylp
+
+from mtrack.graphs import G1
+from mtrack.evaluation.opt_matching import OptMatch, interpolate_lines
+from mtrack.evaluation.process_solution import get_lines
 
 def evaluate(tracing_file, 
              solution_file,

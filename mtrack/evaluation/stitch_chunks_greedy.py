@@ -1,12 +1,12 @@
-import graphs
-import json
-import os
 import numpy as np
-from process_solution import get_lines
-import pdb
-from scipy.spatial.distance import cdist
+import os
+import json
 import h5py
-import preprocessing
+from scipy.spatial.distance import cdist
+
+import mtrack.graphs
+import mtrack.preprocessing
+from mtrack.evaluation.process_solution import get_lines
 
 def get_intersect(x,y):
     return range(max(x[0], y[0]), min(x[-1], y[-1]) + 1)

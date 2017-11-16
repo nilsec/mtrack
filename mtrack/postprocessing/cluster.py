@@ -1,17 +1,17 @@
-from evaluation import OptMatch, get_lines, interpolate_nodes
-import graphs
+import os
+import numpy as np
+import h5py
 from scipy.ndimage.morphology import generate_binary_structure, binary_dilation, distance_transform_edt
 from scipy.ndimage.measurements import label
 from scipy.spatial import KDTree
-import os
-from preprocessing import g1_to_nml
-from combine_solutions import combine_knossos_solutions
-import numpy as np
-import pdb
-import pickle
-import h5py
+
 import neuroglancer
 import skeletopyze
+
+import mtrack.graphs
+from mtrack.evaluation import OptMatch, get_lines, interpolate_nodes
+from mtrack.preprocessing import g1_to_nml
+from mtrack.postprocessing.combine_solutions import combine_knossos_solutions
 
 
 def skeletonize(solution_file, 

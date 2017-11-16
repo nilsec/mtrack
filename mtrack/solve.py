@@ -1,23 +1,24 @@
-from graphs import g1_graph, graph_converter,\
-                   cost_converter, g2_solver
-
-from preprocessing import g1_to_nml, extract_candidates,\
-                          DirectionType, candidates_to_g1,\
-                          connect_graph_locally, Chunker,\
-                          slices_to_chunks
-
-from postprocessing import combine_knossos_solutions,\
-                           combine_gt_solutions
-
-from timeit import default_timer as timer
+import numpy as np
 import os
 import json
-import numpy as np
+from timeit import default_timer as timer
 from shutil import copyfile
 from copy import deepcopy
 import glob
 import h5py
-import pdb
+
+
+from mtrack.graphs import g1_graph, graph_converter,\
+                   cost_converter, g2_solver
+
+from mtrack.preprocessing import g1_to_nml, extract_candidates,\
+                          DirectionType, candidates_to_g1,\
+                          connect_graph_locally, Chunker,\
+                          slices_to_chunks
+
+from mtrack.postprocessing import combine_knossos_solutions,\
+                           combine_gt_solutions
+
 
 
 def solve(g1,

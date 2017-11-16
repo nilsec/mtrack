@@ -1,14 +1,15 @@
-import pylp
-import process_solution
-import pdb
 import numpy as np
-from scipy.spatial import KDTree
-import postprocessing
-import graphs
-from dda3 import DDA3
 import os
-from shutil import copyfile
 import json
+from shutil import copyfile
+from scipy.spatial import KDTree
+
+import pylp
+
+import mtrack.evaluation.process_solution
+import mtrack.postprocessing
+import mtrack.graphs
+from mtrack.evaluation.dda3 import DDA3
 
 def is_arr_in_list(arr, arr_list):
     return next((True for elem in arr_list if elem is arr), False)
