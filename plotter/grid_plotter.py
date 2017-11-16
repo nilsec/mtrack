@@ -15,11 +15,11 @@ def plot_grid_eval(grid_path):
             print os.path.basename(grid)
         except IOError:
             continue
-        plotter.construct(parser, lines=True, chunks=False, overlay=os.path.basename(grid))
+        plotter.construct(parser, lines=False, chunks=True, overlay=os.path.basename(grid))
     
     plotter.plot()
 
 if __name__ == "__main__":
-    grid_path = "/media/nilsec/d0/gt_mt_data/solve_volumes/grid_2"
+    grid_path = "/media/nilsec/m1/gt_mt_data/solve_volumes/grid_3"
     
     plot_grid_eval(grid_path)

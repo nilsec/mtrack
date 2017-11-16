@@ -441,7 +441,7 @@ if __name__ == "__main__":
                  "solve_volumes/test_volume_grid32_ps035035_{}_{}/".format(bounding_box[0],
                                                            bounding_box[1] - 1)
 
-    output_dir = "/media/nilsec/m1/gt_mt_data/solve_volumes/sanity_check_new/"
+    output_dir = "/media/nilsec/m1/gt_mt_data/solve_volumes/docker_test/"
  
 
     prob_map_stack_file_perp_test = "/media/nilsec/m1/gt_mt_data/" +\
