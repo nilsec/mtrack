@@ -428,20 +428,20 @@ if __name__ == "__main__":
     orientation_factor = 15.0
     comb_angle_factor = 16.0
     selection_cost = -80.0 # -80
-    time_limit = 5000
+    time_limit = 1000
     voxel_size = [5.0, 5.0, 50.0]
     z_correction = 1
     bounding_box = [300, 330] # specify slices here in terms of tracing coords. i.e. 1-n_slices.
                               # we can do that because we specified the z_correction = 1
 
     gs = DirectionType(0.5, 0.5)
-    ps = DirectionType(0.45, 0.45)
+    ps = DirectionType(0.4, 0.4)
 
     output_dir = "/media/nilsec/d0/gt_mt_data/" +\
                  "solve_volumes/test_volume_grid32_ps035035_{}_{}/".format(bounding_box[0],
                                                            bounding_box[1] - 1)
 
-    output_dir = "/media/nilsec/m1/gt_mt_data/solve_volumes/docker_test/"
+    output_dir = "/media/nilsec/m1/gt_mt_data/solve_volumes/chunk_test_5/"
  
 
     prob_map_stack_file_perp_test = "/media/nilsec/m1/gt_mt_data/" +\
@@ -468,7 +468,6 @@ if __name__ == "__main__":
     max_chunk_shape = np.array([100, 1024, 1024]) # z,y,x
     overlap = np.array([0,0,30]) # x,y,z
 
-    """
     solve_chunks(prob_map_slice_dir,
                  max_chunk_shape,
                  overlap,
@@ -500,3 +499,4 @@ if __name__ == "__main__":
                     output_dir,
                     voxel_size,
                     z_correction=z_correction) 
+    """
