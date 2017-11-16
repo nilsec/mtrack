@@ -90,7 +90,7 @@ class Grid:
 
     def run(self, f_solve, f_solve_parameter, 
             f_eval=None, f_eval_parameter=None,
-            verbose=True, save_grid=True, skip_runs=[]):
+            verbose=True, save_grid=True, skip_runs=[], skip_condition=None):
         
         if f_eval is not None:
             if f_eval_parameter is not None:
@@ -149,6 +149,10 @@ class Grid:
                 os.makedirs(output_directory)
 
             p_run = self._grid.pop()
+            if skip_condition(**p_run):
+                print "Skip condition true, skip run number %s" % self.n_run
+                continue
+
             p_run["output_dir"] = output_directory
             
             if verbose:

@@ -38,7 +38,7 @@ def evaluate_grid(grid_path,
                  time_limit=time_limit)
 
 if __name__ == "__main__":
-    tracing_file = "/media/nilsec/d0/gt_mt_data/DL3-tracings/validation/master_300_329.nml"
+    tracing_file = "/media/nilsec/m1/gt_mt_data/DL3-tracings/validation/master_300_329.nml"
     chunk_size=10
     distance_tolerance=100.0
     dummy_cost=1000000
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     pair_cost_factor=1.0
     max_edges=3
 
-    evaluate_grid("/media/nilsec/d0/gt_mt_data/solve_volumes/grid_2",
+    evaluate_grid("/media/nilsec/m1/gt_mt_data/solve_volumes/grid_3",
                   tracing_file=tracing_file,
                   chunk_size=chunk_size,
                   distance_tolerance=distance_tolerance,

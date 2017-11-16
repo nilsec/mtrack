@@ -118,7 +118,7 @@ def g1_to_nml(g1,
     if not os.path.isdir(os.path.dirname(output_file)):
         os.makedirs(os.path.dirname(output_file))
 
-    with open(output_file.replace(".nml", "_%s.nml" % n_vertices), "w+") as f:
+    with open(output_file, "w+") as f:
         f.write(doc)
 
     print "G1 graph written to {}".format(output_file)

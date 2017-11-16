@@ -153,19 +153,19 @@ def get_binary_stack(prob_map_stack_file,
             slices, x_lim, y_lim = process_bounding_box(bounding_box)
 
         else:
-            slices = range(prob_map_stack.shape[2])
+            slices = range(prob_map_stack.shape[0])
             x_lim = None
             y_lim = None
 
         for slice_id in slices:
             print "Process slice {} (data format, range[0,n_slices])".format(slice_id)
             if x_lim is None:
-                prob_map = prob_map_stack[:, :, slice_id]
+                prob_map = prob_map_stack[slice_id, :, :]
 
             else:
-                prob_map = prob_map_stack[y_lim[0]:y_lim[1], 
-                                          x_lim[0]:x_lim[1], 
-                                          slice_id]
+                prob_map = prob_map_stack[slice_id,
+                                          y_lim[0]:y_lim[1], 
+                                          x_lim[0]:x_lim[1]]
 
             prob_map_smooth = gaussian(prob_map, gaussian_sigma)
             binary_image = prob_map_smooth > point_threshold
@@ -311,36 +311,11 @@ def get_distance_histogram(positions, n_samples):
     plt.hist(d_all_to_all, normed=True)
     plt.show()
 
-def chunk_volume(prob_map_stack_file, 
-                 n_slices,
-                 xy_fraction):
-
-    f = h5py.File(prob_map_stack_file)
-    prob_map_stack = f['exported_data'].value
-    f.close()
-
-    volume_dimensions = np.shape(prob_map_stack)
-
-    x = volume_dimensions[0]
-    y = volume_dimensions[1]
-    z = volume_dimensions[2]
-
-    mod = z % n_slices
- 
-
-    if mod != 0:
-        raise Warning("N_slices % n_slices = {} % {} = {}".format(z, n_slices, mod))
-
-    
-    print volume_dimensions
-
 
 if __name__ == "__main__":
     prob_map_stack_file_perp = "/media/nilsec/d0/gt_mt_data/" +\
                                "probability_maps/validation/perpendicular/stack/stack.h5"
  
-    chunk_volume(prob_map_stack_file_perp, 10, 1.0)
-
     """
     prob_map_stack_file_perp = "/media/nilsec/d0/gt_mt_data/" +\
                                "probability_maps/validation/perpendicular/stack/stack.h5"
