@@ -1,7 +1,7 @@
 import numpy as np
-from g1_graph import G1
-from g2_graph import G2
-import pdb
+from mtrack.graphs.g1_graph import G1
+from mtrack.graphs.g2_graph import G2
+
 
 class GraphConverter:
     def __init__(self, g1):

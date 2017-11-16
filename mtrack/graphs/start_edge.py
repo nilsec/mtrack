@@ -1,4 +1,5 @@
 
+
 class StartEdge:
     def __init__(self):
         self.s = -1

@@ -1,6 +1,5 @@
 import graph_tool.all as gt
 import numpy as np
-import pdb
 
 class G:
     """

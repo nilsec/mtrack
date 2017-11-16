@@ -1,5 +1,5 @@
-from graph import G
 import numpy as np
+from mtrack.graphs.graph import G
 
 class G2(G):
     def __init__(self, N):

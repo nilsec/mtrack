@@ -1,5 +1,5 @@
-import pylp
 import numpy as np
+import pylp
 
 class G2Solver:
     def __init__(self, g2):
