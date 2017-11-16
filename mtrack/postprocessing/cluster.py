@@ -5,7 +5,6 @@ from scipy.ndimage.morphology import generate_binary_structure, binary_dilation,
 from scipy.ndimage.measurements import label
 from scipy.spatial import KDTree
 
-import neuroglancer
 import skeletopyze
 
 import mtrack.graphs
@@ -66,15 +65,6 @@ class VCluster(object):
             self.lines_itp = lines_itp
         
     
-    @staticmethod
-    def view(raw, seg, voxel_size, offset):
-        raw = h5py.File(raw)["data/raw"]
-        viewer = neuroglancer.Viewer(voxel_size)
-        viewer.add(raw, name="raw")
-        viewer.add(seg, name="seg", volume_type="segmentation", offset=offset)
-        print viewer
- 
-
     def cluster(self, epsilon, min_overlap, offset, canvas_shape, save_volume=None, dt=False):
         canvas_base = np.zeros(canvas_shape)
         dilation = np.array(np.floor(epsilon/np.array(self.voxel_size)), dtype=int)
