@@ -35,7 +35,7 @@ def g1_to_nml(g1,
         graph_id = 1 # physical format
 
     if isinstance(g1, str):
-        g1_tmp = graphs.g1_graph.G1(0)
+        g1_tmp = mtrack.graphs.G1(0)
         g1_tmp.load(g1)
         g1 = g1_tmp
 
@@ -210,7 +210,7 @@ def nml_to_g1(nml,
 
     node_dic, edge_list = from_nml(nml)
 
-    g1 = graphs.g1_graph.G1(len(node_dic.keys()))
+    g1 = mtrack.graphs.G1(len(node_dic.keys()))
     index_map = {v: v_new for v_new, v in enumerate(node_dic.keys())}
     index_map[-1] = -1
 

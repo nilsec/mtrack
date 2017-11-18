@@ -55,7 +55,7 @@ class Stitcher(object):
         reached_line_2 = False
         for line_1 in chunk_1_lp:
             print "Match line {}/{}".format(n_line + 1, len(chunk_1_lp))
-            line_graph_1 = graphs.G1(0)
+            line_graph_1 = mtrack.graphs.G1(0)
             line_graph_1.load(line_1)
 
             positions_1 = line_graph_1.get_position_array()
@@ -71,7 +71,7 @@ class Stitcher(object):
                 continue
  
             for line_2 in chunk_2_lp:
-                line_graph_2 = graphs.G1(0)
+                line_graph_2 = mtrack.graphs.G1(0)
                 line_graph_2.load(line_2)
                 matches[line_1] = (line_2, 0)
                 positions_2 = line_graph_2.get_position_array()
@@ -101,11 +101,11 @@ class Stitcher(object):
         k = 0
         for match, matcher in matches.iteritems():
             if matcher[1] > n_min:
-                preprocessing.g1_to_nml(match, 
+                mtrack.preprocessing.g1_to_nml(match, 
                                         output_dir + "/matches/match_1_{}.nml".format(k),
                                         knossify=True)
 
-                preprocessing.g1_to_nml(matcher[0], 
+                mtrack.preprocessing.g1_to_nml(matcher[0], 
                                         output_dir + "/matches/match_2_{}.nml".format(k),
                                         knossify=True)
 

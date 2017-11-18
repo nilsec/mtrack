@@ -6,8 +6,6 @@ from scipy.spatial import KDTree
 
 import pylp
 
-import mtrack.evaluation.process_solution
-import mtrack.postprocessing
 import mtrack.graphs
 from mtrack.evaluation.dda3 import DDA3
 
@@ -30,7 +28,7 @@ def interpolate_nodes(line_list, voxel_size=[5.,5.,50.]):
 
     for line in line_list:
         if isinstance(line, str):
-            g1 = graphs.g1_graph.G1(0)
+            g1 = mtrack.graphs.g1_graph.G1(0)
             g1.load(line)
         else:
             g1 = line

@@ -1,7 +1,6 @@
 import numpy as np
 import os
 
-import mtrack.postprocessing
 import mtrack.preprocessing
 import mtrack.graphs
 from mtrack.evaluation.dda3 import DDA3
@@ -9,11 +8,11 @@ from mtrack.evaluation.dda3 import DDA3
 def get_lines(volume, output_dir, voxel_size=[5.0,5.0,50.0], nml=False):
     if volume.endswith(".nml"):
         gt = False
-        volume = preprocessing.nml_to_g1(volume, None)
+        volume = mtrack.preprocessing.nml_to_g1(volume, None)
     else:
         assert(volume.endswith(".gt"))
         gt = True
-        g1 = graphs.G1(0)
+        g1 = mtrack.graphs.G1(0)
         g1.load(volume)
         volume = g1
  
@@ -36,25 +35,25 @@ def lines_to_nml(line_list_gt,
                  knossify=False):
 
     for line in line_list_gt:
-        g1 = graphs.G1(0)
+        g1 = mtrack.graphs.G1(0)
         g1.load(line)
 
         positions = g1.get_position_array()
         
-        preprocessing.g1_to_nml(g1, line.replace(".gt", ".nml"))
+        mtrack.preprocessing.g1_to_nml(g1, line.replace(".gt", ".nml"))
 
 
         if voxel:
-            preprocessing.g1_to_nml(g1, line.replace(".gt", "_vox.nml"), 
+            mtrack.preprocessing.g1_to_nml(g1, line.replace(".gt", "_vox.nml"), 
                                     voxel=True, 
                                     voxel_size=[5.0, 5.0, 50.0])
         if knossos:
-            preprocessing.g1_to_nml(g1, line.replace(".gt", "_kno.nml"), 
+            mtrack.preprocessing.g1_to_nml(g1, line.replace(".gt", "_kno.nml"), 
                                     knossos=True, 
                                     voxel_size=[5.0, 5.0, 50.0])
         
         if knossify:
-            preprocessing.g1_to_nml(g1, line.replace(".gt", "_kfy.nml"), 
+            mtrack.preprocessing.g1_to_nml(g1, line.replace(".gt", "_kfy.nml"), 
                                     knossify=True)
 
 def get_line_list(directory):

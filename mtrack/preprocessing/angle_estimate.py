@@ -170,14 +170,15 @@ def get_orientation(cc, voxel_x, voxel_y, voxel_z, length_correction, verbose=Fa
         """
         if l <= diam_out:
             delta=np.pi/2 
+        else:
+            delta = f(l) 
+            # angle delta -> see sketches, NOTE: NEED TO HANDLE ZERO l!
         """
         In case the length is smaller or equal to the 
         diameter of a mt we assume its perp. 
         NOTE: THIS NEEDS TO BE CONSISTENT WITH POLARITY NONE TO GET PI FOR THETA!
         """
-        else:
-            delta = f(l) 
-            # angle delta -> see sketches, NOTE: NEED TO HANDLE ZERO l!
+ 
         
         angle_xy.append(gamma)
         angle_xz.append(delta)

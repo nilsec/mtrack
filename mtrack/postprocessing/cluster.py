@@ -124,13 +124,13 @@ class VCluster(object):
 
         params = skeletopyze.Parameters()
         res = skeletopyze.point_f3()
-        res.__setitem__(0,5.)
-        res.__setitem__(1,5.)
-        res.__setitem__(2,50.)
+        res.__setitem__(0,voxel_size[0])
+        res.__setitem__(1,voxel_size[1])
+        res.__setitem__(2,voxel_size[2])
 
         b = skeletopyze.get_skeleton_graph(volume, params, res)
 
-        skeleton = graphs.G1(0)
+        skeleton = mtrack.graphs.G1(0)
         for n in b.nodes():
             v = skeleton.add_vertex()
             skeleton.set_position(v, np.array([b.locations(n).x() + offset[0], 
@@ -181,7 +181,7 @@ class SCluster(object):
         self.lines = get_lines_from_file(solution_file)
 
     def __process_lines(self, update_ori=True, weight_ori=None, lines=None):
-        reeb_graph = graphs.G1(0)
+        reeb_graph = mtrack.graphs.G1(0)
         reeb_graph.new_vertex_property("line_neighbours", dtype="vector<int>")
         reeb_graph.new_vertex_property("line_vertex", dtype="int")
 
@@ -196,7 +196,7 @@ class SCluster(object):
 
         for line in lines:
             if isinstance(line, str):
-                l_graph = graphs.g1_graph.G1(0)
+                l_graph = mtrack.graphs.g1_graph.G1(0)
                 l_graph.load(line)
             else:
                 l_graph = line
@@ -262,7 +262,7 @@ class SCluster(object):
         else:
             trees = [KDTree(line_attr["pos"]) for line_attr in processed_lines]
 
-        line_graph = graphs.G1(0)
+        line_graph = mtrack.graphs.G1(0)
         line_graph.new_vertex_property("line_id", "int")
         for v_id in range(len(processed_lines)):
             v = line_graph.add_vertex()
@@ -344,10 +344,10 @@ class SCluster(object):
         l = 0
         for cc_path_list in level_path_list:
             for cc in cc_path_list:
-                cc_graph = graphs.G1(0)
+                cc_graph = mtrack.graphs.G1(0)
                 cc_graph.load(cc)
             
-                line_cluster = graphs.G1(0)
+                line_cluster = mtrack.graphs.G1(0)
             
                 line_cluster_dir = os.path.join(output_dir, "line_cluster_l%s/c%s" % (l, n)) 
                 if not os.path.exists(line_cluster_dir):

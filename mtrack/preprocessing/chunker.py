@@ -1,6 +1,5 @@
 import numpy as np
 import copy
-import pdb
 
 
 class Chunk(object):

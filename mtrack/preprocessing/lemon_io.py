@@ -1,6 +1,5 @@
 import numpy as np
 import os
-import graphs
 
 def g1_to_lemon(g1,
                 output_file):
