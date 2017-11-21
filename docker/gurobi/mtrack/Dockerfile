@@ -62,4 +62,3 @@ ENV PYTHONPATH /src/mtrack:$PYTHONPATH
 
 WORKDIR /src/tests 
 ADD test.py /src/tests
-CMD ["python", "test.py"]
