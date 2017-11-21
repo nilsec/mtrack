@@ -74,9 +74,7 @@ def combine_knossos_solutions(solution_dir, output_file, tag=None):
     with open(output_file, "w+") as f:
         f.write(doc)
 
-
-def combine_gt_solutions(solution_dir, output_file):
-    files = get_solutions(solution_dir, ".gt")
+def combine_gt_graphs(graph_list):
     positions = []
     orientations = []
     edges = []
@@ -84,21 +82,23 @@ def combine_gt_solutions(solution_dir, output_file):
     N = []
     index_map = {-1: -1}
 
-    g1_tmp = graphs.g1_graph.G1(0)
+    for g in graph_list:
+        if isinstance(g, str):
+            g_tmp = mtrack.graphs.G1(0)
+            g_tmp.load(g)
+            g = g_tmp
 
-    for f in files:
-        g1_tmp.load(f)
-        #if g1_tmp.get_number_of_vertices() == 0:
+        #if g.get_number_of_vertices() == 0:
         #    continue
-        edges.append(g1_tmp.get_edge_array())
+        edges.append(g.get_edge_array())
         #edges[-1] += sum(N)
 
  
-        index_map.update({v: j + sum(N) for j, v in enumerate(g1_tmp.get_vertex_iterator())})
+        index_map.update({v: j + sum(N) for j, v in enumerate(g.get_vertex_iterator())})
 
-        N.append(g1_tmp.get_number_of_vertices())
-        positions.append(g1_tmp.get_position_array().T)
-        orientations.append(g1_tmp.get_orientation_array().T)
+        N.append(g.get_number_of_vertices())
+        positions.append(g.get_position_array().T)
+        orientations.append(g.get_orientation_array().T)
                
     N_comb = sum(N)
     positions = np.vstack(positions)
@@ -106,7 +106,7 @@ def combine_gt_solutions(solution_dir, output_file):
     edges = np.delete(np.vstack(edges), 2, 1)
 
     
-    g1_comb = graphs.g1_graph.G1(N_comb)
+    g1_comb = mtrack.graphs.g1_graph.G1(N_comb)
     for v in range(N_comb):
         g1_comb.set_position(v, positions[v])
         g1_comb.set_orientation(v, orientations[v])
@@ -115,5 +115,13 @@ def combine_gt_solutions(solution_dir, output_file):
     edges = index_map(edges)
 
     g1_comb.add_edge_list(edges)
-    g1_comb.save(output_file)
-    return g1_comb
+    return g1_comb    
+
+
+def combine_gt_solutions(solution_dir, output_file):
+    files = get_solutions(solution_dir, ".gt")
+    
+    combined_graph = combine_gt_graphs(files)
+
+    combined_graph.save(output_file)
+    return combined_graph
