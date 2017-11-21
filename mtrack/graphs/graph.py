@@ -191,6 +191,11 @@ class G:
     def set_vertex_filter(self, vertex_property):
         self.g.set_vertex_filter(vertex_property)
 
+    def set_vertex_mask(self, vertex_mask):
+        vp = self.g.new_vertex_property("bool")
+        vp.a = vertex_mask
+        self.set_vertex_filter(vp)
+
     def get_articulation_points(self):
         bicomp_ep, articulation_vp, nc = gt.label_biconnected_components(self.g)
         naps = articulation_vp.a == 0
