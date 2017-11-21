@@ -10,7 +10,7 @@ from skimage.measure import regionprops
 from scipy import ndimage
 import angle_estimate
 from mt_utils import h5_tools
-from graphs import g1_graph
+from mtrack.graphs import g1_graph
 import nml_io
 import pickle
 from scipy.spatial import KDTree
