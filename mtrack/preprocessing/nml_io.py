@@ -3,7 +3,7 @@ from xml.dom import minidom
 import os
 import sys
 import ast
-import graphs
+import mtrack.graphs
 
 class NodeAttribute:
     def __init__(self, position, id, orientation, partner, identifier):
