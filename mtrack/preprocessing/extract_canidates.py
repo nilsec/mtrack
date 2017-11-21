@@ -9,7 +9,7 @@ from skimage.filters import gaussian
 from skimage.measure import regionprops
 from scipy import ndimage
 import angle_estimate
-from mt_utils import h5_tools
+from mtrack.mt_utils import h5_tools
 from mtrack.graphs import g1_graph
 import nml_io
 import pickle
