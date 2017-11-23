@@ -59,8 +59,8 @@ class G:
         # Standard behavior is to add missing vertices!
         # We do not want that, prone to bugs.
         vertices_N = self.get_number_of_vertices()
-        assert(u < vertices_N)
-        assert(v < vertices_N)
+        #assert(u < vertices_N)
+        #assert(v < vertices_N)
         
         e = self.g.add_edge(u, v)
         return e
