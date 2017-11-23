@@ -62,3 +62,7 @@ ENV PYTHONPATH /src/mtrack:$PYTHONPATH
 
 WORKDIR /src/tests 
 ADD test.py /src/tests
+
+WORKDIR /src/gurobi
+ADD grb_license.sh /src/gurobi/grb_license.sh
+CMD /bin/sh -c /src/gurobi/grb_license.sh

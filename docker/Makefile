@@ -22,8 +22,7 @@ test: default
 	docker run --rm $(TAG)
 
 configure: default
-	docker run -d -v $(HOST_WORK_DIR):/src/work --name mtrack -i -t $(TAG):latest /bin/bash
-	docker exec -ti mtrack sh -c "echo y | grbgetkey $(GUROBI_KEY)"
+	docker run --rm -i -t -v $(HOST_WORK_DIR):/src/work -v $(GRB_LICENSE_PATH):/src/gurobi/gurobi.lic --network 'host' mtrack:latest
 
 reset:
 	docker rm -f $(TAG)
