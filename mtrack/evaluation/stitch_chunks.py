@@ -3,12 +3,15 @@ import os
 import json
 import h5py
 from scipy.spatial.distance import cdist
+from scipy.spatial import KDTree
 import copy
 
 from mtrack.graphs import G1
 import mtrack.preprocessing
 from mtrack.evaluation.process_solution import get_lines
 from mtrack.postprocessing.combine_solutions import combine_gt_graphs
+from mtrack.solve import solve
+from mtrack.preprocessing import g1_to_nml
 
 import pdb
 
@@ -24,21 +27,93 @@ class Stitcher(object):
                       d,
                       voxel_size):
 
-        combined_graph = combine_gt_graphs([chunk_1_solution, chunk_2_solution])
+        if isinstance(chunk_1_solution, str):
+            chunk_1_graph = G1(0)
+            chunk_1_graph.load(chunk_1_solution)
+            
+            chunk_2_graph = G1(0)
+            chunk_2_graph.load(chunk_2_solution)
+
+        # Label vertices for later identification in combined graph
+        chunk_1_graph.new_vertex_property("chunk_id", "int", value=np.array([1] * chunk_1_graph.get_number_of_vertices()))
+        chunk_2_graph.new_vertex_property("chunk_id", "int", value=np.array([2] * chunk_2_graph.get_number_of_vertices()))
         
-        #Get nodes in overlap region:
-        positions = combined_graph.get_position_array()
         
-        pdb.set_trace()
+        # Merge graphs
+        combined_graph = combine_gt_graphs([chunk_1_graph, chunk_2_graph], prop_vp="chunk_id", prop_vp_dtype="int")
+        
+        g1_to_nml(combined_graph,
+                  "./combined_graph.nml",
+                  knossos=True,
+                  voxel_size=voxel_size)
+        
+        # Mask out everything except overlap region
+        masked_graph = self.mask_overlap_graph(combined_graph,
+                                               chunk_1,
+                                               chunk_2,
+                                               d,
+                                               voxel_size)
+        g1_to_nml(masked_graph,
+                 "./masked_graph_pre_pre.nml",
+                 knossos=True,
+                 voxel_size=voxel_size)
+
+        masked_positions = masked_graph.get_position_array().T
+        print "Found {} vertices in stitch region".format(np.shape(masked_positions)[0])
+
+        # Get vertex ids corresponding to positions:
+        index_map = {j: v for j,v in enumerate(masked_graph.get_vertex_iterator())}
+
+        # Connect vertices in distance threshold if they belong to different chunks
+        kdtree = KDTree(masked_positions)
+        pairs = kdtree.query_pairs(d, p=2.0, eps=0)
+
+        for edge in pairs:
+            # Map edge ids
+            edge = [ index_map[edge[0]], index_map[edge[1]] ]
+
+            chunk_id_1 = masked_graph.get_vertex_property("chunk_id", edge[0])
+            chunk_id_2 = masked_graph.get_vertex_property("chunk_id", edge[1])
+            
+            if chunk_id_1 != chunk_id_2:
+                masked_graph.add_edge(*edge)
+
+        g1_to_nml(masked_graph,
+                  "./masked_graph_pre.nml",
+                  knossos=True,
+                  voxel_size=voxel_size)
+
+
+        # Resolve on masked subgraph
+        masked_graph = solve(masked_graph,
+                                   160.0,
+                                   0.0,
+                                   15.0,
+                                   30.0,
+                                   -300.0,
+                                   100,
+                                   voxel_size=[5.0,5.0,50.0])
+        g1_to_nml(masked_graph,
+                  "./stitched_graph_ovlp.nml",
+                  knossos=True,
+                  voxel_size=voxel_size)
+ 
+
+        # Reset filters
+        masked_graph.g.clear_filters()
+
+        g1_to_nml(masked_graph,
+                  "./stitched_graph_full.nml",
+                  knossos=True,
+                  voxel_size=voxel_size)
 
     
-    def get_overlap_vertices(self, 
-                             chunk_1_solution,
-                             chunk_2_solution,
-                             chunk_1,
-                             chunk_2,
-                             d,
-                             voxel_size):
+    def mask_overlap_graph(self, 
+                           combined_graph,
+                           chunk_1,
+                           chunk_2,
+                           d,
+                           voxel_size):
 
         f = h5py.File(chunk_1, "r")
         attrs_1 = f["exported_data"].attrs.items()
@@ -54,39 +129,21 @@ class Stitcher(object):
         x_intersect = get_intersect(limits_1[0], limits_2[0])
         y_intersect = get_intersect(limits_1[1], limits_2[1])
         z_intersect = get_intersect(limits_1[2], limits_2[2])
-
-        p1 = chunk_1_solution.get_position_array()
-        p2 = chunk_2_solution.get_position_array()
+        
+        pos = (combined_graph.get_position_array().T/voxel_size).T.astype(int)
 
         # Check which points are in overlap region
-        isin1_x = np.in1d(p1[0], x_intersect)
-        isin1_y = np.in1d(p1[1], y_intersect)
-        isin1_z = np.in1d(p1[2], z_intersect)
+        isin_x = np.in1d(pos[0], x_intersect)
+        isin_y = np.in1d(pos[1], y_intersect)
+        isin_z = np.in1d(pos[2], z_intersect)
 
-        isin2_x = np.in1d(p2[0], x_intersect)
-        isin2_y = np.in1d(p2[1], y_intersect)
-        isin2_z = np.in1d(p2[2], z_intersect)
-
-        isin1 = np.all(np.stack([isin1_x, isin1_y, isin1_z]), axis=0)
-        isin2 = np.all(np.stack([isin2_x, isin2_y, isin2_z]), axis=1)
-
+        isin = np.all(np.stack([isin_x, isin_y, isin_z]), axis=0)
+        
         # Mask out subgraph in overlap region
-        chunk_1_solution.set_vertex_mask(isin1)
-        chunk_2_solution.set_vertex_mask(isin2)
+        combined_graph.set_vertex_mask(isin)
 
-        # Find 
+        return combined_graph
 
-        
-
-        
-
-        
-
-        
-        
-
-
-        
          
     def match_chunks(self, 
                      chunk_1_solution, 

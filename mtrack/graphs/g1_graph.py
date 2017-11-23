@@ -117,7 +117,7 @@ class G1(G):
         d = np.sum(np.abs(vectors)**2, axis=-1)**(1./2.)
         d_cost = distance_factor * d
 
-        u_v = vectors/d[:,None]
+        u_v = vectors/np.clip(d[:,None], a_min=10**(-8), a_max=None)
         
         o_0 = (orientation_array[:, edge_array[:, 0]]).T
         o_1 = (orientation_array[:, edge_array[:, 1]]).T
@@ -227,7 +227,7 @@ class G1(G):
 
             v = (pos_array[:, end_indices] - pos_array[:, middle_indices]).T
             norm = np.sum(np.abs(v)**2, axis=-1)**(1./2.)
-            u = v/norm[:,None]
+            u = v/np.clip(norm[:,None], a_min=10**(-8), a_max=None)
             angles = np.arccos(np.clip(inner1d(u[::2], u[1::2]), -1.0, 1.0))
             angles = np.pi - angles
             cost = cost + list((angles * comb_angle_factor)**2)
