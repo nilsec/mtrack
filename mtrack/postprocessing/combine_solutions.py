@@ -74,11 +74,15 @@ def combine_knossos_solutions(solution_dir, output_file, tag=None):
     with open(output_file, "w+") as f:
         f.write(doc)
 
-def combine_gt_graphs(graph_list):
+def combine_gt_graphs(graph_list, prop_vp=None, prop_vp_dtype=None):
     positions = []
     orientations = []
     edges = []
     n_edges = []
+
+    if prop_vp is not None:
+        add_vp = []
+
     N = []
     index_map = {-1: -1}
 
@@ -88,32 +92,34 @@ def combine_gt_graphs(graph_list):
             g_tmp.load(g)
             g = g_tmp
 
-        #if g.get_number_of_vertices() == 0:
-        #    continue
-        edges.append(g.get_edge_array())
-        #edges[-1] += sum(N)
-
- 
         index_map.update({v: j + sum(N) for j, v in enumerate(g.get_vertex_iterator())})
-
+        index_map_get = np.vectorize(index_map.get)
+    
+        edges.append(index_map_get(g.get_edge_array())) 
         N.append(g.get_number_of_vertices())
         positions.append(g.get_position_array().T)
         orientations.append(g.get_orientation_array().T)
+        if prop_vp is not None:
+            add_vp.append(g.get_vertex_property(prop_vp).a)
                
     N_comb = sum(N)
     positions = np.vstack(positions)
     orientations = np.vstack(orientations)
-    edges = np.delete(np.vstack(edges), 2, 1)
+    if prop_vp is not None:
+        add_vp = np.hstack(add_vp)
 
+    edges = np.delete(np.vstack(edges), 2, 1)
     
     g1_comb = mtrack.graphs.g1_graph.G1(N_comb)
+    if prop_vp is not None:
+        vp = g1_comb.new_vertex_property(prop_vp, prop_vp_dtype)
+
     for v in range(N_comb):
         g1_comb.set_position(v, positions[v])
         g1_comb.set_orientation(v, orientations[v])
-
-    index_map = np.vectorize(index_map.get)
-    edges = index_map(edges)
-
+        if prop_vp is not None:
+            g1_comb.set_vertex_property(prop_vp, v, add_vp[v])            
+    
     g1_comb.add_edge_list(edges)
     return g1_comb    
 
