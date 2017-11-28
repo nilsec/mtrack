@@ -10,7 +10,7 @@ from mtrack.graphs import G1
 import mtrack.preprocessing
 from mtrack.evaluation.process_solution import get_lines
 from mtrack.postprocessing.combine_solutions import combine_gt_graphs
-from mtrack.solve import solve
+#from mtrack.solve import solve, solve_volume
 from mtrack.preprocessing import g1_to_nml
 
 import pdb
@@ -76,7 +76,12 @@ class Stitcher(object):
             chunk_id_2 = masked_graph.get_vertex_property("chunk_id", edge[1])
             
             if chunk_id_1 != chunk_id_2:
+                pos_1 = masked_graph.get_position(edge[0])
+                pos_2 = masked_graph.get_position(edge[1])
                 masked_graph.add_edge(*edge)
+
+
+        masked_graph.g.clear_filters()
 
         g1_to_nml(masked_graph,
                   "./masked_graph_pre.nml",
@@ -85,14 +90,21 @@ class Stitcher(object):
 
 
         # Resolve on masked subgraph
-        masked_graph = solve(masked_graph,
-                                   160.0,
-                                   0.0,
-                                   15.0,
-                                   30.0,
-                                   -300.0,
-                                   100,
-                                   voxel_size=[5.0,5.0,50.0])
+        
+        cc_list = masked_graph.get_components(min_vertices=2,
+                                              output_folder = "./ccs/")
+
+        solve_volume("./ccs/",
+                     start_edge_prior=160.0,
+                     distance_factor=0.0,
+                     orientation_factor=15.0,
+                     comb_angle_factor=16.0,
+                     selection_cost=-70.0,
+                     time_limit=100,
+                     output_dir = "./solution/",
+                     voxel_size =[5.,5.,50.] ,
+                     combine_solutions=True)
+
         g1_to_nml(masked_graph,
                   "./stitched_graph_ovlp.nml",
                   knossos=True,
@@ -100,12 +112,13 @@ class Stitcher(object):
  
 
         # Reset filters
-        masked_graph.g.clear_filters()
+#        masked_graph.g.clear_filters()
 
         g1_to_nml(masked_graph,
                   "./stitched_graph_full.nml",
                   knossos=True,
                   voxel_size=voxel_size)
+        print "WTF"
 
     
     def mask_overlap_graph(self, 
