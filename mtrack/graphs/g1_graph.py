@@ -9,16 +9,17 @@ from mtrack.graphs.start_edge import StartEdge
 class G1(G):
     START_EDGE = StartEdge()
     
-    def __init__(self, N, G_in=None):
+    def __init__(self, N, G_in=None, init_empty=False):
         G.__init__(self, N, G_in=G_in)
 
-        if G_in is None:
-            G.new_vertex_property(self, "orientation", dtype="vector<double>")
-            G.new_vertex_property(self, "position", dtype="vector<double>")
-            G.new_vertex_property(self, "partner", dtype="long long")
+        if not init_empty:
+            if G_in is None:
+                G.new_vertex_property(self, "orientation", dtype="vector<double>")
+                G.new_vertex_property(self, "position", dtype="vector<double>")
+                G.new_vertex_property(self, "partner", dtype="long long")
         
-            for v in G.get_vertex_iterator(self):
-                self.set_partner(v, -1) 
+                for v in G.get_vertex_iterator(self):
+                    self.set_partner(v, -1) 
         
 
         # NOTE: Start/End dummy node and edge are implicit
@@ -59,11 +60,14 @@ class G1(G):
     def get_position_array(self):
         return G.get_vertex_property(self, "position").get_2d_array([0,1,2])
 
-    def set_partner(self, u, value):
+    def set_partner(self, u, value, vals=None):
         assert(type(value) == int)
         assert(value < G.get_number_of_vertices(self))
         
-        G.set_vertex_property(self, "partner", u, value)
+        if vals is None:
+            G.set_vertex_property(self, "partner", u, value)
+        else:
+            G.set_vertex_property(self, "partner", 0, 0, vals=vals)
         
     def get_partner(self, u):
         partner = G.get_vertex_property(self, "partner")
