@@ -6,6 +6,8 @@ from shutil import copyfile
 from copy import deepcopy
 import glob
 import h5py
+from pymongo import MongoClient
+import pdb
 
 
 from mtrack.graphs import g1_graph, graph_converter,\
@@ -14,7 +16,7 @@ from mtrack.graphs import g1_graph, graph_converter,\
 from mtrack.preprocessing import g1_to_nml, extract_candidates,\
                           DirectionType, candidates_to_g1,\
                           connect_graph_locally, Chunker,\
-                          slices_to_chunks
+                          slices_to_chunks, Chunk
 
 from mtrack.postprocessing import combine_knossos_solutions,\
                            combine_gt_solutions
@@ -320,6 +322,227 @@ def solve_bb_volume(bounding_box,
                  z_correction)
 
 
+class Core(Chunk):
+    def __init__(self, voxel_size):
+        Chunk.__init__(self, voxel_size)
+    
+class CoreSolver(object):
+    def __init__(self):
+        self.path_chunk_graph = None
+
+    def get_subgraph(self,
+                     name_db,
+                     x_lim,
+                     y_lim,
+                     z_lim):
+
+        print "Extract subgraph..."
+        
+        client = MongoClient()
+        db = client[name_db]
+        graph = db.graph
+
+        print "Perform vertex query..."
+
+        vertices =  list(graph.find({"$and": 
+                                        [
+                                         {"px": {"$gte": x_lim["min"],
+                                                "$lt": x_lim["max"]}},
+                                         {"py": {"$gte": y_lim["min"],
+                                                 "$lt": y_lim["max"]}},
+                                         {"pz": {"$gte": z_lim["min"],
+                                                 "$lt": z_lim["max"]}}
+                                        ]
+                                   })
+                         )
+
+        vertex_ids = [v["_id"] for v in vertices]
+
+        pdb.set_trace()
+        print "Perform edge query..."
+        edges = []
+        for vertex in vertices:
+            id_mongo = vertex["_id"]
+
+            """
+            Query all edges that contain the vertex
+            and do not connect to a vertex outside
+            the requested volume.
+            """
+
+            vedges = list(graph.find({"$and":
+                                            [
+                                                {"$or": 
+                                                    [
+                                                        {"id_mongo_0": id_mongo},
+                                                        {"id_mongo_1": id_mongo}
+
+                                                    ]
+                                                },
+                                                {"$and":
+                                                    [
+                                                        {"id_mongo_0": {"$in": vertex_ids}},
+                                                        {"id_mongo_1": {"$in": vertex_ids}}
+                                                    ]
+                                                }
+                                            ]
+                                    })
+                        )
+
+            edges.extend(vedges)
+        
+        print "...Done"
+
+        return vertices, edges
+        
+
+    def subgraph_to_g1(self, vertices, edges):
+        g1 = g1_graph.G1(len(vertices), init_empty=False)
+        index_map = {}
+        
+        partner = []
+        n = 0
+        for v in vertices:
+            g1.set_position(n, np.array([v["px"], v["py"], v["pz"]]))
+            g1.set_orientation(n, np.array([v["ox"], v["oy"], v["oz"]]))
+            partner.append(v["partner"])
+            
+            index_map[v["id"]] = n
+            n += 1
+
+        index_map[-1] = -1 
+
+        index_map_get = np.vectorize(index_map.get)        
+        partner = np.array(partner)
+        g1.set_partner(0,0, vals=index_map_get(partner))
+
+        n = 0
+        for e in edges:
+            e0 = index_map[np.uint64(e["id_0"])]
+            e1 = index_map[np.uint64(e["id_1"])]
+            g1.add_edge(e0, e1)
+
+        return g1
+
+        
+
+    def get_chunk_graph(self, 
+                        prob_map_stack_chunk,
+                        offset_chunk,
+                        gs,
+                        ps,
+                        voxel_size,
+                        distance_threshold):
+        """
+        Generic
+
+        offset_chunk: [x,y,z]
+        """
+
+
+        candidates = extract_candidates(prob_map_stack_chunk,
+                                        gs,
+                                        ps,
+                                        voxel_size,
+                                        bounding_box=None,
+                                        bs_output_dir=None,
+                                        offset_pos=offset_chunk)
+
+        g1 = candidates_to_g1(candidates, 
+                              voxel_size)
+
+        g1_connected = connect_graph_locally(g1,
+                                             distance_threshold)
+
+        return g1_connected
+
+
+    def save_chunk_graph(self, chunk_graph, name_db, id_chunk, overwrite=False):
+        """
+        db/gt 
+        """
+        print "Update database..."
+
+        client = MongoClient()
+
+        if overwrite:
+            print "Overwrite {} database...".format(name_db)
+            client.drop_database(name_db)
+
+        db = client[name_db]
+        
+        graph = db.graph
+
+        vertex_positions = chunk_graph.get_position_array().T
+        vertex_orientations = chunk_graph.get_orientation_array().T
+        partner = chunk_graph.get_vertex_property("partner").a
+        edges = chunk_graph.get_edge_array()
+        
+
+        template_vertex = {"px": None,
+                           "py": None,
+                           "pz": None,
+                           "ox": None,
+                           "oy": None,
+                           "oz": None,
+                           "partner": None,
+                           "id": None,
+                           "id_chunk": None,
+                           "neighbours": [],
+                           "on": True,
+                           "solved": False}
+
+        print "Insert vertices..."
+
+        index_map = {}
+        vertices = []
+        vertex_id = 0
+        for pos, ori, partner in zip(vertex_positions,
+                                     vertex_orientations,
+                                     partner):
+
+            vertex = deepcopy(template_vertex)
+
+            vertex["px"] = pos[0]
+            vertex["py"] = pos[1]
+            vertex["pz"] = pos[2]
+            vertex["ox"] = ori[0]
+            vertex["oy"] = ori[1]
+            vertex["oz"] = ori[2]
+            vertex["partner"] = partner
+            vertex["id"] = vertex_id
+            vertex["id_chunk"] = id_chunk
+        
+            id_mongo = graph.insert_one(vertex).inserted_id
+            index_map[vertex_id] = id_mongo 
+            vertex_id += 1
+
+
+        template_edge = {"id_0": None,
+                         "id_1": None,
+                         "id_mongo_0": None,
+                         "id_mongo_1": None,
+                         "id_chunk": None,
+                         "on": True,
+                         "solved": False}
+
+        print "Insert edges..."
+
+        for edge_id in edges:
+            edge_mongo = [index_map[edge_id[0]], index_map[edge_id[1]]]
+            edge = deepcopy(template_edge)
+            
+            edge["id_0"] = str(edge_id[0]) # convert uint64 to str, faster & mdb doesn't accept 64 bit int
+            edge["id_1"] = str(edge_id[1])
+            edge["id_mongo_0"] = edge_mongo[0]
+            edge["id_mongo_1"] = edge_mongo[1]
+            edge["id_chunk"] = id_chunk
+
+            graph.insert_one(edge)
+
+    
+        
+
 def solve_chunks(prob_map_slice_dir,
                  max_chunk_shape,
                  overlap,
@@ -376,8 +599,8 @@ def solve_chunks(prob_map_slice_dir,
     parallel_chunks = [chunk_dir + "/parallel/chunk_{}.h5".format(chunk_id) for chunk_id in range(n_chunks)]
     perpendicular_chunks = [chunk_dir + "/perpendicular/chunk_{}.h5".format(chunk_id) for chunk_id in range(n_chunks)]
 
-    n = 2
-    for par, perp in zip(parallel_chunks[2:], perpendicular_chunks[2:]):
+    n = 0
+    for par, perp in zip(parallel_chunks, perpendicular_chunks):
         print "Solve chunk {}/{}...".format(n + 1, n_chunks)
          
         prob_map_stack = DirectionType(perp,
