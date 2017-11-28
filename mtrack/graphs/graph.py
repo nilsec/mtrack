@@ -99,28 +99,38 @@ class G:
         """
         return self.g.get_edges()
 
-    def new_vertex_property(self, name, dtype, set_vp=True, value=None):
-        vp = self.g.new_vertex_property(dtype)
-        if value is not None:
-            vp.a = value
+    def new_vertex_property(self, name, dtype, set_vp=True, value=None, array=False):
+        if value is None:
+            vp = self.g.new_vertex_property(dtype)
+        else:
+            if array:
+                vp = self.g.new_vertex_property(dtype)
+                vp.set_2d_array(value)
+            else:
+                vp = self.g.new_vertex_property(dtype, vals=value)
+
         if set_vp:
             self.g.vertex_properties[name] = vp
+
         return vp
 
-    def set_vertex_property(self, name, u, value):
+    def set_vertex_property(self, name, u, value, vals=None):
         """
         NOTE: For vector types an empty 
         array is initialized.
         For double, int etc. a zero is set as
         default value.
         """
-        if not isinstance(u, gt.Vertex):
-            if isinstance(u, int):
-                u = self.get_vertex(u)
-            else:
-                raise ValueError("Vertex has to be int or gt.Vertex")
+        if vals is None:
+            if not isinstance(u, gt.Vertex):
+                if isinstance(u, int):
+                    u = self.get_vertex(u)
+                else:
+                    raise ValueError("Vertex has to be int or gt.Vertex")
 
-        self.g.vertex_properties[name][u] = value
+            self.g.vertex_properties[name][u] = value
+        else:
+            self.g.vertex_properties[name].a = vals
 
     def get_vertex_property(self, name, u=None):
         if u is not None:
