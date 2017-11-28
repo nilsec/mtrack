@@ -188,7 +188,8 @@ def extract_candidates(prob_map_stack_file,
                        length_correction=0.0, 
                        verbose=False, 
                        bounding_box=None,
-                       bs_output_dir=None):
+                       bs_output_dir=None,
+                       offset_pos=None):
 
     if verbose:
         print "\nExtract Candidates\n"
@@ -242,6 +243,11 @@ def extract_candidates(prob_map_stack_file,
             for candidate in candidates:
                 candidate.position = tuple(np.array(candidate.position) +\
                                        np.array((x_lim[0], y_lim[0], 0)))
+
+    if offset_pos is not None:
+        for candidate in candidates:
+                candidate.position = tuple(np.array(candidate.position) +\
+                                       np.array(offset_pos))
 
     return candidates
 
