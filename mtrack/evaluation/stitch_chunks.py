@@ -10,7 +10,7 @@ from mtrack.graphs import G1
 import mtrack.preprocessing
 from mtrack.evaluation.process_solution import get_lines
 from mtrack.postprocessing.combine_solutions import combine_gt_graphs
-#from mtrack.solve import solve, solve_volume
+from mtrack.solve import solve_volume
 from mtrack.preprocessing import g1_to_nml
 
 import pdb
@@ -25,19 +25,30 @@ class Stitcher(object):
                       chunk_1,
                       chunk_2,
                       d,
-                      voxel_size):
+                      voxel_size,
+                      output_dir):
 
         if isinstance(chunk_1_solution, str):
             chunk_1_graph = G1(0)
             chunk_1_graph.load(chunk_1_solution)
-            
+            chunk_1_graph.g.purge_vertices()
+
+        else:
+            chunk_1_graph = chunk_1_solution
+            chunk_1_graph.g.purge_vertices()
+            chunk_1_graph.g.purge_edges()
+
+        if isinstance(chunk_2_solution, str):
             chunk_2_graph = G1(0)
             chunk_2_graph.load(chunk_2_solution)
 
+        else:
+            chunk_2_graph = chunk_2_solution
+
+        pdb.set_trace()
         # Label vertices for later identification in combined graph
         chunk_1_graph.new_vertex_property("chunk_id", "int", value=np.array([1] * chunk_1_graph.get_number_of_vertices()))
         chunk_2_graph.new_vertex_property("chunk_id", "int", value=np.array([2] * chunk_2_graph.get_number_of_vertices()))
-        
         
         # Merge graphs
         combined_graph = combine_gt_graphs([chunk_1_graph, chunk_2_graph], prop_vp="chunk_id", prop_vp_dtype="int")
@@ -54,7 +65,7 @@ class Stitcher(object):
                                                d,
                                                voxel_size)
         g1_to_nml(masked_graph,
-                 "./masked_graph_pre_pre.nml",
+                 "./masked_graph.nml",
                  knossos=True,
                  voxel_size=voxel_size)
 
@@ -89,36 +100,24 @@ class Stitcher(object):
                   voxel_size=voxel_size)
 
 
-        # Resolve on masked subgraph
+        # Resolve on whole graph
         
         cc_list = masked_graph.get_components(min_vertices=2,
-                                              output_folder = "./ccs/")
+                                              output_folder = output_dir + "ccs/")
 
-        solve_volume("./ccs/",
+        g1_solution = solve_volume(output_dir + "ccs/",
                      start_edge_prior=160.0,
                      distance_factor=0.0,
                      orientation_factor=15.0,
                      comb_angle_factor=16.0,
                      selection_cost=-70.0,
                      time_limit=100,
-                     output_dir = "./solution/",
+                     output_dir = output_dir,
                      voxel_size =[5.,5.,50.] ,
                      combine_solutions=True)
 
-        g1_to_nml(masked_graph,
-                  "./stitched_graph_ovlp.nml",
-                  knossos=True,
-                  voxel_size=voxel_size)
- 
 
-        # Reset filters
-#        masked_graph.g.clear_filters()
-
-        g1_to_nml(masked_graph,
-                  "./stitched_graph_full.nml",
-                  knossos=True,
-                  voxel_size=voxel_size)
-        print "WTF"
+        return g1_solution        
 
     
     def mask_overlap_graph(self, 
