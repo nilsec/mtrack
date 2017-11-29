@@ -1,6 +1,7 @@
 import numpy as np
 import os
 from xml.dom import minidom
+import pdb
 
 from mtrack.preprocessing import nml_io
 import mtrack.graphs
@@ -74,7 +75,7 @@ def combine_knossos_solutions(solution_dir, output_file, tag=None):
     with open(output_file, "w+") as f:
         f.write(doc)
 
-def combine_gt_graphs(graph_list, prop_vp=None, prop_vp_dtype=None):
+def combine_gt_graphs(graph_list, prop_vp=None, prop_vp_dtype=None, purge=False):
     positions = []
     orientations = []
     edges = []
@@ -92,10 +93,19 @@ def combine_gt_graphs(graph_list, prop_vp=None, prop_vp_dtype=None):
             g_tmp.load(g)
             g = g_tmp
 
+        if g.get_number_of_edges() == 0:
+            continue
+
+        if purge:
+            print "Warning, purging masked vertices & edges"
+            g.g.purge_vertices()
+            g.g.purge_edges()
+
         index_map.update({v: j + sum(N) for j, v in enumerate(g.get_vertex_iterator())})
         index_map_get = np.vectorize(index_map.get)
-    
-        edges.append(index_map_get(g.get_edge_array())) 
+
+        edge_array = np.delete(g.get_edge_array(), 2, 1)
+        edges.append(index_map_get(edge_array)) 
         N.append(g.get_number_of_vertices())
         positions.append(g.get_position_array().T)
         orientations.append(g.get_orientation_array().T)
@@ -108,7 +118,7 @@ def combine_gt_graphs(graph_list, prop_vp=None, prop_vp_dtype=None):
     if prop_vp is not None:
         add_vp = np.hstack(add_vp)
 
-    edges = np.delete(np.vstack(edges), 2, 1)
+    edges = np.vstack(edges)
     
     g1_comb = mtrack.graphs.g1_graph.G1(N_comb)
     if prop_vp is not None:
@@ -124,10 +134,10 @@ def combine_gt_graphs(graph_list, prop_vp=None, prop_vp_dtype=None):
     return g1_comb    
 
 
-def combine_gt_solutions(solution_dir, output_file):
+def combine_gt_solutions(solution_dir, output_file, purge=False):
     files = get_solutions(solution_dir, ".gt")
     
-    combined_graph = combine_gt_graphs(files)
+    combined_graph = combine_gt_graphs(files, purge=purge)
 
     combined_graph.save(output_file)
     return combined_graph
