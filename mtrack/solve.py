@@ -80,9 +80,13 @@ def solve(g1,
 
     print "Get G1 solution..."
     g1_solution = g2_to_g1_solution(g2_solution, g1, g2, index_maps, z_correction=z_correction, chunk_shift=chunk_shift)
-    
+   
+    """ 
+    print "Warning, purging vertices"
+    g1_solution.g.purge_vertices()
+    g1_solution.g.purge_edges()
+    """    
 
-    
     if output_dir is not None:
         assert(voxel_size is not None)
 
@@ -102,7 +106,13 @@ def solve(g1,
                   output_dir + "g1s_vox.nml", 
                   voxel=True, 
                   voxel_size=voxel_size)
-        
+
+        """
+        print "Warning, purging vertices"
+        g1_solution.g.purge_vertices()
+        g1_solution.g.purge_edges()
+        """
+ 
         g1_solution.save(output_dir + "g1s.gt")
 
         meta_data = {"tl": time_limit,
@@ -241,7 +251,9 @@ def solve_volume(volume_dir,
         if combine_solutions:
             print "Combine Solutions...\n"
             combine_knossos_solutions(output_dir, output_dir + "volume.nml")
-            combine_gt_solutions(output_dir, output_dir + "volume.gt")
+            combined_graph = combine_gt_solutions(output_dir, output_dir + "volume.gt", purge=True)
+
+            return combined_graph
 
 
 
@@ -358,7 +370,6 @@ class CoreSolver(object):
 
         vertex_ids = [v["_id"] for v in vertices]
 
-        pdb.set_trace()
         print "Perform edge query..."
         edges = []
         for vertex in vertices:
@@ -393,10 +404,18 @@ class CoreSolver(object):
         
         print "...Done"
 
+        if not vertices:
+            print "Warning, requested region holds no vertices!"
+        if not edges:
+            print "Warning, requested region holds no edges!"
+
         return vertices, edges
         
 
     def subgraph_to_g1(self, vertices, edges):
+        if not vertices:
+            raise ValueError("Vertex list is empty")
+
         g1 = g1_graph.G1(len(vertices), init_empty=False)
         index_map = {}
         
@@ -488,7 +507,7 @@ class CoreSolver(object):
                            "partner": None,
                            "id": None,
                            "id_chunk": None,
-                           "neighbours": [],
+                           "edges": [],
                            "on": True,
                            "solved": False}
 
@@ -538,10 +557,9 @@ class CoreSolver(object):
             edge["id_mongo_1"] = edge_mongo[1]
             edge["id_chunk"] = id_chunk
 
-            graph.insert_one(edge)
+            pm_edge_id = graph.insert_one(edge).inserted_id
+            graph.update_one({'_id': edge_mongo[0]}, {"$addToSet": {"edges": pm_edge_id}})
 
-    
-        
 
 def solve_chunks(prob_map_slice_dir,
                  max_chunk_shape,
