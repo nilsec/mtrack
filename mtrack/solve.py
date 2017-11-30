@@ -6,7 +6,7 @@ from shutil import copyfile
 from copy import deepcopy
 import glob
 import h5py
-from pymongo import MongoClient
+from pymongo import MongoClient, IndexModel, ASCENDING
 import pdb
 
 
@@ -356,19 +356,20 @@ class CoreSolver(object):
 
         print "Perform vertex query..."
 
-        vertices =  list(graph.find({"$and": 
-                                        [
-                                         {"px": {"$gte": x_lim["min"],
-                                                "$lt": x_lim["max"]}},
-                                         {"py": {"$gte": y_lim["min"],
-                                                 "$lt": y_lim["max"]}},
-                                         {"pz": {"$gte": z_lim["min"],
-                                                 "$lt": z_lim["max"]}}
-                                        ]
+        vertices =  list(graph.find({   
+                                         "pz": {"$gte": z_lim["min"],
+                                                 "$lt": z_lim["max"]},
+                                         "py": {"$gte": y_lim["min"],
+                                                 "$lt": y_lim["max"]},
+                                         "px": {"$gte": x_lim["min"],
+                                                 "$lt": x_lim["max"]}
+                                    
                                    })
                          )
 
         vertex_ids = [v["_id"] for v in vertices]
+        
+         
 
         print "Perform edge query..."
         edges = []
@@ -390,11 +391,9 @@ class CoreSolver(object):
 
                                                     ]
                                                 },
-                                                {"$and":
-                                                    [
-                                                        {"id_mongo_0": {"$in": vertex_ids}},
-                                                        {"id_mongo_1": {"$in": vertex_ids}}
-                                                    ]
+                                                {
+                                                        "id_mongo_0": {"$in": vertex_ids},
+                                                        "id_mongo_1": {"$in": vertex_ids}
                                                 }
                                             ]
                                     })
@@ -476,7 +475,25 @@ class CoreSolver(object):
         return g1_connected
 
 
-    def save_chunk_graph(self, chunk_graph, name_db, id_chunk, overwrite=False):
+    def create_collection(self, name_db, collection="graph", overwrite=False):
+        print "Create new db collection {}.{}...".format(name_db, collection)
+        client = MongoClient()
+        
+        if overwrite:
+            print "Overwrite {}.{}...".format(name_db, collection)
+            client.drop_database(name_db)
+
+        db = client[name_db]
+        graph = db[collection]
+
+        print "Generate indices..."
+        pos_idx = IndexModel([("pz", ASCENDING), ("py", ASCENDING), ("px", ASCENDING)], name="pos")
+        vedge_id = IndexModel([("id_mongo_0", ASCENDING), ("id_mongo_1", ASCENDING)], name="vedge_id")
+
+        graph.create_index([pos_idx], sparse=True)
+        graph.create_index([vedge_id], sparse=True)
+
+    def save_chunk_graph(self, chunk_graph, name_db, id_chunk, collection="graph", overwrite=False):
         """
         db/gt 
         """
@@ -484,13 +501,21 @@ class CoreSolver(object):
 
         client = MongoClient()
 
-        if overwrite:
-            print "Overwrite {} database...".format(name_db)
-            client.drop_database(name_db)
-
         db = client[name_db]
+        collections = db.collection_names()
         
-        graph = db.graph
+        if collection in collections:
+            if overwrite:
+                print "Warning, overwrite {}.{}!".format(name_db, collection)
+                self.create_collection(name_db=name_db, 
+                                       collection=collection, 
+                                       overwrite=True)
+
+            print "Collection already exists, insert in {}.{}...".format(name_db, collection)
+        else:
+            print "Database empty, create {}.{}...".format(name_db, collection)
+            
+        graph = db[collection]
 
         vertex_positions = chunk_graph.get_position_array().T
         vertex_orientations = chunk_graph.get_orientation_array().T
@@ -507,7 +532,6 @@ class CoreSolver(object):
                            "partner": None,
                            "id": None,
                            "id_chunk": None,
-                           "edges": [],
                            "on": True,
                            "solved": False}
 
@@ -557,8 +581,7 @@ class CoreSolver(object):
             edge["id_mongo_1"] = edge_mongo[1]
             edge["id_chunk"] = id_chunk
 
-            pm_edge_id = graph.insert_one(edge).inserted_id
-            graph.update_one({'_id': edge_mongo[0]}, {"$addToSet": {"edges": pm_edge_id}})
+            graph.insert_one(edge)
 
 
 def solve_chunks(prob_map_slice_dir,
