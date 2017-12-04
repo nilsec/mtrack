@@ -352,6 +352,33 @@ class CoreSolver(object):
                               "id_v1_mongo": None}
 
 
+    def _get_client(self, name_db, collection="graph", overwrite=False):
+        print "Update database..."
+
+        client = MongoClient()
+
+        db = client[name_db]
+        collections = db.collection_names()
+        
+        if collection in collections:
+            if overwrite:
+                print "Warning, overwrite collection!"
+                self.create_collection(name_db=name_db, 
+                                       collection=collection, 
+                                       overwrite=True)
+
+            print "Collection already exists, insert in {}.{}...".format(name_db, collection)
+        else:
+            print "Database empty, create...".format(name_db, collection)
+            self.create_collection(name_db=name_db, 
+                                   collection=collection, 
+                                   overwrite=False)
+            
+        graph = db[collection]
+        
+        return graph
+
+
     def create_collection(self, name_db, collection="graph", overwrite=False):
         print "Create new db collection {}.{}...".format(name_db, collection)
         client = MongoClient()
@@ -364,36 +391,20 @@ class CoreSolver(object):
         graph = db[collection]
 
         print "Generate indices..."
-        pos_idx = IndexModel([("pz", ASCENDING), ("py", ASCENDING), ("px", ASCENDING)], name="pos")
-        vedge_id = IndexModel([("id_v0_mongo", ASCENDING), ("id_v1_mongo", ASCENDING)], name="vedge_id")
+        graph.create_index([("pz", ASCENDING), ("py", ASCENDING), ("px", ASCENDING)], 
+                           name="pos", 
+                           sparse=True)
 
-        graph.create_index([pos_idx], sparse=True)
-        graph.create_index([vedge_id], sparse=True)
+        graph.create_index([("id_v0_mongo", ASCENDING), ("id_v1_mongo", ASCENDING)], 
+                           name="vedge_id", 
+                           sparse=True)
 
 
     def save_g1_graph(self, g1_graph, name_db, collection="graph", overwrite=False):
         """
         db/gt 
         """
-        print "Update database..."
-
-        client = MongoClient()
-
-        db = client[name_db]
-        collections = db.collection_names()
-        
-        if collection in collections:
-            if overwrite:
-                print "Warning, overwrite {}.{}!".format(name_db, collection)
-                self.create_collection(name_db=name_db, 
-                                       collection=collection, 
-                                       overwrite=True)
-
-            print "Collection already exists, insert in {}.{}...".format(name_db, collection)
-        else:
-            print "Database empty, create {}.{}...".format(name_db, collection)
-            
-        graph = db[collection]
+        graph = self._get_client(name_db, collection, overwrite)
 
         vertex_positions = g1_graph.get_position_array().T
         vertex_orientations = g1_graph.get_orientation_array().T
@@ -440,15 +451,14 @@ class CoreSolver(object):
 
     def get_subgraph(self,
                      name_db,
+                     collection,
                      x_lim,
                      y_lim,
                      z_lim):
 
         print "Extract subgraph..."
         
-        client = MongoClient()
-        db = client[name_db]
-        graph = db.graph
+        graph = self._get_client(name_db, collection, overwrite=False)
 
         print "Perform vertex query..."
 
@@ -541,18 +551,22 @@ class CoreSolver(object):
     def solve_subgraph(self, subgraph):
         positions = g1.get_position_array()
         vertex_degrees = g1.g.degree_property_map("total").a
-        vertex_mask = 
+        vertex_mask = vertex_degrees == 0
          
 
     def save_candidates(self,
+                        name_db,
                         prob_map_stack_chunk,
                         offset_chunk,
                         gs,
                         ps,
                         voxel_size,
-                        id_offset):
+                        id_offset,
+                        collection="graph",
+                        overwrite=False):
 
-                
+        graph = self._get_client(name_db, collection, overwrite=overwrite)
+
         candidates = extract_candidates(prob_map_stack_chunk,
                                         gs,
                                         ps,
@@ -581,7 +595,6 @@ class CoreSolver(object):
             vertex["id_global"] = vertex_id
         
             id_mongo = graph.insert_one(vertex).inserted_id
-            index_map[vertex_id] = id_mongo 
             vertex_id += 1
 
 
