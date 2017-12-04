@@ -334,13 +334,109 @@ def solve_bb_volume(bounding_box,
                  z_correction)
 
 
-class Core(Chunk):
-    def __init__(self, voxel_size):
-        Chunk.__init__(self, voxel_size)
-    
 class CoreSolver(object):
     def __init__(self):
-        self.path_chunk_graph = None
+        self.template_vertex = {"px": None,
+                                "py": None,
+                                "pz": None,
+                                "ox": None,
+                                "oy": None,
+                                "oz": None,
+                                "id_partner_global": None,
+                                "id_global": None}
+
+
+        self.template_edge = {"id_v0_global": None,
+                              "id_v1_global": None,
+                              "id_v0_mongo": None,
+                              "id_v1_mongo": None}
+
+
+    def create_collection(self, name_db, collection="graph", overwrite=False):
+        print "Create new db collection {}.{}...".format(name_db, collection)
+        client = MongoClient()
+        
+        if overwrite:
+            print "Overwrite {}.{}...".format(name_db, collection)
+            client.drop_database(name_db)
+
+        db = client[name_db]
+        graph = db[collection]
+
+        print "Generate indices..."
+        pos_idx = IndexModel([("pz", ASCENDING), ("py", ASCENDING), ("px", ASCENDING)], name="pos")
+        vedge_id = IndexModel([("id_v0_mongo", ASCENDING), ("id_v1_mongo", ASCENDING)], name="vedge_id")
+
+        graph.create_index([pos_idx], sparse=True)
+        graph.create_index([vedge_id], sparse=True)
+
+
+    def save_g1_graph(self, g1_graph, name_db, collection="graph", overwrite=False):
+        """
+        db/gt 
+        """
+        print "Update database..."
+
+        client = MongoClient()
+
+        db = client[name_db]
+        collections = db.collection_names()
+        
+        if collection in collections:
+            if overwrite:
+                print "Warning, overwrite {}.{}!".format(name_db, collection)
+                self.create_collection(name_db=name_db, 
+                                       collection=collection, 
+                                       overwrite=True)
+
+            print "Collection already exists, insert in {}.{}...".format(name_db, collection)
+        else:
+            print "Database empty, create {}.{}...".format(name_db, collection)
+            
+        graph = db[collection]
+
+        vertex_positions = g1_graph.get_position_array().T
+        vertex_orientations = g1_graph.get_orientation_array().T
+        partner = g1_graph.get_vertex_property("partner").a
+        edges = g1_graph.get_edge_array()
+
+        print "Insert vertices..."
+
+        index_map = {}
+        vertices = []
+        vertex_id = 0
+        for pos, ori, partner in zip(vertex_positions,
+                                     vertex_orientations,
+                                     partner):
+
+            vertex = deepcopy(self.template_vertex)
+
+            vertex["px"] = pos[0]
+            vertex["py"] = pos[1]
+            vertex["pz"] = pos[2]
+            vertex["ox"] = ori[0]
+            vertex["oy"] = ori[1]
+            vertex["oz"] = ori[2]
+            vertex["id_partner_global"] = partner
+            vertex["id_global"] = vertex_id
+        
+            id_mongo = graph.insert_one(vertex).inserted_id
+            index_map[vertex_id] = id_mongo 
+            vertex_id += 1
+
+        print "Insert edges..."
+
+        for edge_id in edges:
+            edge_mongo = [index_map[edge_id[0]], index_map[edge_id[1]]]
+            edge = deepcopy(self.template_edge)
+            
+            edge["id_v0_global"] = str(edge_id[0]) # convert uint64 to str, faster & mdb doesn't accept 64 bit int
+            edge["id_v1_global"] = str(edge_id[1])
+            edge["id_v0_mongo"] = edge_mongo[0]
+            edge["id_v1_mongo"] = edge_mongo[1]
+
+            graph.insert_one(edge)
+
 
     def get_subgraph(self,
                      name_db,
@@ -386,14 +482,14 @@ class CoreSolver(object):
                                             [
                                                 {"$or": 
                                                     [
-                                                        {"id_mongo_0": id_mongo},
-                                                        {"id_mongo_1": id_mongo}
+                                                        {"id_v0_mongo": id_mongo},
+                                                        {"id_v1_mongo": id_mongo}
 
                                                     ]
                                                 },
                                                 {
-                                                        "id_mongo_0": {"$in": vertex_ids},
-                                                        "id_mongo_1": {"$in": vertex_ids}
+                                                        "id_v0_mongo": {"$in": vertex_ids},
+                                                        "id_v1_mongo": {"$in": vertex_ids}
                                                 }
                                             ]
                                     })
@@ -423,9 +519,9 @@ class CoreSolver(object):
         for v in vertices:
             g1.set_position(n, np.array([v["px"], v["py"], v["pz"]]))
             g1.set_orientation(n, np.array([v["ox"], v["oy"], v["oz"]]))
-            partner.append(v["partner"])
+            partner.append(v["id_partner_global"])
             
-            index_map[v["id"]] = n
+            index_map[v["id_global"]] = n
             n += 1
 
         index_map[-1] = -1 
@@ -436,28 +532,27 @@ class CoreSolver(object):
 
         n = 0
         for e in edges:
-            e0 = index_map[np.uint64(e["id_0"])]
-            e1 = index_map[np.uint64(e["id_1"])]
+            e0 = index_map[np.uint64(e["id_v0_global"])]
+            e1 = index_map[np.uint64(e["id_v1_global"])]
             g1.add_edge(e0, e1)
 
         return g1
 
-        
+    def solve_subgraph(self, subgraph):
+        positions = g1.get_position_array()
+        vertex_degrees = g1.g.degree_property_map("total").a
+        vertex_mask = 
+         
 
-    def get_chunk_graph(self, 
+    def save_candidates(self,
                         prob_map_stack_chunk,
                         offset_chunk,
                         gs,
                         ps,
                         voxel_size,
-                        distance_threshold):
-        """
-        Generic
+                        id_offset):
 
-        offset_chunk: [x,y,z]
-        """
-
-
+                
         candidates = extract_candidates(prob_map_stack_chunk,
                                         gs,
                                         ps,
@@ -466,34 +561,31 @@ class CoreSolver(object):
                                         bs_output_dir=None,
                                         offset_pos=offset_chunk)
 
-        g1 = candidates_to_g1(candidates, 
-                              voxel_size)
+        print "Write candidate vertices..."
+                
+        vertex_id = id_offset
+        for candidate in candidates:
+            pos_phys = np.array([candidate.position[j] * voxel_size[j] for j in range(3)])
+            ori_phys = np.array([candidate.orientation[j] * voxel_size[j] for j in range(3)])
+            partner = candidate.partner_identifier
 
-        g1_connected = connect_graph_locally(g1,
-                                             distance_threshold)
-
-        return g1_connected
-
-
-    def create_collection(self, name_db, collection="graph", overwrite=False):
-        print "Create new db collection {}.{}...".format(name_db, collection)
-        client = MongoClient()
+            vertex = deepcopy(self.template_vertex)
+            
+            vertex["px"] = pos_phys[0]
+            vertex["py"] = pos_phys[1]
+            vertex["pz"] = pos_phys[2]
+            vertex["ox"] = ori_phys[0]
+            vertex["oy"] = ori_phys[1]
+            vertex["oz"] = ori_phys[2]
+            vertex["id_partner_global"] = partner
+            vertex["id_global"] = vertex_id
         
-        if overwrite:
-            print "Overwrite {}.{}...".format(name_db, collection)
-            client.drop_database(name_db)
+            id_mongo = graph.insert_one(vertex).inserted_id
+            index_map[vertex_id] = id_mongo 
+            vertex_id += 1
 
-        db = client[name_db]
-        graph = db[collection]
 
-        print "Generate indices..."
-        pos_idx = IndexModel([("pz", ASCENDING), ("py", ASCENDING), ("px", ASCENDING)], name="pos")
-        vedge_id = IndexModel([("id_mongo_0", ASCENDING), ("id_mongo_1", ASCENDING)], name="vedge_id")
-
-        graph.create_index([pos_idx], sparse=True)
-        graph.create_index([vedge_id], sparse=True)
-
-    def save_chunk_graph(self, chunk_graph, name_db, id_chunk, collection="graph", overwrite=False):
+    def save_g1_graph(self, g1_graph, name_db, collection="graph", overwrite=False):
         """
         db/gt 
         """
@@ -517,23 +609,10 @@ class CoreSolver(object):
             
         graph = db[collection]
 
-        vertex_positions = chunk_graph.get_position_array().T
-        vertex_orientations = chunk_graph.get_orientation_array().T
-        partner = chunk_graph.get_vertex_property("partner").a
-        edges = chunk_graph.get_edge_array()
-        
-
-        template_vertex = {"px": None,
-                           "py": None,
-                           "pz": None,
-                           "ox": None,
-                           "oy": None,
-                           "oz": None,
-                           "partner": None,
-                           "id": None,
-                           "id_chunk": None,
-                           "on": True,
-                           "solved": False}
+        vertex_positions = g1_graph.get_position_array().T
+        vertex_orientations = g1_graph.get_orientation_array().T
+        partner = g1_graph.get_vertex_property("partner").a
+        edges = g1_graph.get_edge_array()
 
         print "Insert vertices..."
 
@@ -544,7 +623,7 @@ class CoreSolver(object):
                                      vertex_orientations,
                                      partner):
 
-            vertex = deepcopy(template_vertex)
+            vertex = deepcopy(self.template_vertex)
 
             vertex["px"] = pos[0]
             vertex["py"] = pos[1]
@@ -552,34 +631,23 @@ class CoreSolver(object):
             vertex["ox"] = ori[0]
             vertex["oy"] = ori[1]
             vertex["oz"] = ori[2]
-            vertex["partner"] = partner
-            vertex["id"] = vertex_id
-            vertex["id_chunk"] = id_chunk
+            vertex["id_partner_global"] = partner
+            vertex["id_global"] = vertex_id
         
             id_mongo = graph.insert_one(vertex).inserted_id
             index_map[vertex_id] = id_mongo 
             vertex_id += 1
 
-
-        template_edge = {"id_0": None,
-                         "id_1": None,
-                         "id_mongo_0": None,
-                         "id_mongo_1": None,
-                         "id_chunk": None,
-                         "on": True,
-                         "solved": False}
-
         print "Insert edges..."
 
         for edge_id in edges:
             edge_mongo = [index_map[edge_id[0]], index_map[edge_id[1]]]
-            edge = deepcopy(template_edge)
+            edge = deepcopy(self.template_edge)
             
-            edge["id_0"] = str(edge_id[0]) # convert uint64 to str, faster & mdb doesn't accept 64 bit int
-            edge["id_1"] = str(edge_id[1])
-            edge["id_mongo_0"] = edge_mongo[0]
-            edge["id_mongo_1"] = edge_mongo[1]
-            edge["id_chunk"] = id_chunk
+            edge["id_v0_global"] = str(edge_id[0]) # convert uint64 to str, faster & mdb doesn't accept 64 bit int
+            edge["id_v1_global"] = str(edge_id[1])
+            edge["id_v0_mongo"] = edge_mongo[0]
+            edge["id_v1_mongo"] = edge_mongo[1]
 
             graph.insert_one(edge)
 
