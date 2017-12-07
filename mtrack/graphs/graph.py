@@ -11,7 +11,8 @@ class G:
             self.g = gt.Graph(directed=False)
             self.g.add_vertex(N)
         else:
-            self.g = gt.Graph(G_in.g, prune=False, directed=False)
+            g = G_in.g.copy()
+            self.g = gt.Graph(g, prune=False, directed=False)
 
     def get_shortest_path(self, source, target, weights):
         vertex_list, edge_list = gt.shortest_path(self.g, source, target, weights)
