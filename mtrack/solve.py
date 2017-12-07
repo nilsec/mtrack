@@ -7,6 +7,7 @@ from copy import deepcopy
 import glob
 import h5py
 from pymongo import MongoClient, IndexModel, ASCENDING
+from scipy.spatial import KDTree
 import pdb
 
 
@@ -79,7 +80,12 @@ def solve(g1,
     g2_solution = solver.solve(time_limit=time_limit)
 
     print "Get G1 solution..."
-    g1_solution = g2_to_g1_solution(g2_solution, g1, g2, index_maps, z_correction=z_correction, chunk_shift=chunk_shift)
+    g1_solution = g2_to_g1_solution(g2_solution, 
+                                    g1, 
+                                    g2, 
+                                    index_maps, 
+                                    z_correction=z_correction, 
+                                    chunk_shift=chunk_shift)
    
     """ 
     print "Warning, purging vertices"
@@ -127,7 +133,14 @@ def solve(g1,
     return g1_solution
 
 
-def g2_to_g1_solution(g2_solution, g1, g2, index_maps, voxel_size=[5.,5.,50.], z_correction=None, chunk_shift=np.array([0.,0.,0.])):
+def g2_to_g1_solution(g2_solution, 
+                      g1, 
+                      g2, 
+                      index_maps, 
+                      voxel_size=[5.,5.,50.], 
+                      z_correction=None, 
+                      chunk_shift=np.array([0.,0.,0.])):
+
     g1_selected_edges = set()
     g1_selected_vertices = set()
 
@@ -166,12 +179,13 @@ def g2_to_g1_solution(g2_solution, g1, g2, index_maps, voxel_size=[5.,5.,50.], z
         else:
             vertex_mask.append(False)
 
+
     for e in g1.get_edge_iterator():
         if e in g1_selected_edges:
             edge_mask.append(True)
         else:
             edge_mask.append(False)
-
+   
     vertex_filter = g1.g.new_vertex_property("bool")
     edge_filter = g1.g.new_edge_property("bool")
 
@@ -256,84 +270,6 @@ def solve_volume(volume_dir,
             return combined_graph
 
 
-
-def solve_bb_volume(bounding_box,
-                    prob_map_stack,
-                    gs,
-                    ps,
-                    distance_threshold,
-                    start_edge_prior,
-                    distance_factor,
-                    orientation_factor,
-                    comb_angle_factor,
-                    selection_cost,
-                    time_limit,
-                    output_dir,
-                    voxel_size,
-                    min_vertices=4,
-                    combine_solutions=True,
-                    z_correction=1):
-
-    """
-    Solve a volume constrained by a bounding box directly from 
-    the probability maps. prob_map_stack needs to be of DirectionType
-    and specify perpendicular and parallel prob map path. Bounding box
-    can also only specify the sections e.g. [300, 400] will crop the
-    sections from the prob maps in the following way:
-    for slice in range(300, 400)
-        stack.append(prob_map_stack[:,:,slice])
-
-    That is slices 300 - 399 will be processed. Note that the first slice
-    is indexed with 0. In order to align the predictions with a tracing/knossos
-    where the first slice is indexed with 1 the output of the 
-    pipeline will need to be z_corrected:
-        solution[x,y,z+1] == tracing[x,y,z]
-
-    Thus a bb of [0, 10] = [0,1,...,9] will correspond to a tracing in sections
-    [1, 2, ..., 10].
-    """
-
-    bounding_box = deepcopy(bounding_box)
-    if z_correction is not None:
-        if z_correction != 1:
-            raise Warning("z correction != 1. Make sure this is correct.")
-
-        assert(len(bounding_box) == 2)
-        assert(bounding_box[0] > 0)
-        bounding_box[0] -= z_correction
-        bounding_box[1] -= z_correction
-        print "bounding box: ", bounding_box[0]
-        print "z_correction: ", z_correction
-
-    candidates = extract_candidates(prob_map_stack,
-                                    gs,
-                                    ps,
-                                    voxel_size,
-                                    bounding_box=bounding_box,
-                                    bs_output_dir=output_dir + "binary_stack/")
-
-    g1 = candidates_to_g1(candidates, 
-                          voxel_size)
-
-    g1_connected = connect_graph_locally(g1,
-                                         distance_threshold)
-    
-    cc_list = g1_connected.get_components(min_vertices=min_vertices,
-                                          output_folder = output_dir + "cc/")
-
-    solve_volume(output_dir + "cc/",
-                 start_edge_prior,
-                 distance_factor,
-                 orientation_factor,
-                 comb_angle_factor,
-                 selection_cost,
-                 time_limit,
-                 output_dir + "solution/",
-                 voxel_size,
-                 combine_solutions,
-                 z_correction)
-
-
 class CoreSolver(object):
     def __init__(self):
         self.template_vertex = {"px": None,
@@ -353,7 +289,7 @@ class CoreSolver(object):
 
 
     def _get_client(self, name_db, collection="graph", overwrite=False):
-        print "Update database..."
+        print "Get client..."
 
         client = MongoClient()
 
@@ -367,7 +303,7 @@ class CoreSolver(object):
                                        collection=collection, 
                                        overwrite=True)
 
-            print "Collection already exists, insert in {}.{}...".format(name_db, collection)
+            print "Collection already exists, request {}.{}...".format(name_db, collection)
         else:
             print "Database empty, create...".format(name_db, collection)
             self.create_collection(name_db=name_db, 
@@ -523,6 +459,7 @@ class CoreSolver(object):
 
         g1 = g1_graph.G1(len(vertices), init_empty=False)
         index_map = {}
+        index_map_inv = {}
         
         partner = []
         n = 0
@@ -532,6 +469,7 @@ class CoreSolver(object):
             partner.append(v["id_partner_global"])
             
             index_map[v["id_global"]] = n
+            index_map_inv[n] = [v["id_global"], v["_id"]]
             n += 1
 
         index_map[-1] = -1 
@@ -546,14 +484,143 @@ class CoreSolver(object):
             e1 = index_map[np.uint64(e["id_v1_global"])]
             g1.add_edge(e0, e1)
 
-        return g1
+        return g1, index_map_inv
 
-    def solve_subgraph(self, subgraph):
-        positions = g1.get_position_array()
-        vertex_degrees = g1.g.degree_property_map("total").a
-        vertex_mask = vertex_degrees == 0
+
+    def solve_subgraph(self, 
+                       subgraph,
+                       index_map,
+                       distance_threshold,
+                       cc_min_vertices,
+                       start_edge_prior,
+                       selection_cost,
+                       distance_factor,
+                       orientation_factor,
+                       comb_angle_factor,
+                       time_limit,
+                       write=True):
+
+        print "Solve subgraph..."
+
+        print "Connect locally..."
+        positions = subgraph.get_position_array().T
+        partner = subgraph.get_partner_array()
+
+        vertex_degrees = np.array(subgraph.g.degree_property_map("total").a)
+        vertex_mask_0 = vertex_degrees == 0
+        vertex_mask_1 = vertex_degrees <= 1
+
+        index_map_0 = {sum(vertex_mask_0[:i]):i for i in range(len(vertex_mask_0)) if vertex_mask_0[i]}
+        index_map_1 = {sum(vertex_mask_1[:j]):j for j in range(len(vertex_mask_1)) if vertex_mask_1[j]}
+        
+        positions_0 = positions[vertex_mask_0]
+        positions_1 = positions[vertex_mask_1]
+    
+        print "Build kdtree..."
+        kdtree_0 = KDTree(positions_0)
+        kdtree_1 = KDTree(positions_1)
+
+        print "Query ball tree with r={}...".format(distance_threshold)
+        pairs = kdtree_0.query_ball_tree(kdtree_1, 
+                                         r=distance_threshold,
+                                         p=2.0)
+
+        """
+        pairs: list of lists
+        For each element positions_0[i] of this tree, pairs[i] 
+        is a list of the indices of its neighbors in positions_1.
+        """
+        index_map_1_get = np.vectorize(index_map_1.get)
+
+        print "Add edges to subgraph..."
+        edge_list = []
+        idx_0 = 0
+        for pair in pairs:
+            idx_1_global = index_map_1_get(pair)
+            idx_0_global = [index_map_0[idx_0]]
+            
+            edges = zip(idx_0_global * len(idx_1_global), 
+                        idx_1_global)
+
+            edges = [tuple(sorted(i)) for i in edges if (i[0] != i[1]) and (partner[i[0]]) != i[1]]
+            edge_list.extend(edges)
+            
+            idx_0 += 1
+        
+        edge_set = set(edge_list)
+        subgraph.add_edge_list(list(edge_set))
+
+        print "Solve connected subgraphs..."
+        ccs = subgraph.get_components(min_vertices=cc_min_vertices,
+                                      output_folder="./ccs/",
+                                      return_graphs=True)
+
+        j = 0
+        solutions = []
+        for cc in ccs:
+            cc.g.reindex_edges()
+            cc_solution = solve(cc,
+                                start_edge_prior,
+                                distance_factor,
+                                orientation_factor,
+                                comb_angle_factor,
+                                selection_cost,
+                                time_limit,
+                                output_dir=None,
+                                voxel_size=None,
+                                z_correction=0,
+                                chunk_shift=np.array([0.,0.,0.]))
+
+            j += 1
+
+            solutions.append(cc_solution)
+        
+        return solutions
+
+    def write_solution(self,
+                       solution,
+                       index_map,
+                       name_db,
+                       collection):
+        """
+        Add solved edges to collection and
+        remove degree 0 vertices.
+        Index map needs to specify local to
+        global vertex index:
+        {local: global}
+        """
+        
+        graph = self._get_client(name_db, collection, overwrite=False)
+
+        print "Write solution..."
+        index_map[-1] = -1
+        index_map_get = np.vectorize(index_map.get)
+        edge_array = solution.get_edge_array()
+        if edge_array.size:
+            edges_global = index_map_get(np.delete(edge_array, 2, 1))
+
+            print "Insert solved edges..."
+            for edge_id in edges_global:
+                edge = deepcopy(self.template_edge)
+            
+                edge["id_v0_global"] = str(edge_id[0][0]) # convert uint64 to str, faster & mdb doesn't accept 64 bit int
+                edge["id_v1_global"] = str(edge_id[1][0])
+                edge["id_v0_mongo"] = edge_id[0][1]
+                edge["id_v1_mongo"] = edge_id[1][1]
+
+                graph.insert_one(edge)
+        else:
+            print "No edges in solution, skip..."
+
+        print "Remove degree 0 vertices..."
+        vertex_degrees = np.array(solution.g.degree_property_map("total").a)
+        vertices_deg_0_global = index_map_get(np.where(vertex_degrees == 0))
+ 
+        graph.delete_many({"_id": {"$in": [v_id[1] for v_id in vertices_deg_0_global[0,:]]}})
+        
+        print "...Done"  
+        
          
-
     def save_candidates(self,
                         name_db,
                         prob_map_stack_chunk,
@@ -663,101 +730,3 @@ class CoreSolver(object):
             edge["id_v1_mongo"] = edge_mongo[1]
 
             graph.insert_one(edge)
-
-
-def solve_chunks(prob_map_slice_dir,
-                 max_chunk_shape,
-                 overlap,
-                 gs,
-                 ps,
-                 distance_threshold,
-                 start_edge_prior,
-                 distance_factor,
-                 orientation_factor,
-                 comb_angle_factor,
-                 selection_cost,
-                 time_limit,
-                 output_dir,
-                 voxel_size,
-                 min_vertices=4,
-                 volume_offset=np.array([0,0,0]),
-                 phys=False,
-                 combine_solutions=True,
-                 z_correction=None):
-
-    print "Get volume dimensions..."
-    z_slices = glob.glob(prob_map_slice_dir.par + "/*.h5")
-    f = h5py.File(z_slices[0], 'r')
-    data = f["exported_data"]
-    volume_shape = (len(z_slices), data.shape[1], data.shape[0])
-
-    print "Chunk volume..."
-    chunker = Chunker(volume_shape, 
-                      max_chunk_shape,
-                      voxel_size,
-                      overlap,
-                      offset=volume_offset,
-                      phys=phys)
-
-    chunks = chunker.chunk()
-    
-    chunk_dir = output_dir + "pm_chunks"
-    if not os.path.exists(chunk_dir):
-        os.makedirs(chunk_dir + "/parallel")
-        os.makedirs(chunk_dir + "/perpendicular")
-
-
-    print "Chunk parallel probability maps..."
-    slices_to_chunks(input_dir=prob_map_slice_dir.par,
-                     output_dir=chunk_dir + "/parallel",
-                     chunks=chunks)
-    
-    print "Chunk perpendicular probability maps..."
-    slices_to_chunks(input_dir=prob_map_slice_dir.perp,
-                     output_dir=chunk_dir + "/perpendicular",
-                     chunks=chunks)
-
-    n_chunks = len(chunks)
-    parallel_chunks = [chunk_dir + "/parallel/chunk_{}.h5".format(chunk_id) for chunk_id in range(n_chunks)]
-    perpendicular_chunks = [chunk_dir + "/perpendicular/chunk_{}.h5".format(chunk_id) for chunk_id in range(n_chunks)]
-
-    n = 0
-    for par, perp in zip(parallel_chunks, perpendicular_chunks):
-        print "Solve chunk {}/{}...".format(n + 1, n_chunks)
-         
-        prob_map_stack = DirectionType(perp,
-                                       par)
-
-        candidates = extract_candidates(prob_map_stack,
-                                        gs,
-                                        ps,
-                                        voxel_size,
-                                        bounding_box=None,
-                                        bs_output_dir=None)
-
-        g1 = candidates_to_g1(candidates, 
-                              voxel_size)
-
-        g1_connected = connect_graph_locally(g1,
-                                             distance_threshold)
-    
-        cc_list = g1_connected.get_components(min_vertices=min_vertices,
-                                              output_folder = output_dir + "cc{}/".format(n))
-
-        chunk_limits = chunks[n].limits
-        chunk_shift = np.array([limit[0] for limit in chunk_limits])
-
-        solve_volume(output_dir + "cc{}/".format(n),
-                     start_edge_prior,
-                     distance_factor,
-                     orientation_factor,
-                     comb_angle_factor,
-                     selection_cost,
-                     time_limit,
-                     output_dir + "solution{}/".format(n),
-                     voxel_size,
-                     combine_solutions,
-                     z_correction,
-                     chunk_shift=chunk_shift)
-
-        n += 1
