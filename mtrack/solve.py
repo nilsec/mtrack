@@ -8,6 +8,7 @@ import glob
 import h5py
 from pymongo import MongoClient, IndexModel, ASCENDING
 from scipy.spatial import KDTree
+import itertools
 import pdb
 
 
@@ -198,78 +199,6 @@ def g2_to_g1_solution(g2_solution,
     return g1
 
 
-def solve_volume(volume_dir,
-                 start_edge_prior,
-                 distance_factor,
-                 orientation_factor,
-                 comb_angle_factor,
-                 selection_cost,
-                 time_limit,
-                 output_dir,
-                 voxel_size,
-                 combine_solutions=True,
-                 z_correction=None,
-                 chunk_shift=np.array([0.,0.,0.])):
-
-    """
-    Solve a complete volume given connected components in .gt
-    format. The folder needs to be specified in volume_dir
-    """
-
-    start = timer()
-
-    print "Solve volume {}...".format(volume_dir)
-
-    components = [f for f in os.listdir(volume_dir[:-1]) if f[-3:] == ".gt"]
-    n_comp = len(components)
-
-    print "with {} components...".format(n_comp)
-    
-    
-    i = 0
-    for cc in components:
-        assert("phy" in cc) # assume physical coordinates
-
-        cc_output_dir = os.path.join(os.path.join(output_dir[:-1], "ccs"),\
-                                     cc[:-3]) + "/"
-
-        print "Solve cc {}/{}".format(i + 1, n_comp)
-        g1_solution = solve(os.path.join(volume_dir[:-1], cc),
-              start_edge_prior,
-              distance_factor,
-              orientation_factor,
-              comb_angle_factor,
-              selection_cost,
-              time_limit,
-              cc_output_dir,
-              voxel_size,
-              z_correction=z_correction,
-              chunk_shift=chunk_shift)
-
-        if i == 0:
-            copyfile(cc_output_dir + "meta.json", output_dir + "solve_params.json")
-            
-        i += 1
-    
-    end = timer()
-    runtime = end - start
-
-    stats = {"n_comps": n_comp,
-             "runtime": runtime,
-             "volume_dir": volume_dir}
-
-    if components:
-        with open(output_dir + "solve_stats.json", "w+") as f:
-            json.dump(stats, f)
-
-        if combine_solutions:
-            print "Combine Solutions...\n"
-            combine_knossos_solutions(output_dir, output_dir + "volume.nml")
-            combined_graph = combine_gt_solutions(output_dir, output_dir + "volume.gt", purge=True)
-
-            return combined_graph
-
-
 class CoreSolver(object):
     def __init__(self):
         self.template_vertex = {"px": None,
@@ -279,7 +208,8 @@ class CoreSolver(object):
                                 "oy": None,
                                 "oz": None,
                                 "id_partner_global": None,
-                                "id_global": None}
+                                "id_global": None,
+                                "degree": None}
 
 
         self.template_edge = {"id_v0_global": None,
@@ -453,7 +383,7 @@ class CoreSolver(object):
         return vertices, edges
         
 
-    def subgraph_to_g1(self, vertices, edges):
+    def subgraph_to_g1(self, vertices, edges, set_partner=True):
         if not vertices:
             raise ValueError("Vertex list is empty")
 
@@ -473,16 +403,20 @@ class CoreSolver(object):
             n += 1
 
         index_map[-1] = -1 
-
-        index_map_get = np.vectorize(index_map.get)        
-        partner = np.array(partner)
-        g1.set_partner(0,0, vals=index_map_get(partner))
+        
+        if set_partner:
+            index_map_get = np.vectorize(index_map.get)        
+            partner = np.array(partner)
+            g1.set_partner(0,0, vals=index_map_get(partner))
 
         n = 0
         for e in edges:
-            e0 = index_map[np.uint64(e["id_v0_global"])]
-            e1 = index_map[np.uint64(e["id_v1_global"])]
-            g1.add_edge(e0, e1)
+            try:
+                e0 = index_map[np.uint64(e["id_v0_global"])]
+                e1 = index_map[np.uint64(e["id_v1_global"])]
+                g1.add_edge(e0, e1)
+            except KeyError:
+                pass
 
         return g1, index_map_inv
 
@@ -581,7 +515,8 @@ class CoreSolver(object):
                        solution,
                        index_map,
                        name_db,
-                       collection):
+                       collection,
+                       n=0):
         """
         Add solved edges to collection and
         remove degree 0 vertices.
@@ -589,7 +524,6 @@ class CoreSolver(object):
         global vertex index:
         {local: global}
         """
-        
         graph = self._get_client(name_db, collection, overwrite=False)
 
         print "Write solution..."
@@ -607,19 +541,89 @@ class CoreSolver(object):
                 edge["id_v1_global"] = str(edge_id[1][0])
                 edge["id_v0_mongo"] = edge_id[0][1]
                 edge["id_v1_mongo"] = edge_id[1][1]
-
+                
+                graph.update_many({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}}, 
+                                          {"$inc": {"degree": 1}}, upsert=False)
                 graph.insert_one(edge)
         else:
             print "No edges in solution, skip..."
+        
+        """
+        if n>=3:
+
+            base_dir = "/media/nilsec/m1/gt_mt_data/solve_volumes"
+            pm_perp = base_dir + "/chunk_test_7/pm_chunks/perpendicular/chunk_10.h5"
+
+            f = h5py.File(pm_perp, "r")
+            attrs = f["exported_data"].attrs.items()
+            f.close()
+
+            chunk_limits = attrs[1][1]
+            offset_chunk = [chunk_limits[0][0],
+                    chunk_limits[1][0],
+                    chunk_limits[2][0]]
+ 
+            vertices, edges = self.get_subgraph("volume_0",
+                                          "graph",
+            x_lim = {"min": (offset_chunk[0] + 100) * 5, "max": (offset_chunk[0] + 1000) * 5},
+            y_lim = {"min": (offset_chunk[1] + 100) * 5, "max": (offset_chunk[1] + 1000) * 5},
+            z_lim = {"min": (offset_chunk[2] + 1) * 50, "max": (offset_chunk[2] + 25) * 50})
+
+            g1, index_map = self.subgraph_to_g1(vertices, edges)
+
+            g1_to_nml(g1, "./subgraph_pre_{}.nml".format(n), knossos=True, voxel_size=[5.,5.,50.])
 
         print "Remove degree 0 vertices..."
-        vertex_degrees = np.array(solution.g.degree_property_map("total").a)
-        vertices_deg_0_global = index_map_get(np.where(vertex_degrees == 0))
+        #vertex_degrees = np.array(solution.g.degree_property_map("total").a)
+        #vertices_deg_0_global = index_map_get(np.where(vertex_degrees == 0))
+        vertices = solution.g.get_vertices()
+        if vertices.size:
+            vertex_degrees = solution.g.get_in_degrees(solution.g.get_vertices())
+            vertices_deg_0_global = index_map_get(vertices[np.where(vertex_degrees == 0)])
  
-        graph.delete_many({"_id": {"$in": [v_id[1] for v_id in vertices_deg_0_global[0,:]]}})
-        
-        print "...Done"  
-        
+            graph.delete_many({"_id": {"$in": [v_id[1] for v_id in vertices_deg_0_global]}})
+
+        if n>= 3:
+            vertices, edges = self.get_subgraph("volume_0",
+                                          "graph",
+            x_lim = {"min": (offset_chunk[0] + 100) * 5, "max": (offset_chunk[0] + 1000) * 5},
+            y_lim = {"min": (offset_chunk[1] + 100) * 5, "max": (offset_chunk[1] + 1000) * 5},
+            z_lim = {"min": (offset_chunk[2] + 1) * 50, "max": (offset_chunk[2] + 25) * 50})
+
+            g1, index_map = self.subgraph_to_g1(vertices, edges, set_partner=False)
+            g1_to_nml(g1, "./subgraph_post_{}.nml".format(n), knossos=True, voxel_size=[5.,5.,50.])
+        """
+
+        print "...Done"
+
+    def remove_deg_0_vertices(self, 
+                              name_db,
+                              collection,
+                              x_lim,
+                              y_lim,
+                              z_lim):
+
+        print "Remove degree 0 vertices..."
+
+        graph = self._get_client(name_db,
+                                 collection)
+        graph.delete_many({"$and": 
+                                    [   
+                                        {   
+                                         "pz": {"$gte": z_lim["min"],
+                                                 "$lt": z_lim["max"]},
+                                         "py": {"$gte": y_lim["min"],
+                                                 "$lt": y_lim["max"]},
+                                         "px": {"$gte": x_lim["min"],
+                                                 "$lt": x_lim["max"]}
+                                    
+                                        },
+                                        {
+                                         "degree": 0
+                                        }
+                                    ]
+                            })
+
          
     def save_candidates(self,
                         name_db,
@@ -660,9 +664,12 @@ class CoreSolver(object):
             vertex["oz"] = ori_phys[2]
             vertex["id_partner_global"] = partner
             vertex["id_global"] = vertex_id
+            vertex["degree"] = 0
         
             id_mongo = graph.insert_one(vertex).inserted_id
             vertex_id += 1
+
+        return vertex_id
 
 
     def save_g1_graph(self, g1_graph, name_db, collection="graph", overwrite=False):
@@ -730,3 +737,193 @@ class CoreSolver(object):
             edge["id_v1_mongo"] = edge_mongo[1]
 
             graph.insert_one(edge)
+
+
+class CoreScheduler(object):
+    def __init__(self, cores):
+        self.cores = cores
+
+        self.running = set()
+        self.finished = set()
+
+    def request_core(self):
+        for core in self.cores:
+            if not core.id in self.finished:
+                if not core.id in self.running:
+                    core_nbs = core.nbs
+                    if not (self.running & core_nbs):
+                        self.running.add(core.id)
+                
+                        return core
+
+        return None
+
+    def finish_core(self, core_id):
+        self.finished.add(core_id)
+        self.running.remove(core_id)
+
+
+class CoreBuilder(object):
+    def __init__(self, 
+                 volume_size,
+                 core_size,
+                 context_size,
+                 min_core_overlap=np.array([0,0,0])):
+
+        self.volume_size = np.array(volume_size, dtype=float)
+        self.core_size = np.array(core_size, dtype=float)
+        self.context_size = np.array(context_size, dtype=float)
+        self.min_core_overlap = np.array(min_core_overlap, dtype=float)
+
+        self.block_size = self.core_size + self.context_size
+
+        self.cores = []
+        self.running = []
+
+    
+    def _gen_nbs(self, core_id, n_cores):
+        """
+        Generate all 25 nbs of a core.
+        Seemed easy, edge cases make this function
+        a beast. In hindsight the edge case exclusions
+        probably define the neighbours sufficiently
+        and f_core is obsolete. 
+        I.e. neighbours are those ids 
+        that differ in zy plane for and are not more than
+        mod 1 distant in the +- cases. 
+        For the 0 case same with mod but stay in same plane.
+        """
+        n_Z = n_cores[2]
+        n_Y = n_cores[1]
+        n_X = n_cores[0]
+
+        # Corresponds to x=0 plane
+        f_core_0 = lambda j,k: core_id + j + n_Z * k
+        
+        # x - 1 plane
+        f_core_m1 = lambda j,k: core_id + j - ((n_Y + k) * n_Z)
+
+        # x + 1 plane
+        f_core_p1 = lambda j,k: core_id + j + ((n_Y + k) * n_Z)
+
+        core_id_range = range(reduce(lambda x,y: x * y, n_cores))
+
+        nbs = set()
+        for j in [0,1,-1]:
+            for k in [0,1,-1]:
+                c0 = f_core_0(j,k)
+                cm1 = f_core_m1(j,k)
+                cp1 = f_core_p1(j,k)
+
+                if c0 in core_id_range:
+                    # Generally the id needs to be in range (1,1,1)
+                    if np.all(np.array([abs(c0%n_Z - core_id%n_Z), 
+                                        abs(c0%n_Y - core_id%n_Y)]) <= np.array([1,1])):
+                
+                        if abs(c0/(n_Y * n_Z) - core_id/(n_Y * n_Z)) == 0:
+  
+                            # In case of +- 1 only z plane change
+                            if abs(c0 - core_id) > 1:
+                                # id needs to change y+-1 plane
+                                if abs(c0/n_Z - core_id/n_Z) == 1:
+                                    nbs.add(c0)
+                            else:
+                                nbs.add(c0)
+               
+                if np.all(np.array([abs(cm1%n_Z - core_id%n_Z), 
+                                    abs(cm1%n_Y - core_id%n_Y)]) <= np.array([1,1])):
+                    if cm1 in core_id_range:
+                        # id needs to change x-1 plane
+                        if abs(cm1/(n_Y * n_Z) - core_id/(n_Y * n_Z)) == 1:
+                            nbs.add(cm1)
+
+
+                if np.all(np.array([abs(cp1%n_Z - core_id%n_Z), 
+                                    abs(cp1%n_Y - core_id%n_Y)]) <= np.array([1,1])):
+                    if cp1 in core_id_range:
+                        # id needs to change to x+1 plane
+                        if abs(cp1/(n_Y * n_Z) - core_id/(n_Y * n_Z)) == 1:
+                            nbs.add(cp1)
+ 
+        nbs.remove(core_id)
+
+        return nbs
+
+    def generate_cores(self):
+        print "Generate cores..."
+        n_cores, ovlp = self._get_overlap()
+        max_ids = reduce(lambda x,y: x*y, n_cores)        
+
+        x_0 = self.context_size[0]
+        y_0 = self.context_size[1]
+        z_0 = self.context_size[2]
+
+
+        cores = []
+        core_id = 0
+        for x_core in range(n_cores[0]):
+            x_0 = self.context_size[0] + x_core * self.core_size[0] - x_core * ovlp[0]
+ 
+            for y_core in range(n_cores[1]):
+                y_0 = self.context_size[1] + y_core * self.core_size[1] - y_core * ovlp[1]
+ 
+                for z_core in range(n_cores[2]):
+                    z_0 = self.context_size[2] + z_core * self.core_size[2] - z_core * ovlp[2]
+
+                    nbs = self._gen_nbs(core_id, n_cores)
+                                            
+
+                    core = Core(x_lim={"min": x_0, "max": x_0 + self.core_size[0]},
+                                y_lim={"min": y_0, "max": y_0 + self.core_size[1]},
+                                z_lim={"min": z_0, "max": z_0 + self.core_size[2]},
+                                core_id=core_id,
+                                nbs=nbs)
+
+                    cores.append(core)
+                    core_id += 1
+
+        return cores
+
+
+    def _get_overlap(self):
+        """
+        Get actual overlap such that the whole volume is packed with
+        cubes of size core_size + context size with a minumum
+        core overlap of self.min_core_overlap. The calculated
+        overlap will be >= self.min_core_overlap.
+        """
+        core_volume = self.volume_size - 2*self.context_size
+        n_cores = np.ceil(core_volume/self.core_size)
+        core_volume_novlp = n_cores * self.core_size
+        diff = core_volume_novlp - core_volume
+        ovlp = diff/(n_cores - 1)
+ 
+        while np.any(ovlp < self.min_core_overlap):
+            core_volume_novlp = n_cores * self.core_size
+            diff = core_volume_novlp - core_volume
+            ovlp = diff/(n_cores - 1)
+            n_cores[np.where(ovlp < self.min_core_overlap)] += 1
+        
+        for i in range(3):
+            for j in range(3):
+                balance = ovlp[i]/ovlp[j]
+                if balance < 0.7:
+                    print "WARNING, overlap not balanced!"
+
+        return n_cores.astype(int), ovlp
+        
+
+class Core(object):
+    def __init__(self,
+                 x_lim,
+                 y_lim,
+                 z_lim,
+                 core_id,
+                 nbs):
+        
+        self.x_lim = x_lim
+        self.y_lim = y_lim
+        self.z_lim = z_lim
+        
+        self.id = core_id
+        self.nbs = nbs
