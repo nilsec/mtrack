@@ -88,11 +88,6 @@ def solve(g1,
                                     z_correction=z_correction, 
                                     chunk_shift=chunk_shift)
    
-    """ 
-    print "Warning, purging vertices"
-    g1_solution.g.purge_vertices()
-    g1_solution.g.purge_edges()
-    """    
 
     if output_dir is not None:
         assert(voxel_size is not None)
@@ -114,11 +109,6 @@ def solve(g1,
                   voxel=True, 
                   voxel_size=voxel_size)
 
-        """
-        print "Warning, purging vertices"
-        g1_solution.g.purge_vertices()
-        g1_solution.g.purge_edges()
-        """
  
         g1_solution.save(output_dir + "g1s.gt")
 
@@ -320,7 +310,8 @@ class CoreSolver(object):
                      collection,
                      x_lim,
                      y_lim,
-                     z_lim):
+                     z_lim,
+                     query_edges=True):
 
         print "Extract subgraph..."
         
@@ -341,37 +332,12 @@ class CoreSolver(object):
 
         vertex_ids = [v["_id"] for v in vertices]
         
-         
-
-        print "Perform edge query..."
-        edges = []
-        for vertex in vertices:
-            id_mongo = vertex["_id"]
-
-            """
-            Query all edges that contain the vertex
-            and do not connect to a vertex outside
-            the requested volume.
-            """
-
-            vedges = list(graph.find({"$and":
-                                            [
-                                                {"$or": 
-                                                    [
-                                                        {"id_v0_mongo": id_mongo},
-                                                        {"id_v1_mongo": id_mongo}
-
-                                                    ]
-                                                },
-                                                {
-                                                        "id_v0_mongo": {"$in": vertex_ids},
-                                                        "id_v1_mongo": {"$in": vertex_ids}
-                                                }
-                                            ]
-                                    })
-                        )
-
-            edges.extend(vedges)
+        
+        edges = [] 
+        if query_edges:
+            print "Perform edge query..."
+            edges = list(graph.find({"$and": [{"id_v0_mongo": {"$in": vertex_ids}},
+                                              {"id_v1_mongo": {"$in": vertex_ids}}]}))
         
         print "...Done"
 
