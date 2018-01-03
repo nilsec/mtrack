@@ -9,6 +9,7 @@ import h5py
 from pymongo import MongoClient, IndexModel, ASCENDING
 from scipy.spatial import KDTree
 import itertools
+from functools import partial
 import pdb
 
 
@@ -234,6 +235,11 @@ class CoreSolver(object):
         
         return graph
 
+    def _get_db(self, name_db):
+        client = MongoClient()
+        db = client[name_db]
+        return db
+
 
     def create_collection(self, name_db, collection="graph", overwrite=False):
         print "Create new db collection {}.{}...".format(name_db, collection)
@@ -347,6 +353,12 @@ class CoreSolver(object):
             print "Warning, requested region holds no edges!"
 
         return vertices, edges
+
+    def _map_partner(self, index_map, x):
+        try:
+            return index_map[x]
+        except KeyError:
+            return -1
         
 
     def subgraph_to_g1(self, vertices, edges, set_partner=True):
@@ -368,12 +380,12 @@ class CoreSolver(object):
             index_map_inv[n] = [v["id_global"], v["_id"]]
             n += 1
 
-        index_map[-1] = -1 
+        index_map[-1] = -1
         
         if set_partner:
-            index_map_get = np.vectorize(index_map.get)        
+            partner = [self._map_partner(index_map=index_map, x=p) for p in partner]
             partner = np.array(partner)
-            g1.set_partner(0,0, vals=index_map_get(partner))
+            g1.set_partner(0,0, vals=partner)
 
         n = 0
         for e in edges:
@@ -398,7 +410,8 @@ class CoreSolver(object):
                        orientation_factor,
                        comb_angle_factor,
                        time_limit,
-                       write=True):
+                       write=True,
+                       hcs=False):
 
         print "Solve subgraph..."
 
@@ -450,10 +463,16 @@ class CoreSolver(object):
         edge_set = set(edge_list)
         subgraph.add_edge_list(list(edge_set))
 
+        g1_to_nml(subgraph, "./sugbgraph_connected.nml", knossos=True, voxel_size=[5.,5.,50.])
+
         print "Solve connected subgraphs..."
-        ccs = subgraph.get_components(min_vertices=cc_min_vertices,
-                                      output_folder="./ccs/",
-                                      return_graphs=True)
+        if hcs:
+            subgraph.new_edge_property("weight", "int", vals=np.ones(subgraph.get_number_of_edges()))
+            ccs = subgraph.get_hcs(subgraph, remove_singletons=4)
+        else:
+            ccs = subgraph.get_components(min_vertices=cc_min_vertices,
+                                          output_folder="./ccs/",
+                                          return_graphs=True)
 
         j = 0
         solutions = []
@@ -482,6 +501,9 @@ class CoreSolver(object):
                        index_map,
                        name_db,
                        collection,
+                       x_lim=None,
+                       y_lim=None,
+                       z_lim=None,
                        n=0):
         """
         Add solved edges to collection and
@@ -493,6 +515,13 @@ class CoreSolver(object):
         graph = self._get_client(name_db, collection, overwrite=False)
 
         print "Write solution..."
+        if x_lim is not None:
+            min_lim = np.array([x_lim["min"], y_lim["min"], z_lim["min"]])
+            max_lim = np.array([x_lim["max"], y_lim["max"], z_lim["max"]])
+        else:
+            min_lim = np.array([])
+            max_lim = np.array([]) 
+
         index_map[-1] = -1
         index_map_get = np.vectorize(index_map.get)
         edge_array = solution.get_edge_array()
@@ -507,60 +536,35 @@ class CoreSolver(object):
                 edge["id_v1_global"] = str(edge_id[1][0])
                 edge["id_v0_mongo"] = edge_id[0][1]
                 edge["id_v1_mongo"] = edge_id[1][1]
+
                 
-                graph.update_many({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}}, 
-                                          {"$inc": {"degree": 1}}, upsert=False)
-                graph.insert_one(edge)
+            
+                # Check if edge lies in limits
+                vedges = graph.find({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}})
+                v_in = 0
+                degrees = []
+                for v in vedges:
+                    pos = np.array([v["px"], v["py"], v["pz"]])
+                    degrees.append(v["degree"])
+                    if x_lim is not None:
+                        if np.all(pos > min_lim) and np.all(pos < max_lim):
+                            v_in += 1
+                    else:
+                        v_in += 1
+                
+                # Check if edge already exists (can happen if cores overlap)
+                # We check that by checking the vertex degrees of the 
+                # vertices of the edge. If one of them has degree == 2
+                # the edge has to exist already because the database only holds
+                # solved, correct edges thus all entities are paths.
+                if v_in == 2 and np.all(np.array(degrees)<=1):
+                    graph.update_many({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}}, 
+                                      {"$inc": {"degree": 1}}, upsert=False)
+
+                    graph.insert_one(edge)
         else:
             print "No edges in solution, skip..."
         
-        """
-        if n>=3:
-
-            base_dir = "/media/nilsec/m1/gt_mt_data/solve_volumes"
-            pm_perp = base_dir + "/chunk_test_7/pm_chunks/perpendicular/chunk_10.h5"
-
-            f = h5py.File(pm_perp, "r")
-            attrs = f["exported_data"].attrs.items()
-            f.close()
-
-            chunk_limits = attrs[1][1]
-            offset_chunk = [chunk_limits[0][0],
-                    chunk_limits[1][0],
-                    chunk_limits[2][0]]
- 
-            vertices, edges = self.get_subgraph("volume_0",
-                                          "graph",
-            x_lim = {"min": (offset_chunk[0] + 100) * 5, "max": (offset_chunk[0] + 1000) * 5},
-            y_lim = {"min": (offset_chunk[1] + 100) * 5, "max": (offset_chunk[1] + 1000) * 5},
-            z_lim = {"min": (offset_chunk[2] + 1) * 50, "max": (offset_chunk[2] + 25) * 50})
-
-            g1, index_map = self.subgraph_to_g1(vertices, edges)
-
-            g1_to_nml(g1, "./subgraph_pre_{}.nml".format(n), knossos=True, voxel_size=[5.,5.,50.])
-
-        print "Remove degree 0 vertices..."
-        #vertex_degrees = np.array(solution.g.degree_property_map("total").a)
-        #vertices_deg_0_global = index_map_get(np.where(vertex_degrees == 0))
-        vertices = solution.g.get_vertices()
-        if vertices.size:
-            vertex_degrees = solution.g.get_in_degrees(solution.g.get_vertices())
-            vertices_deg_0_global = index_map_get(vertices[np.where(vertex_degrees == 0)])
- 
-            graph.delete_many({"_id": {"$in": [v_id[1] for v_id in vertices_deg_0_global]}})
-
-        if n>= 3:
-            vertices, edges = self.get_subgraph("volume_0",
-                                          "graph",
-            x_lim = {"min": (offset_chunk[0] + 100) * 5, "max": (offset_chunk[0] + 1000) * 5},
-            y_lim = {"min": (offset_chunk[1] + 100) * 5, "max": (offset_chunk[1] + 1000) * 5},
-            z_lim = {"min": (offset_chunk[2] + 1) * 50, "max": (offset_chunk[2] + 25) * 50})
-
-            g1, index_map = self.subgraph_to_g1(vertices, edges, set_partner=False)
-            g1_to_nml(g1, "./subgraph_post_{}.nml".format(n), knossos=True, voxel_size=[5.,5.,50.])
-        """
-
-        print "...Done"
 
     def remove_deg_0_vertices(self, 
                               name_db,
@@ -734,12 +738,15 @@ class CoreBuilder(object):
                  volume_size,
                  core_size,
                  context_size,
-                 min_core_overlap=np.array([0,0,0])):
+                 min_core_overlap=np.array([0,0,0]),
+                 offset=np.array([0,0,0])):
 
         self.volume_size = np.array(volume_size, dtype=float)
         self.core_size = np.array(core_size, dtype=float)
         self.context_size = np.array(context_size, dtype=float)
         self.min_core_overlap = np.array(min_core_overlap, dtype=float)
+
+        self.offset = offset
 
         self.block_size = self.core_size + self.context_size
 
@@ -839,9 +846,13 @@ class CoreBuilder(object):
                     nbs = self._gen_nbs(core_id, n_cores)
                                             
 
-                    core = Core(x_lim={"min": x_0, "max": x_0 + self.core_size[0]},
-                                y_lim={"min": y_0, "max": y_0 + self.core_size[1]},
-                                z_lim={"min": z_0, "max": z_0 + self.core_size[2]},
+                    core = Core(x_lim={"min": x_0 + self.offset[0], 
+                                       "max": x_0 + self.core_size[0] + self.offset[0]},
+                                y_lim={"min": y_0 + self.offset[1], 
+                                       "max": y_0 + self.core_size[1] + self.offset[1]},
+                                z_lim={"min": z_0 + self.offset[2], 
+                                       "max": z_0 + self.core_size[2] + self.offset[2]},
+                                context=self.context_size,
                                 core_id=core_id,
                                 nbs=nbs)
 
@@ -884,12 +895,22 @@ class Core(object):
                  x_lim,
                  y_lim,
                  z_lim,
+                 context,
                  core_id,
                  nbs):
         
-        self.x_lim = x_lim
-        self.y_lim = y_lim
-        self.z_lim = z_lim
+        self.x_lim_core = x_lim
+        self.y_lim_core = y_lim
+        self.z_lim_core = z_lim
+
+        self.x_lim_context = {"min": x_lim["min"] - context[0], 
+                              "max": x_lim["max"] + context[0]}
+
+        self.y_lim_context = {"min": y_lim["min"] - context[1], 
+                              "max": y_lim["max"] + context[1]}
+ 
+        self.z_lim_context = {"min": z_lim["min"] - context[2], 
+                              "max": z_lim["max"] + context[2]}
         
         self.id = core_id
         self.nbs = nbs
