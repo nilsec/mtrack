@@ -301,7 +301,6 @@ class G1(G):
         print "small :", small.get_number_of_vertices()
         for v in small.get_vertex_iterator():
             print "vertex id: ", int(v)
-            print "line id: ", small.get_vertex_property("line_id", v)
 
         print "-----------"
         print "big: ", big.get_number_of_vertices()

@@ -273,6 +273,7 @@ class G:
         return mask_vp
 
     def get_min_cut_masks(self):
+        print "Get min cut masks..."
         min_cut, partition = gt.min_cut(self.g, self.g.ep.weight)
         print "min cut: ", min_cut
  
