@@ -25,7 +25,6 @@ from mtrack.postprocessing import combine_knossos_solutions,\
                            combine_gt_solutions
 
 
-
 def solve(g1,
           start_edge_prior,
           distance_factor,
@@ -419,12 +418,34 @@ class CoreSolver(object):
         positions = subgraph.get_position_array().T
         partner = subgraph.get_partner_array()
 
+        print "Get vertex degrees..."
+        pdb.set_trace()
         vertex_degrees = np.array(subgraph.g.degree_property_map("total").a)
         vertex_mask_0 = vertex_degrees == 0
         vertex_mask_1 = vertex_degrees <= 1
 
+        print "Build index map..."
+        index_map_0 = np.cumsum(vertex_mask_0) - 1
+        index_map_1 = np.cumsum(vertex_mask_1) - 1
+
+        enum_0 = np.arange(len(index_map_0))
+        enum_1 = np.arange(len(index_map_1))
+
+        # Mask both arrays:
+        index_map_0 = index_map_0[vertex_mask_0]
+        index_map_1 = index_map_1[vertex_mask_1]
+
+        enum_0 = enum_0[vertex_mask_0]
+        enum_1 = enum_1[vertex_mask_1]
+
+        # Create dict
+        index_map_0 = dict(zip(index_map_0, enum_0))
+        index_map_1 = dict(zip(index_map_1, enum_1))
+
+        """
         index_map_0 = {sum(vertex_mask_0[:i]):i for i in range(len(vertex_mask_0)) if vertex_mask_0[i]}
         index_map_1 = {sum(vertex_mask_1[:j]):j for j in range(len(vertex_mask_1)) if vertex_mask_1[j]}
+        """
         
         positions_0 = positions[vertex_mask_0]
         positions_1 = positions[vertex_mask_1]
@@ -463,6 +484,15 @@ class CoreSolver(object):
         edge_set = set(edge_list)
         subgraph.add_edge_list(list(edge_set))
 
+        """
+        kdtree = KDTree(positions_0)
+        pairs = kdtree.query_pairs(r=distance_threshold, p=2.0, eps=0)
+
+        for edge in pairs:
+            if subgraph.get_partner(index_map_0[edge[0]]) != index_map_0[edge[1]]:
+                subgraph.add_edge(index_map_0[edge[0]], index_map_0[edge[1]])
+        """
+        
         g1_to_nml(subgraph, "./sugbgraph_connected.nml", knossos=True, voxel_size=[5.,5.,50.])
 
         print "Solve connected subgraphs..."
@@ -824,6 +854,19 @@ class CoreBuilder(object):
 
     def generate_cores(self):
         print "Generate cores..."
+        if np.all(self.volume_size == self.core_size):
+            cores = [Core(x_lim={"min": self.offset[0], 
+                               "max": self.core_size[0] + self.offset[0]},
+                        y_lim={"min": self.offset[1], 
+                               "max": self.core_size[1] + self.offset[1]},
+                        z_lim={"min": self.offset[2], 
+                               "max": self.core_size[2] + self.offset[2]},
+                        context=[0.0,0.0,0.0],
+                        core_id=0,
+                        nbs=set([]))]
+            return cores
+            
+
         n_cores, ovlp = self._get_overlap()
         max_ids = reduce(lambda x,y: x*y, n_cores)        
 
