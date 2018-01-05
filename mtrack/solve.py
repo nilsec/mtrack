@@ -419,7 +419,6 @@ class CoreSolver(object):
         partner = subgraph.get_partner_array()
 
         print "Get vertex degrees..."
-        pdb.set_trace()
         vertex_degrees = np.array(subgraph.g.degree_property_map("total").a)
         vertex_mask_0 = vertex_degrees == 0
         vertex_mask_1 = vertex_degrees <= 1
