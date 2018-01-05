@@ -13,7 +13,7 @@ def read_config(path):
     cfg_dict["prob_maps_perp_dir"] = config.get("Data", "prob_maps_perp_dir")
     cfg_dict["prob_maps_par_dir"] = config.get("Data", "prob_maps_par_dir")
     cfg_dict["db_name"] = config.get("Data", "db_name")
-    cfg_dict["overwrite_db"] = config.getboolean("Data", "overwrite_db")
+    cfg_dict["overwrite_candidates"] = config.getboolean("Data", "overwrite_candidates")
     cfg_dict["extract_candidates"] = config.getboolean("Data", "extract_candidates")
 
     # Preprocessing
@@ -40,6 +40,9 @@ def read_config(path):
     cfg_dict["roi_y"] = np.array(config.get("Output", "roi_y").split(", "), dtype=int)
     cfg_dict["roi_z"] = np.array(config.get("Output", "roi_z").split(", "), dtype=int)
     cfg_dict["output_dir"] = config.get("Output", "output_dir")
+    cfg_dict["save_cores"] = config.getboolean("Output", "save_cores")
+    cfg_dict["save_candidates"] = config.getboolean("Output", "save_candidates")
+    cfg_dict["save_roi"] = config.getboolean("Output", "save_roi")
     cfg_dict["nml"] = config.getboolean("Output", "nml")
     cfg_dict["gt"] = config.getboolean("Output", "gt")
 
