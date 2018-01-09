@@ -207,6 +207,8 @@ class CoreSolver(object):
                               "id_v0_mongo": None,
                               "id_v1_mongo": None}
 
+        self.template_core = {"core_id": None}
+
 
     def _get_client(self, name_db, collection="graph", overwrite=False):
         print "Get client..."
@@ -258,6 +260,10 @@ class CoreSolver(object):
 
         graph.create_index([("id_v0_mongo", ASCENDING), ("id_v1_mongo", ASCENDING)], 
                            name="vedge_id", 
+                           sparse=True)
+
+        graph.create_index([("core_id", ASCENDING)],
+                           name="core_id",
                            sparse=True)
 
 
@@ -525,6 +531,29 @@ class CoreSolver(object):
         
         return solutions
 
+    def finish_core(self,
+                    core_id,
+                    name_db,
+                    collection):
+
+        graph = self._get_client(name_db, collection, overwrite=False)
+        
+        core = deepcopy(self.template_core)
+        core["core_id"] = core_id
+        
+        graph.insert_one(core)
+
+    def core_finished(self,
+                      core_id,
+                      name_db,
+                      collection):
+        
+        graph = self._get_client(name_db, collection, overwrite=False)
+        if graph.find({"core_id": core_id}).count() == 1:
+            return True
+        else:
+            return False
+        
     def write_solution(self,
                        solution,
                        index_map,
@@ -586,7 +615,11 @@ class CoreSolver(object):
                 # vertices of the edge. If one of them has degree == 2
                 # the edge has to exist already because the database only holds
                 # solved, correct edges thus all entities are paths.
-                if v_in == 2 and np.all(np.array(degrees)<=1):
+                # Old:
+                # if v_in == 2 and np.all(np.array(degrees)<=1):
+                # this leaves the option for double edges of the kind o---o
+                # New:
+                if v_in == 2 and np.any(np.array(degrees) == 0):
                     graph.update_many({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}}, 
                                       {"$inc": {"degree": 1}}, upsert=False)
 
@@ -913,9 +946,10 @@ class CoreBuilder(object):
         """
         core_volume = self.volume_size - 2*self.context_size
         n_cores = np.ceil(core_volume/self.core_size)
+        assert(np.all(n_cores > 1))
         core_volume_novlp = n_cores * self.core_size
         diff = core_volume_novlp - core_volume
-        ovlp = diff/(n_cores - 1)
+        ovlp = diff/(n_cores - 1.0)
  
         while np.any(ovlp < self.min_core_overlap):
             core_volume_novlp = n_cores * self.core_size
