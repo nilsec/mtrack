@@ -116,21 +116,34 @@ def solve_candidate_volume(name_db,
                            z_lim_out,
                            copy_candidates=True,
                            copy_target="microtubules",
-                           offset=np.array([0.,0.,0.])):
+                           offset=np.array([0.,0.,0.]),
+                           overwrite_copy_target=False,
+                           skip_solved_cores=True):
 
     solver = CoreSolver()
 
     if copy_candidates:
-        print "Copy candidate collection..."
-
         pipeline = [{"$match": {}},
                     {"$out": copy_target},]
 
         db = solver._get_db(name_db)
-        db["candidates"].aggregate(pipeline)
-        collection = copy_target
-    
-        
+        if copy_target not in db.collection_names():
+            print "{} does not exist, copy candidate collection...".format(copy_target)
+            db["candidates"].aggregate(pipeline)
+            collection = copy_target
+
+        else:
+            if overwrite_copy_target:
+                print "Overwrite " + copy_target + "..."
+                solver.create_collection(name_db=name_db,
+                                         collection=copy_target,
+                                         overwrite=True)
+
+                db["candidates"].aggregate(pipeline)
+                collection = copy_target
+            else:
+                collection = copy_target
+ 
     builder = CoreBuilder(volume_size,
                           core_size,
                           context_size,
@@ -142,55 +155,69 @@ def solve_candidate_volume(name_db,
 
     n = 0    
     for core in cores:
-        vertices, edges = solver.get_subgraph(name_db,
-                                              collection,
-                                              x_lim=core.x_lim_context,
-                                              y_lim=core.y_lim_context,
-                                              z_lim=core.z_lim_context)
-        
-        if save_candidates:
-            g1, index_map = solver.subgraph_to_g1(vertices, 
+        core_finished = False
+
+        if skip_solved_cores:
+            if solver.core_finished(core_id=core.id,
+                                    name_db=name_db,
+                                    collection=collection):
+                print "Core already solved... continue"
+                core_finished = True
+
+        if not core_finished:
+            vertices, edges = solver.get_subgraph(name_db,
+                                                  collection,
+                                                  x_lim=core.x_lim_context,
+                                                  y_lim=core.y_lim_context,
+                                                  z_lim=core.z_lim_context)
+
+            if save_candidates:
+                g1, index_map = solver.subgraph_to_g1(vertices, 
                                                   edges)
-            if gt:
-                candidates_core_dir = os.path.join(output_dir, "cores/candidates")
+                if gt:
+                    candidates_core_dir = os.path.join(output_dir, "cores/candidates")
 
-                if not os.path.exists(candidates_core_dir):
-                    os.makedirs(candidates_core_dir)
+                    if not os.path.exists(candidates_core_dir):
+                        os.makedirs(candidates_core_dir)
             
-                g1.save(os.path.join(candidates_core_dir, 
-                                     "core_{}.gt".format(n)))
-            if nml:
-                g1_to_nml(g1, 
-                          os.path.join(candidates_core_dir, "core_{}.nml".format(n)), 
-                          knossos=True, 
-                          voxel_size=voxel_size)
+                    g1.save(os.path.join(candidates_core_dir, 
+                                         "core_{}.gt".format(n)))
+                if nml:
+                    g1_to_nml(g1, 
+                              os.path.join(candidates_core_dir, "core_{}.nml".format(n)), 
+                              knossos=True, 
+                              voxel_size=voxel_size)
  
-        solutions = solver.solve_subgraph(g1,
-                                          index_map,
-                                          distance_threshold=distance_threshold,
-                                          cc_min_vertices=cc_min_vertices,
-                                          start_edge_prior=start_edge_prior,
-                                          selection_cost=selection_cost,
-                                          distance_factor=distance_factor,
-                                          orientation_factor=orientation_factor,
-                                          comb_angle_factor=comb_angle_factor,
-                                          time_limit=time_limit,
-                                          hcs=hcs)
+            solutions = solver.solve_subgraph(g1,
+                                              index_map,
+                                              distance_threshold=distance_threshold,
+                                              cc_min_vertices=cc_min_vertices,
+                                              start_edge_prior=start_edge_prior,
+                                              selection_cost=selection_cost,
+                                              distance_factor=distance_factor,
+                                              orientation_factor=orientation_factor,
+                                              comb_angle_factor=comb_angle_factor,
+                                              time_limit=time_limit,
+                                              hcs=hcs)
 
-        for solution in solutions:
-            solver.write_solution(solution, 
-                                  index_map,
-                                  name_db,
-                                  collection,
-                                  x_lim=core.x_lim_core,
-                                  y_lim=core.y_lim_core,
-                                  z_lim=core.z_lim_core)
+            for solution in solutions:
+                solver.write_solution(solution, 
+                                      index_map,
+                                      name_db,
+                                      collection,
+                                      x_lim=core.x_lim_core,
+                                      y_lim=core.y_lim_core,
+                                      z_lim=core.z_lim_core)
 
-        solver.remove_deg_0_vertices(name_db,
-                                     collection,
-                                     x_lim=core.x_lim_core,
-                                     y_lim=core.y_lim_core,
-                                     z_lim=core.z_lim_core)
+            solver.remove_deg_0_vertices(name_db,
+                                         collection,
+                                         x_lim=core.x_lim_core,
+                                         y_lim=core.y_lim_core,
+                                         z_lim=core.z_lim_core)
+        
+            solver.finish_core(core_id=core.id,
+                               name_db=name_db,
+                               collection="candidates")
 
         if save_cores:
             vertices, edges = solver.get_subgraph(name_db,
@@ -223,7 +250,17 @@ def solve_candidate_volume(name_db,
         n += 1
 
 
-def clean_up(name_db, collection, x_lim, y_lim, z_lim):
+def clean_up(name_db, 
+             collection, 
+             x_lim, 
+             y_lim, 
+             z_lim, 
+             save_roi=True, 
+             nml=True, 
+             gt=False,
+             output_dir=None,
+             voxel_size=None):
+
     solver = CoreSolver()
 
     solver.remove_deg_0_vertices(name_db,
@@ -232,15 +269,27 @@ def clean_up(name_db, collection, x_lim, y_lim, z_lim):
                                  y_lim=y_lim,
                                  z_lim=z_lim)
 
-    vertices, edges = solver.get_subgraph(name_db,
-                                          collection,
-                                          x_lim=x_lim,
-                                          y_lim=y_lim,
-                                          z_lim=z_lim)
+    pdb.set_trace()
 
-    g1, index_map = solver.subgraph_to_g1(vertices, edges, set_partner=False)
+    if save_roi:
+        vertices, edges = solver.get_subgraph(name_db,
+                                              collection,
+                                              x_lim=x_lim,
+                                              y_lim=y_lim,
+                                              z_lim=z_lim)
+
+        g1, index_map = solver.subgraph_to_g1(vertices, 
+                                              edges, 
+                                              set_partner=False)
+
+        if gt:
+            g1.save(os.path.join(output_dir, "roi.gt"))
     
-    g1_to_nml(g1, "./solution_clean.nml", knossos=True, voxel_size=[5.,5.,50.])
+        if nml:
+            g1_to_nml(g1, 
+                      os.path.join(output_dir, "roi.nml"), 
+                      knossos=True,
+                      voxel_size=voxel_size)
 
 
 def track(config_path):
@@ -431,35 +480,24 @@ def track(config_path):
                            z_lim_out=z_lim_roi,
                            copy_candidates=True,
                            copy_target="microtubules",
-                           offset=np.array(roi_offset)) 
+                           offset=np.array(roi_offset),
+                           overwrite_copy_target=config["overwrite_copy_target"],
+                           skip_solved_cores=config["skip_solved_cores"]) 
 
     """
     Clean up all remaining degree 0 vertices in context area inside
     the solved ROI.
     """
-    clean_up(name_db=config["db_name"],
-             collection="microtubules",
-             x_lim=x_lim_roi,
-             y_lim=y_lim_roi,
-             z_lim=z_lim_roi)
+    clean_up(name_db=config["db_name"], 
+             collection="microtubules", 
+             x_lim=x_lim_roi, 
+             y_lim=y_lim_roi, 
+             z_lim=z_lim_roi, 
+             save_roi=config["save_roi"], 
+             nml=config["nml"], 
+             gt=config["gt"],
+             output_dir=config["output_dir"],
+             voxel_size=config["voxel_size"]) 
 
-    if config['save_roi']:
-        vertices, edges = solver.get_subgraph(name_db,
-                                              collection,
-                                              x_lim=x_lim_roi,
-                                              y_lim=y_lim_roi,
-                                              z_lim=z_lim_roi)
-
-        g1, index_map = solver.subgraph_to_g1(vertices, edges, set_partner=False)
-        
-        if config["gt"]:
-            g1.save(os.path.join(config["output_dir"], "roi.gt"))
-        
-        if config["nml"]:
-            g1_to_nml(g1, 
-                      os.path.join(config["output_dir"], "roi.nml"), 
-                      knossos=True, 
-                      voxel_size=config["voxel_size"])
-        
 if __name__ == "__main__":
     track("../config.ini")
