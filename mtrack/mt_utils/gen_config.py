@@ -9,6 +9,8 @@ config.set('Data', 'prob_maps_par_dir', './prob_maps/par')
 config.set('Data', 'db_name', 'volume')
 config.set('Data', 'overwrite_candidates', 'False')
 config.set('Data', 'extract_candidates', 'True')
+config.set('Data', 'overwrite_copy_target', 'False')
+config.set('Data', 'skip_solved_cores', 'True')
 
 config.add_section('Preprocessing')
 config.set('Preprocessing', 'gaussian_sigma_perp', '0.5')

@@ -15,6 +15,8 @@ def read_config(path):
     cfg_dict["db_name"] = config.get("Data", "db_name")
     cfg_dict["overwrite_candidates"] = config.getboolean("Data", "overwrite_candidates")
     cfg_dict["extract_candidates"] = config.getboolean("Data", "extract_candidates")
+    cfg_dict["overwrite_copy_target"] = config.getboolean("Data", "overwrite_copy_target")
+    cfg_dict["skip_solved_cores"] = config.getboolean("Data", "skip_solved_cores")
 
     # Preprocessing
     cfg_dict["gaussian_sigma_perp"] = config.getfloat("Preprocessing", "gaussian_sigma_perp")
@@ -24,9 +26,9 @@ def read_config(path):
     cfg_dict["distance_threshold"] = config.getint("Preprocessing", "distance_threshold")
     
     # Chunks
-    cfg_dict["volume_shape"] = np.array(config.get("Chunks", "volume_shape").split(", "), dtype=float)
-    cfg_dict["max_chunk_shape"] = np.array(config.get("Chunks", "max_chunk_shape").split(", "), dtype=float)
-    cfg_dict["chunk_overlap"] = np.array(config.get("Chunks", "chunk_overlap").split(", "), dtype=float)
+    cfg_dict["volume_shape"] = np.array(config.get("Chunks", "volume_shape").split(", "), dtype=int)
+    cfg_dict["max_chunk_shape"] = np.array(config.get("Chunks", "max_chunk_shape").split(", "), dtype=int)
+    cfg_dict["chunk_overlap"] = np.array(config.get("Chunks", "chunk_overlap").split(", "), dtype=int)
     cfg_dict["chunk_output_dir"] = config.get("Chunks", "chunk_output_dir")
 
     # Cores
