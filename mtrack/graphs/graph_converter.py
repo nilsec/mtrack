@@ -122,8 +122,11 @@ class GraphConverter:
             # Check which g2 nodes contain partner
             # nodes of v, those are mutually exclusive:
             if g1_partner > v and g1_partner != (-1): # -1 encodes no partner
-                g2_partner = g1_vertex_center_inverse[g1_partner]
-                g2_partner_conflicts.append(g2_partner + g2_vertex)
+                try:
+                    g2_partner = g1_vertex_center_inverse[g1_partner]
+                    g2_partner_conflicts.append(g2_partner + g2_vertex)
+                except KeyError:
+                    pass
 
         return g2_partner_conflicts
 
