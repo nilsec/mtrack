@@ -135,10 +135,7 @@ def solve_candidate_volume(name_db,
         else:
             if overwrite_copy_target:
                 print "Overwrite " + copy_target + "..."
-                solver.create_collection(name_db=name_db,
-                                         collection=copy_target,
-                                         overwrite=True)
-
+                db[copy_target].remove({})
                 db["candidates"].aggregate(pipeline)
                 collection = copy_target
             else:
@@ -155,10 +152,14 @@ def solve_candidate_volume(name_db,
 
     n = 0    
     for core in cores:
+        pdb.set_trace()
         core_finished = False
 
         if skip_solved_cores:
             if solver.core_finished(core_id=core.id,
+                                    name_db=name_db,
+                                    collection="candidates") or\
+               solver.core_finished(core_id=core.id,
                                     name_db=name_db,
                                     collection=collection):
                 print "Core already solved... continue"
@@ -269,7 +270,6 @@ def clean_up(name_db,
                                  y_lim=y_lim,
                                  z_lim=z_lim)
 
-    pdb.set_trace()
 
     if save_roi:
         vertices, edges = solver.get_subgraph(name_db,
@@ -296,18 +296,6 @@ def track(config_path):
     config = read_config(config_path)
     roi = [config["roi_x"], config["roi_y"], config["roi_z"]]
 
-
-    """
-    If all rois are [0,-1] extract candidates from
-    all chunks, i.e. all candidates.
-    """
-    full_roi = np.array([False, False, False])
-    for i in range(3):
-        if list(roi[i]) == [0, -1]:
-            full_roi[i] = True
-
-    full_roi_all = np.all(full_roi)
-    
     if config["extract_candidates"]:
         """
         Check if candidate extraction needs to be performed
@@ -378,18 +366,12 @@ def track(config_path):
             chunk_limits[(f_chunk_perp, f_chunk_par)] = chunk_limit 
             chunk_ids[(f_chunk_perp, f_chunk_par)] = chunk_id
 
-            if full_roi_all:
-                roi_chunks.append((f_chunk_perp, f_chunk_par))
-            else:
-                full_ovlp = np.array([False, False, False])
-                for i in range(3):
-                    if list(roi[i]) == [0, -1]:
-                        full_ovlp[i] = True
-                    else:
-                        full_ovlp[i] = check_overlap(chunk_limit[i], roi[i])
+            full_ovlp = np.array([False, False, False])
+            for i in range(3):
+                full_ovlp[i] = check_overlap(chunk_limit[i], roi[i])
 
-                if np.all(full_ovlp):
-                    roi_chunks.append((f_chunk_perp, f_chunk_par))
+            if np.all(full_ovlp):
+                roi_chunks.append((f_chunk_perp, f_chunk_par))
 
         """
         Extract candidates from all ROI chunks and write to specified
@@ -407,43 +389,14 @@ def track(config_path):
                           voxel_size=config["voxel_size"],
                           overwrite=config["overwrite_candidates"])
 
-        # Update roi volume size:
-        roi_volume_size = [cl[1] - cl[0] for cl in chunk_limits.values()[0]] *\
-                       config["voxel_size"] * len(roi_chunks)
-
-        """
-        Determine roi offset relative to initial chunk volume.
-        We set the offset as the minimum chunk offset in each 
-        dimension.
-        """
-        roi_offset = []
-        for chunk, chunk_limit in chunk_limits.iteritems():
-            chunk_offset = [chunk_limit[j][0] for j in range(3)]
-
-            if not roi_offset:
-                roi_offset = chunk_offset
-                
-            for j in range(3):
-                if chunk_offset[j] < roi_offset[j]:
-                    roi_offset[j] = chunk_offset[j]
-
-    else:
-        if np.any(full_roi):
-            raise ValueError("Provide explicit ROI if no candidate extraction is performed")
-        
-        roi_offset = np.array([r[0] for r in roi]) * config["voxel_size"]
-        roi_volume_size = np.array([r[1] - r[0] for r in roi]) * config["voxel_size"]
-        
+    # Update roi volume size:
+    roi_volume_size = np.array([r[1] - r[0] for r in roi]) * config["voxel_size"]
+    roi_offset = np.array([r[0] for r in roi]) * config["voxel_size"]
 
     """
     Solve the ROI and write to specified database. The result
     is written out depending on the options in the Output section
     of the config file. The collection defaults to /microtubules/.
-    """
-
-
-    """
-    Calculate roi limits
     """
 
     x_lim_roi = {"min": roi_offset[0],
