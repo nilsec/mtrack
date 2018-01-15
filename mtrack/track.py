@@ -624,9 +624,7 @@ def track(config_path):
     Clean up all remaining degree 0 vertices in context area inside
     the solved ROI.
     """
-    """
-    try:
-        clean_up(name_db=config["db_name"], 
+    clean_up(name_db=config["db_name"], 
                  collection="microtubules", 
                  x_lim=x_lim_roi, 
                 y_lim=y_lim_roi, 
@@ -636,10 +634,6 @@ def track(config_path):
                 gt=config["gt"],
                 output_dir=config["output_dir"],
                 voxel_size=config["voxel_size"]) 
-    except ValueError:
-        pass
-    """
-    print "wtf"
 
 if __name__ == "__main__":
     track("../config.ini")
