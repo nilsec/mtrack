@@ -6,6 +6,8 @@ import numpy as np
 import h5py
 import pdb
 import os
+import multiprocessing, logging
+import sys
 
 def chunk_pms(volume_shape,
               max_chunk_shape,
@@ -148,108 +150,289 @@ def solve_candidate_volume(name_db,
                           offset)
 
     cores = builder.generate_cores()
+
+    manager = multiprocessing.Manager()
+    pool = multiprocessing.Pool()
+    core_queue = manager.Queue()
+    lock = manager.Lock()
+
+    scheduler = CoreScheduler(cores)
+    cores_finished = manager.list()
+    cores_active = manager.list()
+    cores_pending = manager.list()
+    mpl = multiprocessing.log_to_stderr()
+    mpl.setLevel(logging.DEBUG)
     
+    """
+    Populate the queue with all 
+    available cores that can 
+    be processed initially and independently
+    """
+    cores_available = True
+    while cores_available:
+        print "Core available: {}".format(cores_available)
+        core = scheduler.request_core()
+        if core is not None:
+            core_queue.put(core)
+            cores_pending.append(core.id)
+        else:
+            cores_available=False
 
-    n = 0    
-    for core in cores:
-        pdb.set_trace()
-        core_finished = False
-
-        if skip_solved_cores:
-            if solver.core_finished(core_id=core.id,
-                                    name_db=name_db,
-                                    collection="candidates") or\
-               solver.core_finished(core_id=core.id,
-                                    name_db=name_db,
-                                    collection=collection):
-                print "Core already solved... continue"
-                core_finished = True
-
-        if not core_finished:
-            vertices, edges = solver.get_subgraph(name_db,
-                                                  collection,
-                                                  x_lim=core.x_lim_context,
-                                                  y_lim=core.y_lim_context,
-                                                  z_lim=core.z_lim_context)
-
-            if save_candidates:
-                g1, index_map = solver.subgraph_to_g1(vertices, 
-                                                  edges)
-                if gt:
-                    candidates_core_dir = os.path.join(output_dir, "cores/candidates")
-
-                    if not os.path.exists(candidates_core_dir):
-                        os.makedirs(candidates_core_dir)
-            
-                    g1.save(os.path.join(candidates_core_dir, 
-                                         "core_{}.gt".format(n)))
-                if nml:
-                    g1_to_nml(g1, 
-                              os.path.join(candidates_core_dir, "core_{}.nml".format(n)), 
-                              knossos=True, 
-                              voxel_size=voxel_size)
- 
-            solutions = solver.solve_subgraph(g1,
-                                              index_map,
-                                              distance_threshold=distance_threshold,
-                                              cc_min_vertices=cc_min_vertices,
-                                              start_edge_prior=start_edge_prior,
-                                              selection_cost=selection_cost,
-                                              distance_factor=distance_factor,
-                                              orientation_factor=orientation_factor,
-                                              comb_angle_factor=comb_angle_factor,
-                                              time_limit=time_limit,
-                                              hcs=hcs)
-
-            for solution in solutions:
-                solver.write_solution(solution, 
-                                      index_map,
+    processed_cores = 0
+    while processed_cores < len(cores):
+        print "Apply async..."
+        print "Cores processing", len(cores_active) + len(cores_pending)
+        print "Finished/cores", len(cores_finished), len(cores)
+        core = core_queue.get(block=True)
+        processed_cores += 1
+        handler = pool.apply_async(solve_core, (core, 
+                                      cores,
+                                      core_queue, 
+                                      cores_active, 
+                                      cores_pending,
+                                      cores_finished,
+                                      lock,
+                                      solver,
                                       name_db,
                                       collection,
-                                      x_lim=core.x_lim_core,
-                                      y_lim=core.y_lim_core,
-                                      z_lim=core.z_lim_core)
+                                      distance_threshold,
+                                      cc_min_vertices,
+                                      start_edge_prior,
+                                      selection_cost,
+                                      distance_factor,
+                                      orientation_factor,
+                                      comb_angle_factor,
+                                      time_limit,
+                                      hcs,
+                                      core_size,
+                                      context_size,
+                                      volume_size,
+                                      min_core_overlap,
+                                      voxel_size,
+                                      output_dir,
+                                      save_candidates,
+                                      save_cores,
+                                      gt,
+                                      nml,
+                                      x_lim_out,
+                                      y_lim_out,
+                                      z_lim_out,
+                                      copy_candidates,
+                                      copy_target,
+                                      offset,
+                                      overwrite_copy_target,
+                                      skip_solved_cores))
+        cores_pending.remove(core.id)
+        cores_active.append(core.id)
+ 
+    pool.close()
+    pool.join()
 
-            solver.remove_deg_0_vertices(name_db,
-                                         collection,
-                                         x_lim=core.x_lim_core,
-                                         y_lim=core.y_lim_core,
-                                         z_lim=core.z_lim_core)
-        
-            solver.finish_core(core_id=core.id,
-                               name_db=name_db,
-                               collection="candidates")
+    """ 
+    solve_core(core_queue.get(True), 
+                cores,
+                                      core_queue, 
+                                      cores_active, 
+                                      cores_finished,
+                                      lock,
+                                      solver,
+                                      name_db,
+                                      collection,
+                                      distance_threshold,
+                                      cc_min_vertices,
+                                      start_edge_prior,
+                                      selection_cost,
+                                      distance_factor,
+                                      orientation_factor,
+                                      comb_angle_factor,
+                                      time_limit,
+                                      hcs,
+                                      core_size,
+                                      context_size,
+                                      volume_size,
+                                      min_core_overlap,
+                                      voxel_size,
+                                      output_dir,
+                                      save_candidates,
+                                      save_cores,
+                                      gt,
+                                      nml,
+                                      x_lim_out,
+                                      y_lim_out,
+                                      z_lim_out,
+                                      copy_candidates,
+                                      copy_target,
+                                      offset,
+                                      overwrite_copy_target,
+                                      skip_solved_cores) 
 
-        if save_cores:
-            vertices, edges = solver.get_subgraph(name_db,
-                                                  collection,
-                                                  x_lim=x_lim_out,
-                                                  y_lim=y_lim_out,
-                                                  z_lim=z_lim_out)
+    """
 
-            g1, index_map = solver.subgraph_to_g1(vertices, edges, set_partner=False)
+def solve_core(core, 
+               cores,
+               core_queue,
+               cores_active,
+               cores_pending,
+               cores_finished,
+               lock,
+               solver,
+               name_db,
+               collection,
+               distance_threshold,
+               cc_min_vertices,
+               start_edge_prior,
+               selection_cost,
+               distance_factor,
+               orientation_factor,
+               comb_angle_factor,
+               time_limit,
+               hcs,
+               core_size,
+               context_size,
+               volume_size,
+               min_core_overlap,
+               voxel_size,
+               output_dir,
+               save_candidates,
+               save_cores,
+               gt,
+               nml,
+               x_lim_out,
+               y_lim_out,
+               z_lim_out,
+               copy_candidates=True,
+               copy_target="microtubules",
+               offset=np.array([0.,0.,0.]),
+               overwrite_copy_target=False,
+               skip_solved_cores=True):
 
+    """    
+    lock.acquire()
+    cores_pending.remove(core.id)
+    cores_active.append(core.id)
+    lock.release()
+    """
+
+    print "Core id {}".format(core.id)
+
+    print "Process core {}...".format(core.id)
+    core_finished = False
+
+    if skip_solved_cores:
+        if solver.core_finished(core_id=core.id,
+                                name_db=name_db,
+                                collection="candidates") or\
+            solver.core_finished(core_id=core.id,
+                                 name_db=name_db,
+                                 collection=collection):
+            print "Core already solved... continue"
+            core_finished = True
+
+    if not core_finished:
+        vertices, edges = solver.get_subgraph(name_db,
+                                              collection,
+                                              x_lim=core.x_lim_context,
+                                              y_lim=core.y_lim_context,
+                                              z_lim=core.z_lim_context)
+
+        if save_candidates:
+            g1, index_map = solver.subgraph_to_g1(vertices, 
+                                                  edges)
             if gt:
-                gt_core_dir = os.path.join(os.path.join(output_dir, "cores/gt"))
+                candidates_core_dir = os.path.join(output_dir, "cores/candidates")
 
-                if not os.path.exists(gt_core_dir):
-                    os.makedirs(gt_core_dir)
-
-                g1.save(os.path.join(gt_core_dir, "core_{}.gt".format(n)))
-
+                if not os.path.exists(candidates_core_dir):
+                    os.makedirs(candidates_core_dir)
+            
+                g1.save(os.path.join(candidates_core_dir, 
+                                    "core_{}.gt".format(core.id)))
             if nml:
-                nml_core_dir = os.path.join(os.path.join(output_dir, "cores/nml"))
-                
-                if not os.path.exists(nml_core_dir):
-                    os.makedirs(nml_core_dir)
-
                 g1_to_nml(g1, 
-                          os.path.join(nml_core_dir, "core{}.nml".format(n)), 
+                          os.path.join(candidates_core_dir, "core_{}.nml".format(core.id)), 
                           knossos=True, 
                           voxel_size=voxel_size)
+ 
+        solutions = solver.solve_subgraph(g1,
+                                          index_map,
+                                          distance_threshold=distance_threshold,
+                                          cc_min_vertices=cc_min_vertices,
+                                          start_edge_prior=start_edge_prior,
+                                          selection_cost=selection_cost,
+                                          distance_factor=distance_factor,
+                                          orientation_factor=orientation_factor,
+                                          comb_angle_factor=comb_angle_factor,
+                                          time_limit=time_limit,
+                                          hcs=hcs)
 
-        n += 1
+        for solution in solutions:
+            solver.write_solution(solution, 
+                                  index_map,
+                                  name_db,
+                                  collection,
+                                  x_lim=core.x_lim_core,
+                                  y_lim=core.y_lim_core,
+                                  z_lim=core.z_lim_core)
 
+        solver.remove_deg_0_vertices(name_db,
+                                     collection,
+                                     x_lim=core.x_lim_core,
+                                     y_lim=core.y_lim_core,
+                                     z_lim=core.z_lim_core)
+        
+        solver.finish_core(core_id=core.id,
+                           name_db=name_db,
+                           collection="candidates")
+
+    if save_cores:
+        vertices, edges = solver.get_subgraph(name_db,
+                                              collection,
+                                              x_lim=x_lim_out,
+                                              y_lim=y_lim_out,
+                                              z_lim=z_lim_out)
+
+        g1, index_map = solver.subgraph_to_g1(vertices, edges, set_partner=False)
+
+        if gt:
+            gt_core_dir = os.path.join(os.path.join(output_dir, "cores/gt"))
+
+            if not os.path.exists(gt_core_dir):
+                os.makedirs(gt_core_dir)
+
+            g1.save(os.path.join(gt_core_dir, "core_{}.gt".format(core.id)))
+
+        if nml:
+            nml_core_dir = os.path.join(os.path.join(output_dir, "cores/nml"))
+                
+            if not os.path.exists(nml_core_dir):
+                os.makedirs(nml_core_dir)
+
+            g1_to_nml(g1, 
+                      os.path.join(nml_core_dir, "core{}.nml".format(core.id)), 
+                      knossos=True, 
+                      voxel_size=voxel_size)
+
+    lock.acquire()    
+    cores_active.remove(core.id)
+    cores_finished.append(core.id)
+    print "Extend queue..."
+    for new_core in cores:
+        if not (new_core.id in cores_finished):
+            if not (new_core.id in cores_active):
+                if not (new_core.id in cores_pending):
+                    new_core_nbs = new_core.nbs
+                    print "new_core_id", new_core.id
+                    print "nbs", new_core.nbs
+                    print "active", list(cores_active)
+                    print "finished", list(cores_finished)
+                    if not (set(cores_active) & set(new_core_nbs)):
+                        print "Add core {}".format(new_core.id)
+                        core_queue.put(new_core, block=False)
+                        cores_pending.append(new_core.id)
+                        hit = True
+    
+    lock.release()
+    print "finished", list(cores_finished)
+    print "Done"
 
 def clean_up(name_db, 
              collection, 
@@ -441,16 +624,22 @@ def track(config_path):
     Clean up all remaining degree 0 vertices in context area inside
     the solved ROI.
     """
-    clean_up(name_db=config["db_name"], 
-             collection="microtubules", 
-             x_lim=x_lim_roi, 
-             y_lim=y_lim_roi, 
-             z_lim=z_lim_roi, 
-             save_roi=config["save_roi"], 
-             nml=config["nml"], 
-             gt=config["gt"],
-             output_dir=config["output_dir"],
-             voxel_size=config["voxel_size"]) 
+    """
+    try:
+        clean_up(name_db=config["db_name"], 
+                 collection="microtubules", 
+                 x_lim=x_lim_roi, 
+                y_lim=y_lim_roi, 
+                z_lim=z_lim_roi, 
+                save_roi=config["save_roi"], 
+                nml=config["nml"], 
+                gt=config["gt"],
+                output_dir=config["output_dir"],
+                voxel_size=config["voxel_size"]) 
+    except ValueError:
+        pass
+    """
+    print "wtf"
 
 if __name__ == "__main__":
     track("../config.ini")
