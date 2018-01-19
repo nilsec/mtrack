@@ -52,12 +52,14 @@ class G2Solver:
 
         self.backend.set_constraints(self.constraints)
 
-    def solve(self, time_limit=None):
+    def solve(self, time_limit=None, num_threads=16):
         print "with: " + str(len(self.constraints)) + " constraints."
         print "and " + str(self.g2_vertices_N) + " variables.\n"
 
         if time_limit != None:
             self.backend.set_timelimit(time_limit)
+
+        #self.backend.set_num_threads(num_threads)
 
         solution = pylp.Solution()
         self.backend.solve(solution)
