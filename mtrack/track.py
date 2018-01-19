@@ -61,9 +61,18 @@ def extract_pm_chunks(pm_chunks_par,
     n_chunk = 0
     id_offset = 0
 
+    """    
+    manager = multiprocessing.Manager()
+    lock = manager.Lock()
+    id_offset = manager.Value("i", 0, lock=lock)
+    pool = multiprocessing.Pool()
+    """
+
+    if overwrite:
+        solver._get_client(name_db, collection, overwrite=overwrite)
+
     for pm_perp, pm_par in zip(pm_chunks_perp, pm_chunks_par):
         print "Extract chunk {}/{}...".format(n_chunk, len(pm_chunks_par))
-        overwrite_tmp = False
 
         prob_map_stack = DirectionType(pm_perp, pm_par)
 
@@ -76,11 +85,7 @@ def extract_pm_chunks(pm_chunks_par,
                         chunk_limits[1][0], 
                         chunk_limits[2][0]]
 
-        if overwrite:
-            if n_chunk == 0:
-                overwrite_tmp=True
-            
-        id_offset = solver.save_candidates(name_db,
+        id_offset_tmp = solver.save_candidates(name_db,
                                            prob_map_stack,
                                            offset_chunk,
                                            gs,
@@ -88,7 +93,12 @@ def extract_pm_chunks(pm_chunks_par,
                                            voxel_size,
                                            id_offset=id_offset,
                                            collection=collection,
-                                           overwrite=overwrite_tmp)
+                                           overwrite=False)
+        id_offset = id_offset_tmp
+        """
+        with id_offset.get_lock():
+            id_offset = id_offset_tmp
+        """
         n_chunk += 1
 
 
@@ -157,9 +167,11 @@ def solve_candidate_volume(name_db,
     lock = manager.Lock()
 
     scheduler = CoreScheduler(cores)
+    
     cores_finished = manager.list()
     cores_active = manager.list()
     cores_pending = manager.list()
+    
     mpl = multiprocessing.log_to_stderr()
     mpl.setLevel(logging.DEBUG)
     
@@ -184,7 +196,6 @@ def solve_candidate_volume(name_db,
         print "Cores processing", len(cores_active) + len(cores_pending)
         print "Finished/cores", len(cores_finished), len(cores)
         core = core_queue.get(block=True)
-        processed_cores += 1
         handler = pool.apply_async(solve_core, (core, 
                                       cores,
                                       core_queue, 
@@ -222,8 +233,7 @@ def solve_candidate_volume(name_db,
                                       offset,
                                       overwrite_copy_target,
                                       skip_solved_cores))
-        cores_pending.remove(core.id)
-        cores_active.append(core.id)
+        processed_cores += 1
  
     pool.close()
     pool.join()
@@ -306,12 +316,10 @@ def solve_core(core,
                overwrite_copy_target=False,
                skip_solved_cores=True):
 
-    """    
     lock.acquire()
     cores_pending.remove(core.id)
     cores_active.append(core.id)
     lock.release()
-    """
 
     print "Core id {}".format(core.id)
 
@@ -426,9 +434,8 @@ def solve_core(core,
                     print "finished", list(cores_finished)
                     if not (set(cores_active) & set(new_core_nbs)):
                         print "Add core {}".format(new_core.id)
-                        core_queue.put(new_core, block=False)
+                        core_queue.put(new_core, block=True)
                         cores_pending.append(new_core.id)
-                        hit = True
     
     lock.release()
     print "finished", list(cores_finished)
