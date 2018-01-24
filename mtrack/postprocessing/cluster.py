@@ -8,7 +8,7 @@ from scipy.spatial import KDTree
 import skeletopyze
 
 import mtrack.graphs
-from mtrack.evaluation import OptMatch, get_lines, interpolate_nodes
+from mtrack.evaluation import get_lines, interpolate_nodes
 from mtrack.preprocessing import g1_to_nml
 from mtrack.postprocessing.combine_solutions import combine_knossos_solutions
 
