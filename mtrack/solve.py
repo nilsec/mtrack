@@ -414,6 +414,10 @@ class CoreSolver(object):
                        distance_factor,
                        orientation_factor,
                        comb_angle_factor,
+                       core_id,
+                       save_connected,
+                       output_dir,
+                       voxel_size,
                        time_limit,
                        write=True,
                        hcs=False):
@@ -447,11 +451,6 @@ class CoreSolver(object):
         index_map_0 = dict(zip(index_map_0, enum_0))
         index_map_1 = dict(zip(index_map_1, enum_1))
 
-        """
-        index_map_0 = {sum(vertex_mask_0[:i]):i for i in range(len(vertex_mask_0)) if vertex_mask_0[i]}
-        index_map_1 = {sum(vertex_mask_1[:j]):j for j in range(len(vertex_mask_1)) if vertex_mask_1[j]}
-        """
-        
         positions_0 = positions[vertex_mask_0]
         positions_1 = positions[vertex_mask_1]
     
@@ -469,6 +468,7 @@ class CoreSolver(object):
         For each element positions_0[i] of this tree, pairs[i] 
         is a list of the indices of its neighbors in positions_1.
         """
+
         index_map_1_get = np.vectorize(index_map_1.get)
 
         print "Add edges to subgraph..."
@@ -497,8 +497,17 @@ class CoreSolver(object):
             if subgraph.get_partner(index_map_0[edge[0]]) != index_map_0[edge[1]]:
                 subgraph.add_edge(index_map_0[edge[0]], index_map_0[edge[1]])
         """
-        
-        g1_to_nml(subgraph, "./sugbgraph_connected.nml", knossos=True, voxel_size=[5.,5.,50.])
+       
+        if save_connected:
+            connected_output_dir = os.path.join(output_dir, "core_graphs/connected")
+            
+            if not os.path.exists(connected_output_dir):
+                os.makedirs(connected_output_dir)
+
+            g1_to_nml(subgraph, 
+                      os.path.join(connected_output_dir, "core_connected_{}.nml".format(core_id)), 
+                      knossos=True, 
+                      voxel_size=voxel_size)
 
         print "Solve connected subgraphs..."
         if hcs:
@@ -599,16 +608,19 @@ class CoreSolver(object):
             
                 # Check if edge lies in limits
                 vedges = graph.find({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}})
-                v_in = 0
                 degrees = []
+                edge_pos = np.array([0.,0.,0.])
+                inside = False
                 for v in vedges:
-                    pos = np.array([v["px"], v["py"], v["pz"]])
+                    edge_pos += np.array([v["px"], v["py"], v["pz"]])
                     degrees.append(v["degree"])
-                    if x_lim is not None:
-                        if np.all(pos > min_lim) and np.all(pos < max_lim):
-                            v_in += 1
-                    else:
-                        v_in += 1
+
+                if x_lim is not None:
+                    edge_pos /= 2.
+                    if np.all(edge_pos >= min_lim) and np.all(edge_pos <= max_lim):
+                        inside = True
+                else:
+                    inside = True
                 
                 # Check if edge already exists (can happen if cores overlap)
                 # We check that by checking the vertex degrees of the 
@@ -619,7 +631,7 @@ class CoreSolver(object):
                 # if v_in == 2 and np.all(np.array(degrees)<=1):
                 # this leaves the option for double edges of the kind o---o
                 # New:
-                if v_in == 2 and np.any(np.array(degrees) == 0):
+                if inside and np.any(np.array(degrees) == 0) and np.all(np.array(degrees)) <= 1:
                     graph.update_many({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}}, 
                                       {"$inc": {"degree": 1}}, upsert=False)
 
@@ -815,7 +827,36 @@ class CoreBuilder(object):
         self.cores = []
         self.running = []
 
-    
+    def _gen_all_nbs(self, cores):
+        print "Generate core neighbours..."
+        nbs = {core.id: set() for core in cores}
+        
+        
+        for i in range(len(cores)):
+            print "{}/{}".format(i, len(cores))
+            for j in range(len(cores)):
+                if j > i:
+                    i_context = [cores[i].x_lim_context,
+                                 cores[i].y_lim_context,
+                                 cores[i].z_lim_context]
+
+                    j_context = [cores[j].x_lim_context,
+                                 cores[j].y_lim_context,
+                                 cores[j].z_lim_context]
+
+                    ovlp = []
+                    for dim in range(3):
+                        ovlp_dim = set(range(int(i_context[dim]["min"]), int(i_context[dim]["max"]))) &\
+                                   set(range(int(j_context[dim]["min"]), int(j_context[dim]["max"])))
+                        ovlp.append(bool(ovlp_dim))
+
+                    if np.all(np.array(ovlp)):
+                        nbs[cores[i].id].add(cores[j].id)
+                        nbs[cores[j].id].add(cores[i].id)
+
+        pdb.set_trace()
+        return nbs
+        
     def _gen_nbs(self, core_id, n_cores):
         """
         Generate all 25 nbs of a core.
@@ -918,7 +959,7 @@ class CoreBuilder(object):
                 for z_core in range(n_cores[2]):
                     z_0 = self.context_size[2] + z_core * self.core_size[2] - z_core * ovlp[2]
 
-                    nbs = self._gen_nbs(core_id, n_cores)
+                    #nbs = self._gen_nbs(core_id, n_cores)
                                             
 
                     core = Core(x_lim={"min": x_0 + self.offset[0], 
@@ -929,10 +970,14 @@ class CoreBuilder(object):
                                        "max": z_0 + self.core_size[2] + self.offset[2]},
                                 context=self.context_size,
                                 core_id=core_id,
-                                nbs=nbs)
+                                nbs=None)
 
                     cores.append(core)
                     core_id += 1
+
+        nbs_dict = self._gen_all_nbs(cores)
+        for core in cores:
+            core.nbs = nbs_dict[core.id]
 
         return cores
 
