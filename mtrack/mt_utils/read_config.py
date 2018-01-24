@@ -44,11 +44,14 @@ def read_config(path):
     cfg_dict["output_dir"] = config.get("Output", "output_dir")
     cfg_dict["save_cores"] = config.getboolean("Output", "save_cores")
     cfg_dict["save_candidates"] = config.getboolean("Output", "save_candidates")
+    cfg_dict["save_connected"] = config.getboolean("Output", "save_connected")
+    cfg_dict["save_core_graphs"] = config.getboolean("Output", "save_core_graphs")
     cfg_dict["save_roi"] = config.getboolean("Output", "save_roi")
     cfg_dict["nml"] = config.getboolean("Output", "nml")
     cfg_dict["gt"] = config.getboolean("Output", "gt")
-
+    
     # Solve
+    cfg_dict["solve"] = config.getboolean("Solve", "solve")
     cfg_dict["cc_min_vertices"] = config.getint("Solve", "cc_min_vertices")
     cfg_dict["start_edge_prior"] = config.getfloat("Solve", "start_edge_prior")
     cfg_dict["selection_cost"] = config.getfloat("Solve", "selection_cost")
@@ -57,6 +60,17 @@ def read_config(path):
     cfg_dict["comb_angle_factor"] = config.getfloat("Solve", "comb_angle_factor")
     cfg_dict["time_limit_per_cc"] = config.getint("Solve", "time_limit_per_cc")
     cfg_dict["get_hcs"] = config.getboolean("Solve", "get_hcs")
+
+    # Cluster
+    cfg_dict["cluster"] = True
+    cfg_dict["cluster_output_dir"] = config.get("Cluster", "cluster_output_dir")
+    cfg_dict["epsilon_lines"] = config.getint("Cluster", "epsilon_lines")
+    cfg_dict["epsilon_volumes"] = config.getint("Cluster", "epsilon_volumes")
+    cfg_dict["min_overlap_volumes"] = config.getint("Cluster", "min_overlap_volumes")
+    cfg_dict["cluster_orientation_factor"] = config.getint("Cluster", "cluster_orientation_factor")
+    cfg_dict["remove_singletons"] = config.getint("Cluster", "remove_singletons")
+    cfg_dict["use_ori"] = config.getboolean("Cluster", "use_ori")
+    
 
     return cfg_dict
 
