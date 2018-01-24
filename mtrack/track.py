@@ -1,6 +1,7 @@
 from mtrack.solve import CoreSolver, CoreBuilder, CoreScheduler, solve
 from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker, slices_to_chunks
 from mtrack.mt_utils import read_config, check_overlap
+from mtrack.postprocessing import skeletonize
 
 import numpy as np
 import h5py
@@ -41,6 +42,60 @@ def chunk_pms(volume_shape,
                      chunks)
 
     return dir_perp, dir_par
+
+
+def cluster(name_db,
+            collection,
+            roi,
+            output_dir,
+            epsilon_lines,
+            epsilon_volumes,
+            min_overlap_volumes,
+            cluster_orientation_factor,
+            remove_singletons,
+            voxel_size,
+            use_ori=True):
+
+    solver = CoreSolver()
+    client = solver._get_client(name_db, collection, overwrite=False)
+
+    x_lim_roi = {"min": roi[0][0] * voxel_size[0],
+                 "max": roi[0][1] * voxel_size[0]}
+    y_lim_roi = {"min": roi[1][0] * voxel_size[1],
+                 "max": roi[1][1] * voxel_size[1]}
+    z_lim_roi = {"min": roi[2][0] * voxel_size[2],
+                 "max": roi[2][1] * voxel_size[2]}
+
+    vertices, edges = solver.get_subgraph(name_db,
+                                          collection,
+                                          x_lim=x_lim_roi,
+                                          y_lim=y_lim_roi,
+                                          z_lim=z_lim_roi)
+
+    g1, index_map = solver.subgraph_to_g1(vertices, 
+                                          edges)
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    solution_file = os.path.join(output_dir, "cluster_roi.gt")
+    g1.save(solution_file)
+    skeletonize(solution_file,
+                output_dir,
+                epsilon_lines,
+                epsilon_volumes,
+                min_overlap_volumes,
+                canvas_shape=[roi[2][1] - roi[2][0], 
+                              roi[1][1] - roi[1][0], 
+                              roi[0][1] - roi[0][0]],
+                offset=np.array([roi[0][0],
+                                 roi[1][0],
+                                 roi[2][0]]),
+                orientation_factor=cluster_orientation_factor,
+                remove_singletons=remove_singletons,
+                use_ori=use_ori,
+                voxel_size=voxel_size)
+
 
 def extract_pm_chunks(pm_chunks_par,
                       pm_chunks_perp,
@@ -121,6 +176,8 @@ def solve_candidate_volume(name_db,
                            output_dir,
                            save_candidates,
                            save_cores,
+                           save_connected,
+                           save_core_graphs,
                            gt,
                            nml,
                            x_lim_out,
@@ -148,6 +205,7 @@ def solve_candidate_volume(name_db,
             if overwrite_copy_target:
                 print "Overwrite " + copy_target + "..."
                 db[copy_target].remove({})
+                assert(db[copy_target].find({}).count() == 0)
                 db["candidates"].aggregate(pipeline)
                 collection = copy_target
             else:
@@ -160,6 +218,7 @@ def solve_candidate_volume(name_db,
                           offset)
 
     cores = builder.generate_cores()
+    pdb.set_trace()
 
     manager = multiprocessing.Manager()
     pool = multiprocessing.Pool()
@@ -190,6 +249,9 @@ def solve_candidate_volume(name_db,
         else:
             cores_available=False
 
+    if not os.path.exists(os.path.join(output_dir, "logs")):
+        os.makedirs(os.path.join(output_dir, "logs"))
+
     processed_cores = 0
     while processed_cores < len(cores):
         print "Apply async..."
@@ -197,6 +259,52 @@ def solve_candidate_volume(name_db,
         print "Finished/cores", len(cores_finished), len(cores)
         core = core_queue.get(block=True)
         handler = pool.apply_async(solve_core, (core, 
+                                      cores,
+                                      core_queue, 
+                                      cores_active, 
+                                      cores_pending,
+                                      cores_finished,
+                                      lock,
+                                      solver,
+                                      name_db,
+                                      collection,
+                                      distance_threshold,
+                                      cc_min_vertices,
+                                      start_edge_prior,
+                                      selection_cost,
+                                      distance_factor,
+                                      orientation_factor,
+                                      comb_angle_factor,
+                                      time_limit,
+                                      hcs,
+                                      core_size,
+                                      context_size,
+                                      volume_size,
+                                      min_core_overlap,
+                                      voxel_size,
+                                      output_dir,
+                                      save_candidates,
+                                      save_cores,
+                                      save_connected,
+                                      save_core_graphs,
+                                      gt,
+                                      nml,
+                                      x_lim_out,
+                                      y_lim_out,
+                                      z_lim_out,
+                                      copy_candidates,
+                                      copy_target,
+                                      offset,
+                                      overwrite_copy_target,
+                                      skip_solved_cores))
+        processed_cores += 1
+        handler.get()
+ 
+    pool.close()
+    pool.join()
+
+    """
+    solve_core(core_queue.get(True),
                                       cores,
                                       core_queue, 
                                       cores_active, 
@@ -233,51 +341,8 @@ def solve_candidate_volume(name_db,
                                       offset,
                                       overwrite_copy_target,
                                       skip_solved_cores))
-        processed_cores += 1
- 
-    pool.close()
-    pool.join()
-
-    """ 
-    solve_core(core_queue.get(True), 
-                cores,
-                                      core_queue, 
-                                      cores_active, 
-                                      cores_finished,
-                                      lock,
-                                      solver,
-                                      name_db,
-                                      collection,
-                                      distance_threshold,
-                                      cc_min_vertices,
-                                      start_edge_prior,
-                                      selection_cost,
-                                      distance_factor,
-                                      orientation_factor,
-                                      comb_angle_factor,
-                                      time_limit,
-                                      hcs,
-                                      core_size,
-                                      context_size,
-                                      volume_size,
-                                      min_core_overlap,
-                                      voxel_size,
-                                      output_dir,
-                                      save_candidates,
-                                      save_cores,
-                                      gt,
-                                      nml,
-                                      x_lim_out,
-                                      y_lim_out,
-                                      z_lim_out,
-                                      copy_candidates,
-                                      copy_target,
-                                      offset,
-                                      overwrite_copy_target,
-                                      skip_solved_cores) 
-
     """
-
+ 
 def solve_core(core, 
                cores,
                core_queue,
@@ -305,6 +370,8 @@ def solve_core(core,
                output_dir,
                save_candidates,
                save_cores,
+               save_connected,
+               save_core_graphs,
                gt,
                nml,
                x_lim_out,
@@ -320,6 +387,16 @@ def solve_core(core,
     cores_pending.remove(core.id)
     cores_active.append(core.id)
     lock.release()
+
+    log_dir = os.path.join(output_dir, "logs")
+
+    sys.stdout = open(log_dir + "/c{}_pid".format(core.id) + str(os.getpid()) + ".out", 
+                      "a", 
+                      buffering=0)
+
+    sys.stderr = open(log_dir + "/c{}_pid".format(core.id) + str(os.getpid()) + "_error.out", 
+                      "a", 
+                      buffering=0)
 
     print "Core id {}".format(core.id)
 
@@ -369,8 +446,31 @@ def solve_core(core,
                                           distance_factor=distance_factor,
                                           orientation_factor=orientation_factor,
                                           comb_angle_factor=comb_angle_factor,
+                                          core_id=core.id,
+                                          save_connected=save_connected,
+                                          output_dir=output_dir,
+                                          voxel_size=voxel_size,
                                           time_limit=time_limit,
                                           hcs=hcs)
+
+        if save_core_graphs:
+            core_graph_dir = os.path.join(output_dir, "core_graphs/core_{}".format(core.id))
+            if not os.path.exists(core_graph_dir):
+                os.makedirs(core_graph_dir)
+                for j in range(len(solutions)):
+                    g1_to_nml(solutions[j],
+                              os.path.join(core_graph_dir, "cc_{}.nml".format(j)),
+                              knossos=True,
+                              voxel_size=voxel_size)
+
+                    g1.save(os.path.join(core_graph_dir, "cc_{}.gt".format(j)))
+                    for v in solutions[j].get_vertex_iterator():
+                        deg_v = solutions[j].get_neighbour_nodes(v)
+                        if len(deg_v) > 2:
+                            lock.acquire()
+                            with open("./constraint_violation.txt", "a") as f:
+                                f.write("c"+str(core.id) + "_cc_{}".format(j))
+                            lock.release()
 
         for solution in solutions:
             solver.write_solution(solution, 
@@ -486,161 +586,179 @@ def track(config_path):
     config = read_config(config_path)
     roi = [config["roi_x"], config["roi_y"], config["roi_z"]]
 
-    if config["extract_candidates"]:
-        """
-        Check if candidate extraction needs to be performed
-        otherwise it is assumed the given db collection holds
-        already extracted candidates.
-        """
+    if config["solve"]:
 
-        if config["prob_map_chunks_perp_dir"] == "None":
+        if config["extract_candidates"]:
             """
-            Check if chunking of the probability maps needs to
-            be performed, otherwise the chunk dir specified is used.
+            Check if candidate extraction needs to be performed
+            otherwise it is assumed the given db collection holds
+            already extracted candidates.
             """
 
-            dir_perp, dir_par = chunk_pms(volume_shape=config["volume_shape"],
-                                          max_chunk_shape=config["max_chunk_shape"],
-                                          voxel_size=config["voxel_size"],
-                                          overlap=config["chunk_overlap"],
-                                          prob_map_perp_dir=config["prob_maps_perp_dir"],
-                                          prob_map_par_dir=config["prob_maps_par_dir"],
-                                          output_dir=config["chunk_output_dir"])
+            if config["prob_map_chunks_perp_dir"] == "None":
+                """
+                Check if chunking of the probability maps needs to
+                be performed, otherwise the chunk dir specified is used.
+                """
+
+                dir_perp, dir_par = chunk_pms(volume_shape=config["volume_shape"],
+                                              max_chunk_shape=config["max_chunk_shape"],
+                                              voxel_size=config["voxel_size"],
+                                              overlap=config["chunk_overlap"],
+                                              prob_map_perp_dir=config["prob_maps_perp_dir"],
+                                              prob_map_par_dir=config["prob_maps_par_dir"],
+                                              output_dir=config["chunk_output_dir"])
+
+                """
+                Update the config with the new output dirs for 
+                perp and par chunks respectively.
+                """
+                config["prob_map_chunks_perp_dir"] = dir_perp
+                config["prob_map_chunks_par_dir"] = dir_par
+
+            chunks_perp = [os.path.join(config["prob_map_chunks_perp_dir"], f)\
+                           for f in os.listdir(config["prob_map_chunks_perp_dir"]) if f.endswith(".h5")]
+
+            chunks_par = [os.path.join(config["prob_map_chunks_par_dir"], f)\
+                          for f in os.listdir(config["prob_map_chunks_par_dir"]) if f.endswith(".h5")]
 
             """
-            Update the config with the new output dirs for 
-            perp and par chunks respectively.
+            Check which Chunks hold the ROI.
             """
-            config["prob_map_chunks_perp_dir"] = dir_perp
-            config["prob_map_chunks_par_dir"] = dir_par
+            
 
-        chunks_perp = [os.path.join(config["prob_map_chunks_perp_dir"], f)\
-                       for f in os.listdir(config["prob_map_chunks_perp_dir"]) if f.endswith(".h5")]
-
-        chunks_par = [os.path.join(config["prob_map_chunks_par_dir"], f)\
-                      for f in os.listdir(config["prob_map_chunks_par_dir"]) if f.endswith(".h5")]
-
-        """
-        Check which Chunks hold the ROI.
-        """
-        
-
-        """
-        Extract id, and volume information from chunks
-        and compare with ROI
-        """
-        chunk_limits = {}
-        chunk_ids = {}
-        chunk_offsets = {}
-        roi_chunks = []
-
-        for f_chunk_perp, f_chunk_par in zip(chunks_perp, chunks_par):
-            f = h5py.File(f_chunk_perp, "r")
-            attrs_perp = f["exported_data"].attrs.items()
-            f.close()
-
-            f = h5py.File(f_chunk_par, "r")
-            attrs_par = f["exported_data"].attrs.items()
-            f.close()
-
-            # Sanity check that par and perp chunks have same id
-            assert(attrs_perp[0][1] == attrs_par[0][1])
- 
             """
-            We want to process those changes where all chunk
-            limits overlap with the ROI
+            Extract id, and volume information from chunks
+            and compare with ROI
             """
-            chunk_limit = attrs_perp[1][1]
-            chunk_id = attrs_perp[0][1]
+            chunk_limits = {}
+            chunk_ids = {}
+            chunk_offsets = {}
+            roi_chunks = []
 
-            chunk_limits[(f_chunk_perp, f_chunk_par)] = chunk_limit 
-            chunk_ids[(f_chunk_perp, f_chunk_par)] = chunk_id
+            for f_chunk_perp, f_chunk_par in zip(chunks_perp, chunks_par):
+                f = h5py.File(f_chunk_perp, "r")
+                attrs_perp = f["exported_data"].attrs.items()
+                f.close()
 
-            full_ovlp = np.array([False, False, False])
-            for i in range(3):
-                full_ovlp[i] = check_overlap(chunk_limit[i], roi[i])
+                f = h5py.File(f_chunk_par, "r")
+                attrs_par = f["exported_data"].attrs.items()
+                f.close()
 
-            if np.all(full_ovlp):
-                roi_chunks.append((f_chunk_perp, f_chunk_par))
+                # Sanity check that par and perp chunks have same id
+                assert(attrs_perp[0][1] == attrs_par[0][1])
+     
+                """
+                We want to process those changes where all chunk
+                limits overlap with the ROI
+                """
+                chunk_limit = attrs_perp[1][1]
+                chunk_id = attrs_perp[0][1]
+
+                chunk_limits[(f_chunk_perp, f_chunk_par)] = chunk_limit 
+                chunk_ids[(f_chunk_perp, f_chunk_par)] = chunk_id
+
+                full_ovlp = np.array([False, False, False])
+                for i in range(3):
+                    full_ovlp[i] = check_overlap(chunk_limit[i], roi[i])
+
+                if np.all(full_ovlp):
+                    roi_chunks.append((f_chunk_perp, f_chunk_par))
+
+            """
+            Extract candidates from all ROI chunks and write to specified
+            database. The collection defaults to /candidates/.
+            """
+            extract_pm_chunks(pm_chunks_par=[pm[1] for pm in roi_chunks],
+                              pm_chunks_perp=[pm[0] for pm in roi_chunks],
+                              name_db=config["db_name"],
+                              collection="candidates",
+                              gs=DirectionType(config["gaussian_sigma_perp"], 
+                                               config["gaussian_sigma_par"]),
+                              ps=DirectionType(config["point_threshold_perp"],
+                                               config["point_threshold_par"]),
+                              distance_threshold=config["distance_threshold"],
+                              voxel_size=config["voxel_size"],
+                              overwrite=config["overwrite_candidates"])
+
+        # Update roi volume size:
+        roi_volume_size = np.array([r[1] - r[0] for r in roi]) * config["voxel_size"]
+        roi_offset = np.array([r[0] for r in roi]) * config["voxel_size"]
 
         """
-        Extract candidates from all ROI chunks and write to specified
-        database. The collection defaults to /candidates/.
+        Solve the ROI and write to specified database. The result
+        is written out depending on the options in the Output section
+        of the config file. The collection defaults to /microtubules/.
         """
-        extract_pm_chunks(pm_chunks_par=[pm[1] for pm in roi_chunks],
-                          pm_chunks_perp=[pm[0] for pm in roi_chunks],
-                          name_db=config["db_name"],
-                          collection="candidates",
-                          gs=DirectionType(config["gaussian_sigma_perp"], 
-                                           config["gaussian_sigma_par"]),
-                          ps=DirectionType(config["point_threshold_perp"],
-                                           config["point_threshold_par"]),
-                          distance_threshold=config["distance_threshold"],
-                          voxel_size=config["voxel_size"],
-                          overwrite=config["overwrite_candidates"])
 
-    # Update roi volume size:
-    roi_volume_size = np.array([r[1] - r[0] for r in roi]) * config["voxel_size"]
-    roi_offset = np.array([r[0] for r in roi]) * config["voxel_size"]
-
-    """
-    Solve the ROI and write to specified database. The result
-    is written out depending on the options in the Output section
-    of the config file. The collection defaults to /microtubules/.
-    """
-
-    x_lim_roi = {"min": roi_offset[0],
-                 "max": roi_offset[0] + roi_volume_size[0]}
-    y_lim_roi = {"min": roi_offset[1],
-                 "max": roi_offset[1] + roi_volume_size[1]}
-    z_lim_roi = {"min": roi_offset[2],
-                 "max": roi_offset[2] + roi_volume_size[2]}
+        x_lim_roi = {"min": roi_offset[0],
+                     "max": roi_offset[0] + roi_volume_size[0]}
+        y_lim_roi = {"min": roi_offset[1],
+                     "max": roi_offset[1] + roi_volume_size[1]}
+        z_lim_roi = {"min": roi_offset[2],
+                     "max": roi_offset[2] + roi_volume_size[2]}
 
 
-    solve_candidate_volume(name_db=config["db_name"],
-                           collection="candidates",
-                           distance_threshold=config["distance_threshold"],
-                           cc_min_vertices=config["cc_min_vertices"],
-                           start_edge_prior=config["start_edge_prior"],
-                           selection_cost=config["selection_cost"],
-                           distance_factor=config["distance_factor"],
-                           orientation_factor=config["orientation_factor"],
-                           comb_angle_factor=config["comb_angle_factor"],
-                           time_limit=config["time_limit_per_cc"],
-                           hcs=config["get_hcs"],
-                           core_size=config["core_size"] * config["voxel_size"],
-                           context_size=config["context_size"] * config["voxel_size"],
-                           volume_size=roi_volume_size,
-                           min_core_overlap=config["min_core_overlap"] * config["voxel_size"],
-                           voxel_size=config["voxel_size"],
-                           output_dir=config["output_dir"],
-                           save_candidates=config["save_candidates"],
-                           save_cores=config["save_cores"],
-                           gt=config["gt"],
-                           nml=config["nml"],
-                           x_lim_out=x_lim_roi,
-                           y_lim_out=y_lim_roi,
-                           z_lim_out=z_lim_roi,
-                           copy_candidates=True,
-                           copy_target="microtubules",
-                           offset=np.array(roi_offset),
-                           overwrite_copy_target=config["overwrite_copy_target"],
-                           skip_solved_cores=config["skip_solved_cores"]) 
+        solve_candidate_volume(name_db=config["db_name"],
+                               collection="candidates",
+                               distance_threshold=config["distance_threshold"],
+                               cc_min_vertices=config["cc_min_vertices"],
+                               start_edge_prior=config["start_edge_prior"],
+                               selection_cost=config["selection_cost"],
+                               distance_factor=config["distance_factor"],
+                               orientation_factor=config["orientation_factor"],
+                               comb_angle_factor=config["comb_angle_factor"],
+                               time_limit=config["time_limit_per_cc"],
+                               hcs=config["get_hcs"],
+                               core_size=config["core_size"] * config["voxel_size"],
+                               context_size=config["context_size"] * config["voxel_size"],
+                               volume_size=roi_volume_size,
+                               min_core_overlap=config["min_core_overlap"] * config["voxel_size"],
+                               voxel_size=config["voxel_size"],
+                               output_dir=config["output_dir"],
+                               save_candidates=config["save_candidates"],
+                               save_cores=config["save_cores"],
+                               save_connected=config["save_connected"],
+                               save_core_graphs=config["save_core_graphs"],
+                               gt=config["gt"],
+                               nml=config["nml"],
+                               x_lim_out=x_lim_roi,
+                               y_lim_out=y_lim_roi,
+                               z_lim_out=z_lim_roi,
+                               copy_candidates=True,
+                               copy_target="microtubules",
+                               offset=np.array(roi_offset),
+                               overwrite_copy_target=config["overwrite_copy_target"],
+                               skip_solved_cores=config["skip_solved_cores"]) 
 
-    """
-    Clean up all remaining degree 0 vertices in context area inside
-    the solved ROI.
-    """
-    clean_up(name_db=config["db_name"], 
+        """
+        Clean up all remaining degree 0 vertices in context area inside
+        the solved ROI.
+        """
+        clean_up(name_db=config["db_name"], 
                  collection="microtubules", 
                  x_lim=x_lim_roi, 
-                y_lim=y_lim_roi, 
-                z_lim=z_lim_roi, 
-                save_roi=config["save_roi"], 
-                nml=config["nml"], 
-                gt=config["gt"],
-                output_dir=config["output_dir"],
-                voxel_size=config["voxel_size"]) 
+                 y_lim=y_lim_roi, 
+                 z_lim=z_lim_roi, 
+                 save_roi=config["save_roi"], 
+                 nml=config["nml"], 
+                 gt=config["gt"],
+                 output_dir=config["output_dir"],
+                 voxel_size=config["voxel_size"]) 
+
+    if config["cluster"]:
+       cluster(name_db=config["db_name"],
+               collection="microtubules",
+               roi=roi,
+               output_dir=config["cluster_output_dir"],
+               epsilon_lines=config["epsilon_lines"],
+               epsilon_volumes=config["epsilon_volumes"],
+               min_overlap_volumes=config["min_overlap_volumes"],
+               cluster_orientation_factor=config["cluster_orientation_factor"],
+               remove_singletons=config["remove_singletons"],
+               voxel_size=config["voxel_size"],
+               use_ori=config["use_ori"])
+ 
 
 if __name__ == "__main__":
     track("../config.ini")
