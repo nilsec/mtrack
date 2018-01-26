@@ -1,11 +1,11 @@
-from mtrack.solve import CoreSolver, CoreBuilder, CoreScheduler, solve
+from mtrack.cores import CoreSolver, CoreBuilder, CoreScheduler
 from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker, slices_to_chunks
 from mtrack.mt_utils import read_config, check_overlap
 from mtrack.postprocessing import skeletonize
+from solve import solve
 
 import numpy as np
 import h5py
-import pdb
 import os
 import multiprocessing, logging
 import sys
@@ -218,7 +218,6 @@ def solve_candidate_volume(name_db,
                           offset)
 
     cores = builder.generate_cores()
-    pdb.set_trace()
 
     manager = multiprocessing.Manager()
     pool = multiprocessing.Pool()
@@ -303,46 +302,7 @@ def solve_candidate_volume(name_db,
     pool.close()
     pool.join()
 
-    """
-    solve_core(core_queue.get(True),
-                                      cores,
-                                      core_queue, 
-                                      cores_active, 
-                                      cores_pending,
-                                      cores_finished,
-                                      lock,
-                                      solver,
-                                      name_db,
-                                      collection,
-                                      distance_threshold,
-                                      cc_min_vertices,
-                                      start_edge_prior,
-                                      selection_cost,
-                                      distance_factor,
-                                      orientation_factor,
-                                      comb_angle_factor,
-                                      time_limit,
-                                      hcs,
-                                      core_size,
-                                      context_size,
-                                      volume_size,
-                                      min_core_overlap,
-                                      voxel_size,
-                                      output_dir,
-                                      save_candidates,
-                                      save_cores,
-                                      gt,
-                                      nml,
-                                      x_lim_out,
-                                      y_lim_out,
-                                      z_lim_out,
-                                      copy_candidates,
-                                      copy_target,
-                                      offset,
-                                      overwrite_copy_target,
-                                      skip_solved_cores))
-    """
- 
+
 def solve_core(core, 
                cores,
                core_queue,
