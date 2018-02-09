@@ -15,6 +15,7 @@ import nml_io
 import pickle
 from scipy.spatial import KDTree
 import matplotlib.pyplot as plt
+import pdb
 
 diam_out = 24 # Outer diameter of microtubule in nm
 
@@ -189,7 +190,8 @@ def extract_candidates(prob_map_stack_file,
                        verbose=False, 
                        bounding_box=None,
                        bs_output_dir=None,
-                       offset_pos=None):
+                       offset_pos=None,
+                       identifier_0=0):
 
     if verbose:
         print "\nExtract Candidates\n"
@@ -212,7 +214,6 @@ def extract_candidates(prob_map_stack_file,
     else:
         slice_number = 0
 
-    identifier_0 = 0
     candidates = []
 
 
