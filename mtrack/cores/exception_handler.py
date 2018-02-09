@@ -28,10 +28,6 @@ def inverse(i):
     except Exception as e:
         return ExceptionWrapper(e)
 
-def exception_handler(result):
-    if isinstance(result, ExceptionWrapper):
-        result.re_raise()
-        
 def main():
     pool = Pool()
     args = [1,2,3,4,0]
