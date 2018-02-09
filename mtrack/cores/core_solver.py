@@ -198,11 +198,13 @@ class CoreSolver(object):
         return vertices, edges
 
     def _map_partner(self, index_map, x):
+        return index_map[x]
+        """
         try:
             return index_map[x]
         except KeyError:
             return -1
-        
+        """
 
     def subgraph_to_g1(self, vertices, edges, set_partner=True):
         if not vertices:
@@ -526,15 +528,22 @@ class CoreSolver(object):
                                         voxel_size,
                                         bounding_box=None,
                                         bs_output_dir=None,
-                                        offset_pos=offset_chunk)
+                                        offset_pos=offset_chunk,
+                                        identifier_0=id_offset)
 
         print "Write candidate vertices..."
                 
-        vertex_id = id_offset
+        #vertex_id = id_offset
         for candidate in candidates:
             pos_phys = np.array([candidate.position[j] * voxel_size[j] for j in range(3)])
             ori_phys = np.array([candidate.orientation[j] * voxel_size[j] for j in range(3)])
             partner = candidate.partner_identifier
+            vertex_id = candidate.identifier
+            print "vertex_id", vertex_id
+            print "partner_id", partner
+           
+            if partner != (-1): 
+                assert(abs(vertex_id - partner) <= 1)
 
             vertex = deepcopy(self.template_vertex)
             
@@ -549,7 +558,7 @@ class CoreSolver(object):
             vertex["degree"] = 0
         
             id_mongo = graph.insert_one(vertex).inserted_id
-            vertex_id += 1
+            #vertex_id += 1
 
         return vertex_id
 
