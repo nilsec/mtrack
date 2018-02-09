@@ -26,6 +26,7 @@ config.set('Chunks', 'chunk_overlap', '0, 0, 0')
 config.set('Chunks', 'chunk_output_dir', './chunks')
 
 config.add_section('Cores')
+config.set('Cores', 'core_wise', 'True')
 config.set('Cores', 'core_size', '400, 400, 40')
 config.set('Cores', 'context_size', '40, 40, 4')
 config.set('Cores', 'min_core_overlap', '0, 0, 0')

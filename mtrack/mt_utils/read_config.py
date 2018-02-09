@@ -32,6 +32,7 @@ def read_config(path):
     cfg_dict["chunk_output_dir"] = config.get("Chunks", "chunk_output_dir")
 
     # Cores
+    cfg_dict["core_wise"] = config.getboolean("Cores", "core_wise")
     cfg_dict["core_size"] = np.array(config.get("Cores", "core_size").split(", "), dtype=int)
     cfg_dict["context_size"] = np.array(config.get("Cores", "context_size").split(", "), dtype=int)
     cfg_dict["min_core_overlap"] = np.array(config.get("Cores", "min_core_overlap").split(", "), dtype=int)
