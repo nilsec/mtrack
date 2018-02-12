@@ -197,8 +197,59 @@ class CoreSolver(object):
 
         return vertices, edges
 
-    def _map_partner(self, index_map, x):
-        return index_map[x]
+    def _map_partner(self, index_map, x, core=None, g1=None):
+        """
+        Test that all partners that are not found
+        in the index map lie inside the context region.
+        This can happen if the partner was deleted by another
+        neighbouring core. But only in the context area!
+        (In case of no core overlap)
+        """
+
+        try:
+            return index_map[x]
+        except KeyError:
+            # Extract context area
+            x_lim_ct_min = [core.x_lim_context["min"], core.x_lim_core["min"]]
+            x_lim_ct_max = [core.x_lim_core["max"], core.x_lim_context["max"]]
+
+            y_lim_ct_min = [core.y_lim_context["min"], core.y_lim_core["min"]]
+            y_lim_ct_max = [core.y_lim_core["max"], core.y_lim_context["max"]]
+            
+            z_lim_ct_min = [core.z_lim_context["min"], core.z_lim_core["min"]]
+            z_lim_ct_max = [core.z_lim_core["max"], core.z_lim_context["max"]]
+
+            if core is None:
+                raise ValueError("Core is None")
+            else:
+                candidates = [x-1, x+1]
+                for candidate in candidates:
+                    try:
+                        m_candidate = index_map[candidate]
+                        pos = g1.get_position(m_candidate)
+                    except KeyError:
+                        continue
+                    
+                    x_ct_min = pos[0] > x_lim_ct_min[0] and pos[0] < x_lim_ct_min[1]
+                    x_ct_max = pos[0] > x_lim_ct_max[0] and pos[0] < x_lim_ct_max[1]
+
+                    y_ct_min = pos[1] > y_lim_ct_min[0] and pos[1] < y_lim_ct_min[1]
+                    y_ct_max = pos[1] > y_lim_ct_max[0] and pos[1] < y_lim_ct_max[1]
+
+                    z_ct_min = pos[2] > z_lim_ct_min[0] and pos[2] < z_lim_ct_min[1]
+                    z_ct_max = pos[2] > z_lim_ct_max[0] and pos[2] < z_lim_ct_max[1]
+
+                    if not (x_ct_min or\
+                            x_ct_max or\
+                            y_ct_min or\
+                            y_ct_max or\
+                            z_ct_min or\
+                            z_ct_max):
+
+                        pdb.set_trace()
+
+                return -1
+                
         """
         try:
             return index_map[x]
@@ -206,7 +257,7 @@ class CoreSolver(object):
             return -1
         """
 
-    def subgraph_to_g1(self, vertices, edges, set_partner=True):
+    def subgraph_to_g1(self, vertices, edges, set_partner=True, core=None):
         if not vertices:
             raise ValueError("Vertex list is empty")
 
@@ -228,7 +279,7 @@ class CoreSolver(object):
         index_map[-1] = -1
         
         if set_partner:
-            partner = [self._map_partner(index_map=index_map, x=p) for p in partner]
+            partner = [self._map_partner(index_map=index_map, x=p, core=core, g1=g1) for p in partner]
             partner = np.array(partner)
             g1.set_partner(0,0, vals=partner)
 
@@ -239,7 +290,8 @@ class CoreSolver(object):
                 e1 = index_map[np.uint64(e["id_v1_global"])]
                 g1.add_edge(e0, e1)
             except KeyError:
-                pass
+                print "Edge Key Error..."
+                #pdb.set_trace()
 
         return g1, index_map_inv
 
