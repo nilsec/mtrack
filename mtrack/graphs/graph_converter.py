@@ -1,4 +1,5 @@
 import numpy as np
+import pdb
 from mtrack.graphs.g1_graph import G1
 from mtrack.graphs.g2_graph import G2
 
@@ -116,14 +117,20 @@ class GraphConverter:
         for v in self.g1.get_vertex_iterator():
             # Get all g2 nodes that have v
             # as a center node
-            g2_vertex = g1_vertex_center_inverse[v]
+            try:
+                g2_vertex = g1_vertex_center_inverse[v]
+            except KeyError:
+                pdb.set_trace()
             g1_partner = self.g1.get_partner(v)
 
             # Check which g2 nodes contain partner
             # nodes of v, those are mutually exclusive:
             if g1_partner > v and g1_partner != (-1): # -1 encodes no partner
-                g2_partner = g1_vertex_center_inverse[g1_partner]
-                g2_partner_conflicts.append(g2_partner + g2_vertex)
+                try:
+                    g2_partner = g1_vertex_center_inverse[g1_partner]
+                    g2_partner_conflicts.append(g2_partner + g2_vertex)
+                except KeyError:
+                    pdb.set_trace()
 
         return g2_partner_conflicts
 

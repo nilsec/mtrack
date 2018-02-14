@@ -596,8 +596,7 @@ def clean_up(name_db,
 
         g1, index_map = solver.subgraph_to_g1(vertices, 
                                               edges, 
-                                              set_partner=False,
-                                              core=core)
+                                              set_partner=False)
 
         if gt:
             g1.save(os.path.join(output_dir, "roi.gt"))
