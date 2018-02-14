@@ -1,5 +1,4 @@
 import numpy as np
-import pdb
 from mtrack.graphs.g1_graph import G1
 from mtrack.graphs.g2_graph import G2
 
