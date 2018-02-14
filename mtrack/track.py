@@ -74,8 +74,7 @@ def cluster(name_db,
                                           z_lim=z_lim_roi)
 
     g1, index_map = solver.subgraph_to_g1(vertices, 
-                                          edges,
-                                          core=core)
+                                          edges)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -443,8 +442,7 @@ def solve_core(core,
 
         if save_candidates:
             g1, index_map = solver.subgraph_to_g1(vertices, 
-                                                  edges,
-                                                  core=core)
+                                                  edges)
             if gt:
                 candidates_core_dir = os.path.join(output_dir, "cores/candidates")
 
@@ -520,7 +518,7 @@ def solve_core(core,
                                               y_lim=y_lim_out,
                                               z_lim=z_lim_out)
 
-        g1, index_map = solver.subgraph_to_g1(vertices, edges, set_partner=False, core=core)
+        g1, index_map = solver.subgraph_to_g1(vertices, edges, set_partner=False)
 
         if gt:
             gt_core_dir = os.path.join(os.path.join(output_dir, "cores/gt"))
