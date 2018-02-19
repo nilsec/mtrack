@@ -14,6 +14,8 @@ class G2(G):
         G.new_graph_property(self, "sum_constraints", dtype="python::object")
         G.set_graph_property(self, "sum_constraints", list())
 
+        G.new_vertex_property(self, "forced", dtype="bool", value=False)
+
     def __check_id(self, u):
         assert(type(u) == int)
         assert(u < G.get_number_of_vertices(self))
@@ -31,6 +33,14 @@ class G2(G):
         G.set_graph_property(self, "conflicts", conflicts)
 
         return conflicts
+
+    def add_forced(self, forced_vertices):
+        """
+        Add forced vertices - must be selected
+        """
+        for u in forced_vertices:
+            self.__check_id(u)
+            G.set_vertex_property(self, "forced", u, True)
 
     def get_conflicts(self):
         return G.get_graph_property(self, "conflicts")
@@ -53,6 +63,9 @@ class G2(G):
 
     def get_sum_constraints(self):
         return G.get_graph_property(self, "sum_constraints")
+
+    def get_forced(self, u):
+        return G.get_vertex_property(self, "forced", u)
 
     def set_cost(self, u, value):
         G.set_vertex_property(self, "costs", u, value)
