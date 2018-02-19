@@ -1,4 +1,5 @@
 import numpy as np
+import pdb
 from mtrack.graphs.g1_graph import G1
 from mtrack.graphs.g2_graph import G2
 
@@ -59,6 +60,8 @@ class GraphConverter:
 
         g2_vertices_N = 0
         g2_center_conflicts = []
+        # Force g2 nodes marked as such to be selected
+        g2_forced = []
 
         # Create one g2 vertex with v as the center node for all v in g1
         for v in self.g1.get_vertex_iterator():
@@ -71,7 +74,7 @@ class GraphConverter:
                
                     e1_id = self.g1.get_edge_id(e1, g1_edge_index_map) 
                     e2_id = self.g1.get_edge_id(e2, g1_edge_index_map)
-    
+                    
                     if partner_conflict:
                         continue
 
@@ -94,6 +97,23 @@ class GraphConverter:
                     # o----o----o
                     #     v^
                     v_conflicts.append(g2_vertex_id)
+
+                    # Check if g2 candidate is forced:
+                    if e1 != G1.START_EDGE and e2 != G1.START_EDGE:
+                        v_all = [e1.source(), e1.target(), e2.source(), e2.target()]
+                        v_all_forced = np.array([False, False, False, False])
+
+                        force_e1 = self.g1.get_edge_property("force", e1.source(), e1.target())
+                        force_e2 = self.g1.get_edge_property("force", e2.source(), e2.target())
+
+                        k = 0
+                        for vc in v_all:
+                            force_vc = self.g1.get_vertex_property("force", vc)
+                            v_all_forced[k] = force_vc
+                            k += 1
+                             
+                        if force_e1 and force_e2 and np.all(v_all_forced):
+                            g2_forced.append(g2_vertex_id)
             
             #if len(v_conflicts) > 1: 
             g2_center_conflicts.append(v_conflicts)
@@ -103,7 +123,9 @@ class GraphConverter:
                       "g1_vertex_center": g1_vertex_center,
                       "g1_vertex_center_inverse": g1_vertex_center_inverse}
 
-        return g2_vertices_N, g2_center_conflicts, index_maps
+        if g2_forced:
+            pdb.set_trace()
+        return g2_vertices_N, g2_center_conflicts, g2_forced, index_maps
 
     def get_partner_conflicts(self, g2, g1_vertex_center_inverse):
         """
@@ -153,7 +175,7 @@ class GraphConverter:
 
     def get_g2_graph(self):
         # Get Number of Nodes, Index maps and derived conflicts:
-        g2_vertices_N, g2_center_conflicts, index_maps = self.get_mapping()
+        g2_vertices_N, g2_center_conflicts, g2_forced, index_maps = self.get_mapping()
         
         # Create G2 Graph:
         g2 = G2(g2_vertices_N)
@@ -175,5 +197,7 @@ class GraphConverter:
         for constraint in g2_continuation_constraints:
             g2.add_sum_constraint(constraint["g2_vertices_l"],
                                   constraint["g2_vertices_r"])
+
+        g2.add_forced(g2_forced)
 
         return g2, index_maps
