@@ -13,13 +13,20 @@ class G2Solver:
         pylp.setLogLevel()
 
         g2_vertex_index_map = g2.get_vertex_index_map()
+        self.constraints = pylp.LinearConstraints()
 
         for v in g2.get_vertex_iterator():
             self.objective.set_coefficient(g2_vertex_index_map[v], 
                                            g2.get_cost(v))
 
+            constraint = pylp.LinearConstraint()
+            if g2.get_forced(v):
+                constraint.set_coefficient(v, 1)
+                constraint.set_relation(pylp.Relation.Equal)
+                constraint.set_value(1)
+                self.constraints.add(constraint)
+
         self.backend.set_objective(self.objective)
-        self.constraints = pylp.LinearConstraints()
 
         j = 0
         for conflict in g2.get_conflicts():
