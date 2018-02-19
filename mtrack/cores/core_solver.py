@@ -37,13 +37,15 @@ class CoreSolver(object):
                                 "oz": None,
                                 "id_partner_global": None,
                                 "id_global": None,
-                                "degree": None}
+                                "degree": None,
+                                "solved": False}
 
 
         self.template_edge = {"id_v0_global": None,
                               "id_v1_global": None,
                               "id_v0_mongo": None,
-                              "id_v1_mongo": None}
+                              "id_v1_mongo": None,
+                              "selected": False}
 
         self.template_core = {"core_id": None}
 
@@ -203,14 +205,23 @@ class CoreSolver(object):
             raise ValueError("Vertex list is empty")
 
         g1 = g1_graph.G1(len(vertices), init_empty=False)
+        # Init index map, global <-> local:
         index_map = {}
         index_map_inv = {}
-        
+
+        # Flag solved edges & vertices:
+        g1.new_vertex_property("force", dtype="bool", value=False)
+        g1.new_edge_property("force", dtype="bool", vals=False)       
+
+
         partner = []
         n = 0
         for v in vertices:
             g1.set_position(n, np.array([v["px"], v["py"], v["pz"]]))
             g1.set_orientation(n, np.array([v["ox"], v["oy"], v["oz"]]))
+            if v["solved"]:
+                g1.set_vertex_property("force", n, True)
+
             partner.append(v["id_partner_global"])
             
             index_map[v["id_global"]] = n
@@ -220,16 +231,22 @@ class CoreSolver(object):
         index_map[-1] = -1
         
         if set_partner:
-            partner = [index_map[p] for p in partner]
-            partner = np.array(partner)
-            g1.set_partner(0,0, vals=partner)
+            try:
+                partner = [index_map[p] for p in partner]
+                partner = np.array(partner)
+                g1.set_partner(0,0, vals=partner)
+            except KeyError:
+                pdb.set_trace()
 
         n = 0
         for e in edges:
             try:
                 e0 = index_map[np.uint64(e["id_v0_global"])]
                 e1 = index_map[np.uint64(e["id_v1_global"])]
-                g1.add_edge(e0, e1)
+                e = g1.add_edge(e0, e1)
+
+                # All edges in the db are solved edges:
+                g1.set_edge_property("force", u=0, v=0, value=True, e=e)
             except KeyError:
                 print "Edge Key Error..."
                 pdb.set_trace()
@@ -467,7 +484,8 @@ class CoreSolver(object):
                 # New:
                 if inside and np.any(np.array(degrees) == 0) and np.all(np.array(degrees)) <= 1:
                     graph.update_many({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}}, 
-                                      {"$inc": {"degree": 1}, "$set": {"id_partner_global": -1}},
+                                      {"$inc": {"degree": 1}, 
+                                       "$set": {"id_partner_global": -1, "solved": True}},
                                       upsert=False)
 
                     graph.insert_one(edge)
@@ -556,70 +574,3 @@ class CoreSolver(object):
             #vertex_id += 1
 
         return vertex_id
-
-
-    def save_g1_graph(self, g1_graph, name_db, collection="graph", overwrite=False):
-        """
-        db/gt 
-        """
-        print "Update database..."
-
-        client = MongoClient()
-
-        db = client[name_db]
-        collections = db.collection_names()
-        
-        if collection in collections:
-            if overwrite:
-                print "Warning, overwrite {}.{}!".format(name_db, collection)
-                self.create_collection(name_db=name_db, 
-                                       collection=collection, 
-                                       overwrite=True)
-
-            print "Collection already exists, insert in {}.{}...".format(name_db, collection)
-        else:
-            print "Database empty, create {}.{}...".format(name_db, collection)
-            
-        graph = db[collection]
-
-        vertex_positions = g1_graph.get_position_array().T
-        vertex_orientations = g1_graph.get_orientation_array().T
-        partner = g1_graph.get_vertex_property("partner").a
-        edges = g1_graph.get_edge_array()
-
-        print "Insert vertices..."
-
-        index_map = {}
-        vertices = []
-        vertex_id = 0
-        for pos, ori, partner in zip(vertex_positions,
-                                     vertex_orientations,
-                                     partner):
-
-            vertex = deepcopy(self.template_vertex)
-
-            vertex["px"] = pos[0]
-            vertex["py"] = pos[1]
-            vertex["pz"] = pos[2]
-            vertex["ox"] = ori[0]
-            vertex["oy"] = ori[1]
-            vertex["oz"] = ori[2]
-            vertex["id_partner_global"] = partner
-            vertex["id_global"] = vertex_id
-        
-            id_mongo = graph.insert_one(vertex).inserted_id
-            index_map[vertex_id] = id_mongo 
-            vertex_id += 1
-
-        print "Insert edges..."
-
-        for edge_id in edges:
-            edge_mongo = [index_map[edge_id[0]], index_map[edge_id[1]]]
-            edge = deepcopy(self.template_edge)
-            
-            edge["id_v0_global"] = str(edge_id[0]) # convert uint64 to str, faster & mdb doesn't accept 64 bit int
-            edge["id_v1_global"] = str(edge_id[1])
-            edge["id_v0_mongo"] = edge_mongo[0]
-            edge["id_v1_mongo"] = edge_mongo[1]
-
-            graph.insert_one(edge)
