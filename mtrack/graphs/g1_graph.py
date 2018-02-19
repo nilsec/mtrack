@@ -28,7 +28,8 @@ class G1(G):
  
         
     def add_edge(self, u, v):
-        G.add_edge(self, u, v)
+        e = G.add_edge(self, u, v)
+        return e
 
     def add_edge_list(self, edges, hashed=False):
         self.g.add_edge_list(edges, hashed)
@@ -382,7 +383,6 @@ class G1(G):
             
             G.set_vertex_filter(self, None)
             n += 1
-        
         if return_graphs:
             return graph_list
         else:
