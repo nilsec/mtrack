@@ -273,9 +273,10 @@ def candidates_to_g1(candidates, voxel_size):
     return g1
 
 
-def connect_graph_locally(g1, distance_threshold):
-    if g1.get_number_of_edges() != 0:
-        raise Warning("G1 graph already connected")
+def connect_graph_locally(g1, distance_threshold, cores=False):
+    if not cores:
+        if g1.get_number_of_edges() != 0:
+            raise Warning("G1 graph already connected")
 
     print "Construct KDTree...\n"
 
@@ -296,7 +297,9 @@ def connect_graph_locally(g1, distance_threshold):
     
     for edge in pairs:
         if g1.get_partner(edge[0]) != edge[1]:
-            g1.add_edge(*edge)
+            e = g1.add_edge(*edge)
+            if cores:
+                g1.set_edge_property("force", u=0, v=0, value=False, e=e)
 
     return g1
 
