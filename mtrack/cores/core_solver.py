@@ -272,81 +272,7 @@ class CoreSolver(object):
                        write=True,
                        hcs=False):
 
-        print "Solve subgraph..."
-
-        print "Connect locally..."
-        positions = subgraph.get_position_array().T
-        partner = subgraph.get_partner_array()
-
-        print "Get vertex degrees..."
-        vertex_degrees = np.array(subgraph.g.degree_property_map("total").a)
-        vertex_mask_0 = vertex_degrees == 0
-        vertex_mask_1 = vertex_degrees <= 1
-
-        print "Build index map..."
-        index_map_0 = np.cumsum(vertex_mask_0) - 1
-        index_map_1 = np.cumsum(vertex_mask_1) - 1
-
-        enum_0 = np.arange(len(index_map_0))
-        enum_1 = np.arange(len(index_map_1))
-
-        # Mask both arrays:
-        index_map_0 = index_map_0[vertex_mask_0]
-        index_map_1 = index_map_1[vertex_mask_1]
-
-        enum_0 = enum_0[vertex_mask_0]
-        enum_1 = enum_1[vertex_mask_1]
-
-        # Create dict
-        index_map_0 = dict(zip(index_map_0, enum_0))
-        index_map_1 = dict(zip(index_map_1, enum_1))
-
-        positions_0 = positions[vertex_mask_0]
-        positions_1 = positions[vertex_mask_1]
-    
-        print "Build kdtree..."
-        kdtree_0 = KDTree(positions_0)
-        kdtree_1 = KDTree(positions_1)
-
-        print "Query ball tree with r={}...".format(distance_threshold)
-        pairs = kdtree_0.query_ball_tree(kdtree_1, 
-                                         r=distance_threshold,
-                                         p=2.0)
-
-        """
-        pairs: list of lists
-        For each element positions_0[i] of this tree, pairs[i] 
-        is a list of the indices of its neighbors in positions_1.
-        """
-
-        index_map_1_get = np.vectorize(index_map_1.get)
-
-        print "Add edges to subgraph..."
-        edge_list = []
-        idx_0 = 0
-        for pair in pairs:
-            idx_1_global = index_map_1_get(pair)
-            idx_0_global = [index_map_0[idx_0]]
-            
-            edges = zip(idx_0_global * len(idx_1_global), 
-                        idx_1_global)
-
-            edges = [tuple(sorted(i)) for i in edges if (i[0] != i[1]) and (partner[i[0]]) != i[1]]
-            edge_list.extend(edges)
-            
-            idx_0 += 1
-        
-        edge_set = set(edge_list)
-        subgraph.add_edge_list(list(edge_set))
-
-        """
-        kdtree = KDTree(positions_0)
-        pairs = kdtree.query_pairs(r=distance_threshold, p=2.0, eps=0)
-
-        for edge in pairs:
-            if subgraph.get_partner(index_map_0[edge[0]]) != index_map_0[edge[1]]:
-                subgraph.add_edge(index_map_0[edge[0]], index_map_0[edge[1]])
-        """
+        subgraph_connected = connect_graph_locally(subgraph, distance_threshold, cores=True)
        
         if save_connected:
             connected_output_dir = os.path.join(output_dir, "core_graphs/connected")
@@ -354,17 +280,17 @@ class CoreSolver(object):
             if not os.path.exists(connected_output_dir):
                 os.makedirs(connected_output_dir)
 
-            g1_to_nml(subgraph, 
+            g1_to_nml(subgraph_connected, 
                       os.path.join(connected_output_dir, "core_connected_{}.nml".format(core_id)), 
                       knossos=True, 
                       voxel_size=voxel_size)
 
         print "Solve connected subgraphs..."
         if hcs:
-            subgraph.new_edge_property("weight", "int", vals=np.ones(subgraph.get_number_of_edges()))
-            ccs = subgraph.get_hcs(subgraph, remove_singletons=4)
+            subgraph_connected.new_edge_property("weight", "int", vals=np.ones(subgraph_connected.get_number_of_edges()))
+            ccs = subgraph_connected.get_hcs(subgraph_connected, remove_singletons=4)
         else:
-            ccs = subgraph.get_components(min_vertices=cc_min_vertices,
+            ccs = subgraph_connected.get_components(min_vertices=cc_min_vertices,
                                           output_folder="./ccs/",
                                           return_graphs=True)
 
@@ -439,6 +365,7 @@ class CoreSolver(object):
         else:
             min_lim = np.array([])
             max_lim = np.array([]) 
+            pdb.set_trace()
 
         index_map[-1] = -1
         index_map_get = np.vectorize(index_map.get)
@@ -482,7 +409,7 @@ class CoreSolver(object):
                 # if v_in == 2 and np.all(np.array(degrees)<=1):
                 # this leaves the option for double edges of the kind o---o
                 # New:
-                if inside and np.any(np.array(degrees) == 0) and np.all(np.array(degrees)) <= 1:
+                if inside:
                     graph.update_many({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}}, 
                                       {"$inc": {"degree": 1}, 
                                        "$set": {"id_partner_global": -1, "solved": True}},
