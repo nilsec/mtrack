@@ -56,14 +56,20 @@ class G:
         of the edge from 
         edge_index_map[e]
         """
+        # Check that vertices exist:
+        u_there = self.get_vertex(u)
+        v_there = self.get_vertex(v)
 
-        # Standard behavior is to add missing vertices!
-        # We do not want that, prone to bugs.
-        vertices_N = self.get_number_of_vertices()
-        #assert(u < vertices_N)
-        #assert(v < vertices_N)
-        
-        e = self.g.add_edge(u, v)
+        # Check that edge does not exist
+        edges = self.g.edge(u,v, all_edges=True, add_missing=False)
+        assert(len(edges) <= 1)
+
+        # Add edge if it does not exist
+        if not edges:
+            e = self.g.add_edge(u, v)
+        else:
+            e = edges[0]
+
         return e
  
     def get_vertex_index_map(self):
