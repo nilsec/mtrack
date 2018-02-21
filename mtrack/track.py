@@ -9,7 +9,6 @@ import h5py
 import os
 import multiprocessing, logging
 import sys
-import pdb
 
 def chunk_pms(volume_shape,
               max_chunk_shape,
@@ -407,19 +406,7 @@ def solve_core(core,
     cores_active.append(core.id)
     lock.release()
 
-    """
-    log_dir = os.path.join(output_dir, "logs")
-
-    sys.stdout = open(log_dir + "/c{}_pid".format(core.id) + str(os.getpid()) + ".out", 
-                      "a", 
-                      buffering=0)
-
-    sys.stderr = open(log_dir + "/c{}_pid".format(core.id) + str(os.getpid()) + "_error.out", 
-                      "a", 
-                      buffering=0)
-    """
     print "Core id {}".format(core.id)
-
     print "Process core {}...".format(core.id)
     core_finished = False
 
@@ -484,13 +471,6 @@ def solve_core(core,
                               voxel_size=voxel_size)
 
                     g1.save(os.path.join(core_graph_dir, "cc_{}.gt".format(j)))
-                    for v in solutions[j].get_vertex_iterator():
-                        deg_v = solutions[j].get_neighbour_nodes(v)
-                        if len(deg_v) > 2:
-                            lock.acquire()
-                            with open("./constraint_violation.txt", "a") as f:
-                                f.write("c"+str(core.id) + "_cc_{}".format(j))
-                            lock.release()
 
         for solution in solutions:
             solver.write_solution(solution, 
@@ -543,17 +523,21 @@ def solve_core(core,
     cores_active.remove(core.id)
     cores_finished.append(core.id)
     print "Extend queue..."
+
     for new_core in cores:
         if not (new_core.id in cores_finished):
             if not (new_core.id in cores_active):
                 if not (new_core.id in cores_pending):
                     new_core_nbs = new_core.nbs
+
                     print "new_core_id", new_core.id
                     print "nbs", new_core.nbs
                     print "active", list(cores_active)
                     print "finished", list(cores_finished)
+
                     if not (set(cores_active) & set(new_core_nbs)):
                         print "Add core {}".format(new_core.id)
+
                         core_queue.put(new_core, block=True)
                         cores_pending.append(new_core.id)
     
