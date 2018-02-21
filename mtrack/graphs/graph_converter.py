@@ -1,5 +1,4 @@
 import numpy as np
-import pdb
 from mtrack.graphs.g1_graph import G1
 from mtrack.graphs.g2_graph import G2
 
@@ -123,9 +122,6 @@ class GraphConverter:
                       "g1_vertex_center": g1_vertex_center,
                       "g1_vertex_center_inverse": g1_vertex_center_inverse}
 
-        if g2_forced:
-            if len(g2_forced) > 1:
-                pdb.set_trace()
         return g2_vertices_N, g2_center_conflicts, g2_forced, index_maps
 
     def get_partner_conflicts(self, g2, g1_vertex_center_inverse):
