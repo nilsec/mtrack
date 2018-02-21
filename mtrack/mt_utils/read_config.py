@@ -53,6 +53,7 @@ def read_config(path):
     
     # Solve
     cfg_dict["solve"] = config.getboolean("Solve", "solve")
+    cfg_dict["mp"] = config.getboolean("Solve", "mp")
     cfg_dict["cc_min_vertices"] = config.getint("Solve", "cc_min_vertices")
     cfg_dict["start_edge_prior"] = config.getfloat("Solve", "start_edge_prior")
     cfg_dict["selection_cost"] = config.getfloat("Solve", "selection_cost")

@@ -47,6 +47,7 @@ config.set('Output', 'gt', 'True')
 
 config.add_section('Solve')
 config.set('Solve', 'solve', True)
+config.set('Solve', 'mp', True)
 config.set('Solve', 'cc_min_vertices', '4')
 config.set('Solve', 'start_edge_prior', '160.0')
 config.set('Solve', 'selection_cost', '-70.0')
