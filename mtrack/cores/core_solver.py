@@ -10,8 +10,6 @@ from pymongo import MongoClient, IndexModel, ASCENDING
 from scipy.spatial import KDTree
 import itertools
 from functools import partial
-import pdb
-
 
 from mtrack.graphs import g1_graph, graph_converter,\
                    cost_converter, g2_solver
@@ -106,56 +104,7 @@ class CoreSolver(object):
                            name="core_id",
                            sparse=True)
 
-
-    def save_g1_graph(self, g1_graph, name_db, collection="graph", overwrite=False):
-        """
-        db/gt 
-        """
-        graph = self._get_client(name_db, collection, overwrite)
-
-        vertex_positions = g1_graph.get_position_array().T
-        vertex_orientations = g1_graph.get_orientation_array().T
-        partner = g1_graph.get_vertex_property("partner").a
-        edges = g1_graph.get_edge_array()
-
-        print "Insert vertices..."
-
-        index_map = {}
-        vertices = []
-        vertex_id = 0
-        for pos, ori, partner in zip(vertex_positions,
-                                     vertex_orientations,
-                                     partner):
-
-            vertex = deepcopy(self.template_vertex)
-
-            vertex["px"] = pos[0]
-            vertex["py"] = pos[1]
-            vertex["pz"] = pos[2]
-            vertex["ox"] = ori[0]
-            vertex["oy"] = ori[1]
-            vertex["oz"] = ori[2]
-            vertex["id_partner_global"] = partner
-            vertex["id_global"] = vertex_id
-        
-            id_mongo = graph.insert_one(vertex).inserted_id
-            index_map[vertex_id] = id_mongo 
-            vertex_id += 1
-
-        print "Insert edges..."
-
-        for edge_id in edges:
-            edge_mongo = [index_map[edge_id[0]], index_map[edge_id[1]]]
-            edge = deepcopy(self.template_edge)
-            
-            edge["id_v0_global"] = str(edge_id[0]) # convert uint64 to str, faster & mdb doesn't accept 64 bit int
-            edge["id_v1_global"] = str(edge_id[1])
-            edge["id_v0_mongo"] = edge_mongo[0]
-            edge["id_v1_mongo"] = edge_mongo[1]
-
-            graph.insert_one(edge)
-
-
+    
     def get_subgraph(self,
                      name_db,
                      collection,
@@ -231,25 +180,18 @@ class CoreSolver(object):
         index_map[-1] = -1
         
         if set_partner:
-            try:
-                partner = [index_map[p] for p in partner]
-                partner = np.array(partner)
-                g1.set_partner(0,0, vals=partner)
-            except KeyError:
-                pdb.set_trace()
+            partner = [index_map[p] for p in partner]
+            partner = np.array(partner)
+            g1.set_partner(0,0, vals=partner)
 
         n = 0
         for e in edges:
-            try:
-                e0 = index_map[np.uint64(e["id_v0_global"])]
-                e1 = index_map[np.uint64(e["id_v1_global"])]
-                e = g1.add_edge(e0, e1)
+            e0 = index_map[np.uint64(e["id_v0_global"])]
+            e1 = index_map[np.uint64(e["id_v1_global"])]
+            e = g1.add_edge(e0, e1)
 
-                # All edges in the db are solved edges:
-                g1.set_edge_property("force", u=0, v=0, value=True, e=e)
-            except KeyError:
-                print "Edge Key Error..."
-                pdb.set_trace()
+            # All edges in the db are solved edges:
+            g1.set_edge_property("force", u=0, v=0, value=True, e=e)
 
         return g1, index_map_inv
 
@@ -287,18 +229,23 @@ class CoreSolver(object):
 
         print "Solve connected subgraphs..."
         if hcs:
-            subgraph_connected.new_edge_property("weight", "int", vals=np.ones(subgraph_connected.get_number_of_edges()))
-            ccs = subgraph_connected.get_hcs(subgraph_connected, remove_singletons=4)
+            subgraph_connected.new_edge_property("weight", 
+                                                 "int", 
+                                                 vals=np.ones(
+                                                    subgraph_connected.get_number_of_edges()
+                                                             )
+                                                 )
+
+            ccs = subgraph_connected.get_hcs(subgraph_connected, 
+                                             remove_singletons=4)
         else:
             ccs = subgraph_connected.get_components(min_vertices=cc_min_vertices,
-                                          output_folder="./ccs/",
-                                          return_graphs=True)
+                                                    output_folder="./ccs/",
+                                                    return_graphs=True)
 
         j = 0
         solutions = []
         for cc in ccs:
-            #cc.g.purge_vertices()
-            #cc.g.purge_edges()
             cc.g.reindex_edges()
             cc_solution = solve(cc,
                                 start_edge_prior,
@@ -365,7 +312,6 @@ class CoreSolver(object):
         else:
             min_lim = np.array([])
             max_lim = np.array([]) 
-            pdb.set_trace()
 
         index_map[-1] = -1
         index_map_get = np.vectorize(index_map.get)
@@ -377,21 +323,17 @@ class CoreSolver(object):
             for edge_id in edges_global:
                 edge = deepcopy(self.template_edge)
             
-                edge["id_v0_global"] = str(edge_id[0][0]) # convert uint64 to str, faster & mdb doesn't accept 64 bit int
+                edge["id_v0_global"] = str(edge_id[0][0])
                 edge["id_v1_global"] = str(edge_id[1][0])
                 edge["id_v0_mongo"] = edge_id[0][1]
                 edge["id_v1_mongo"] = edge_id[1][1]
-
-                
             
                 # Check if edge lies in limits
                 vedges = graph.find({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}})
-                degrees = []
                 edge_pos = np.array([0.,0.,0.])
                 inside = False
                 for v in vedges:
                     edge_pos += np.array([v["px"], v["py"], v["pz"]])
-                    degrees.append(v["degree"])
 
                 if x_lim is not None:
                     edge_pos /= 2.
@@ -400,15 +342,6 @@ class CoreSolver(object):
                 else:
                     inside = True
                 
-                # Check if edge already exists (can happen if cores overlap)
-                # We check that by checking the vertex degrees of the 
-                # vertices of the edge. If one of them has degree == 2
-                # the edge has to exist already because the database only holds
-                # solved, correct edges thus all entities are paths.
-                # Old:
-                # if v_in == 2 and np.all(np.array(degrees)<=1):
-                # this leaves the option for double edges of the kind o---o
-                # New:
                 if inside:
                     graph.update_many({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}}, 
                                       {"$inc": {"degree": 1}, 
@@ -473,14 +406,11 @@ class CoreSolver(object):
 
         print "Write candidate vertices..."
                 
-        #vertex_id = id_offset
         for candidate in candidates:
             pos_phys = np.array([candidate.position[j] * voxel_size[j] for j in range(3)])
             ori_phys = np.array([candidate.orientation[j] * voxel_size[j] for j in range(3)])
             partner = candidate.partner_identifier
             vertex_id = candidate.identifier
-            print "vertex_id", vertex_id
-            print "partner_id", partner
            
             if partner != (-1): 
                 assert(abs(vertex_id - partner) <= 1)
@@ -498,6 +428,5 @@ class CoreSolver(object):
             vertex["degree"] = 0
         
             id_mongo = graph.insert_one(vertex).inserted_id
-            #vertex_id += 1
 
         return vertex_id
