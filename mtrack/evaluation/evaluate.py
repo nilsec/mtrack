@@ -15,27 +15,24 @@ def evaluate(tracing_file,
              edge_selection_cost,
              pair_cost_factor,
              max_edges,
-             voxel_size=[5.,5.,50.],
+             voxel_size,
+             output_dir,
              tracing_line_paths=None,
              rec_line_paths=None,
              time_limit=None):
 
-    line_base_dir = None
-    if solution_file[-1] == "/":
-        line_base_dir = os.path.dirname(solution_file[:-1]) + "/lines"
-    else:
-        line_base_dir = os.path.dirname(solution_file) + "/lines"
-
     
     if tracing_line_paths is None:    
-        tracing_line_paths = get_lines(tracing_file, 
-                              line_base_dir + "/tracing/", 
-                              nml=True)
+        tracing_line_paths = get_lines(volume=tracing_file, 
+                                       output_dir=output_dir + "/lines/tracing/", 
+                                       voxel_size=voxel_size,
+                                       nml=True)
 
     if rec_line_paths is None:
-        rec_line_paths = get_lines(solution_file, 
-                          line_base_dir + "/reconstruction/",
-                          nml=True)
+        rec_line_paths = get_lines(volume=solution_file, 
+                                   output_dir=output_dir + "/lines/reconstruction/",
+                                   voxel_size=voxel_size,
+                                   nml=True)
 
     rec_lines, tracing_lines = interpolate_lines(rec_line_paths, tracing_line_paths)
 
@@ -50,7 +47,8 @@ def evaluate(tracing_file,
     
     print "LOGLEVEL:", pylp.getLogLevel()
 
-
     solution = matcher.solve(time_limit=time_limit)
-    matcher.evaluate_solution(solution, tracing_line_paths, rec_line_paths, 
-                                        os.path.dirname(line_base_dir) + "/evaluation")
+    matcher.evaluate_solution(solution, 
+                              tracing_line_paths, 
+                              rec_line_paths, 
+                              output_dir + "/evaluation")

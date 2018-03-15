@@ -7,6 +7,18 @@ def read_config(path):
 
     cfg_dict = {}
 
+    # Evaluate
+    cfg_dict["evaluate"] = config.getboolean("Evaluate", "evaluate")
+    cfg_dict["tracing_file"] = config.get("Evaluate", "tracing_file")
+    cfg_dict["eval_chunk_size"] = config.getint("Evaluate", "eval_chunk_size")
+    cfg_dict["eval_distance_tolerance"] = config.getfloat("Evaluate", "eval_distance_tolerance")
+    cfg_dict["eval_dummy_cost"] = config.getint("Evaluate", "eval_dummy_cost")
+    cfg_dict["eval_edge_selection_cost"] = config.getfloat("Evaluate", "eval_edge_selection_cost")
+    cfg_dict["eval_pair_cost_factor"] = config.getfloat("Evaluate", "eval_pair_cost_factor")
+    cfg_dict["max_edges"] = config.getint("Evaluate", "max_edges")
+    cfg_dict["eval_time_limit"] = config.getint("Evaluate", "eval_time_limit") 
+    
+
     # Ilastik
     cfg_dict["extract_prob_maps"] = config.getboolean("Ilastik", "extract_prob_maps")
     cfg_dict["pm_output_dir_perp"] = config.get("Ilastik", "pm_output_dir_perp")
@@ -74,7 +86,7 @@ def read_config(path):
     cfg_dict["get_hcs"] = config.getboolean("Solve", "get_hcs")
 
     # Cluster
-    cfg_dict["cluster"] = True
+    cfg_dict["cluster"] = config.getboolean("Cluster", "cluster")
     cfg_dict["cluster_output_dir"] = config.get("Cluster", "cluster_output_dir")
     cfg_dict["epsilon_lines"] = config.getint("Cluster", "epsilon_lines")
     cfg_dict["epsilon_volumes"] = config.getint("Cluster", "epsilon_volumes")

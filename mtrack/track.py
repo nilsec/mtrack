@@ -2,6 +2,7 @@ from mtrack.cores import CoreSolver, CoreBuilder, CoreScheduler, ExceptionWrappe
 from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker, slices_to_chunks, get_prob_map_ilastik
 from mtrack.mt_utils import read_config, check_overlap
 from mtrack.postprocessing import skeletonize
+from mtrack.evaluation import evaluate
 from solve import solve
 
 import numpy as np
@@ -592,6 +593,48 @@ def clean_up(name_db,
                       knossos=True,
                       voxel_size=voxel_size)
 
+def evaluate_roi(name_db,
+                 collection,
+                 x_lim,
+                 y_lim,
+                 z_lim,
+                 tracing_file,
+                 chunk_size,
+                 distance_tolerance,
+                 dummy_cost,
+                 edge_selection_cost,
+                 pair_cost_factor,
+                 max_edges,
+                 voxel_size,
+                 time_limit,
+                 output_dir):
+
+    solver = CoreSolver()
+
+    vertices, edges = solver.get_subgraph(name_db,
+                                          collection,
+                                          x_lim=x_lim,
+                                          y_lim=y_lim,
+                                          z_lim=z_lim)
+
+    g1, index_map = solver.subgraph_to_g1(vertices,
+                                          edges,
+                                          set_partner=False)
+
+    evaluate(tracing_file=tracing_file,
+             solution_file=g1,
+             chunk_size=chunk_size,
+             distance_tolerance=distance_tolerance,
+             dummy_cost=dummy_cost,
+             edge_selection_cost=edge_selection_cost,
+             pair_cost_factor=pair_cost_factor,
+             max_edges=max_edges,
+             voxel_size=voxel_size,
+             output_dir=output_dir,
+             time_limit=time_limit,
+             tracing_line_paths=None,
+             rec_line_paths=None)
+
 
 def track(config_path):
     config = read_config(config_path)
@@ -790,6 +833,9 @@ def track(config_path):
                    use_ori=config["use_ori"])
 
     else:
+        """
+        Use vanilla solver w.o. cores.
+        """
         if config["solve"]:
             if config["prob_map_chunks_perp_dir"] == "None":
                 """
@@ -882,9 +928,9 @@ def track(config_path):
                 candidates += solver.get_candidates(prob_map_stack_chunk=pm_stack_chunk,
                                                     offset_chunk=offset_chunk,
                                                     gs=DirectionType(config["gaussian_sigma_perp"],
-                                                                         config["gaussian_sigma_par"]),
+                                                                     config["gaussian_sigma_par"]),
                                                     ps=DirectionType(config["point_threshold_perp"],
-                                                                         config["point_threshold_par"]),
+                                                                     config["point_threshold_par"]),
                                                     voxel_size=config["voxel_size"],
                                                     id_offset=len(candidates))
 
@@ -910,6 +956,24 @@ def track(config_path):
             solver.save_solutions(solutions=cc_solutions,
                                   voxel_size=config["voxel_size"],
                                   output_dir=config["output_dir"])
+
+    if config["evaluate"]:
+        evaluate_roi(name_db=config["db_name"],
+                     collection="microtubules",
+                     x_lim=x_lim_roi,
+                     y_lim=y_lim_roi,
+                     z_lim=z_lim_roi,
+                     tracing_file=config["tracing_file"],
+                     chunk_size=config["eval_chunk_size"],
+                     distance_tolerance=config["eval_distance_tolerance"],
+                     dummy_cost=config["eval_dummy_cost"],
+                     edge_selection_cost=config["eval_edge_selection_cost"],
+                     pair_cost_factor=config["eval_pair_cost_factor"],
+                     max_edges=config["max_edges"],
+                     voxel_size=config["voxel_size"],
+                     output_dir=config["output_dir"],
+                     time_limit=config["eval_time_limit"])
+ 
                 
 if __name__ == "__main__":
     track("../config.ini")
