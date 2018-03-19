@@ -113,9 +113,11 @@ def get_binary_stack(prob_map_stack_file,
             print "Combine slice {}".format(j)
             j += 1
 
+            # 5,5 neighborhood for parallel binary closing:
             s_closing = np.ones((5,5))
             binary_image.par = ndimage.binary_closing(binary_image.par, s_closing).astype(int)
            
+            # Exyracy connected components from parallel binary image
             s_label = ndimage.generate_binary_structure(2,2) 
             cc_par, n_features_par = ndimage.label(np.array(binary_image.par, dtype=np.uint32), 
                                                    structure=s_label) 
