@@ -640,9 +640,21 @@ def track(config_path):
     config = read_config(config_path)
     roi = [config["roi_x"], config["roi_y"], config["roi_z"]]
 
+    roi_volume_size = np.array([r[1] - r[0] for r in roi]) * config["voxel_size"]
+    roi_offset = np.array([r[0] for r in roi]) * config["voxel_size"]
+
+    x_lim_roi = {"min": roi_offset[0],
+                 "max": roi_offset[0] + roi_volume_size[0]}
+
+    y_lim_roi = {"min": roi_offset[1],
+                 "max": roi_offset[1] + roi_volume_size[1]}
+
+    z_lim_roi = {"min": roi_offset[2],
+                 "max": roi_offset[2] + roi_volume_size[2]}
+
     if config["extract_prob_maps"]:
         """
-        Extract probability map via elastic classifier from specified input dir and ilastik project.
+        Extract probability map via Ilastic classifier from specified input dir and ilastik project.
         """
         get_prob_map_ilastik(config["image_dir"],
                              config["pm_output_dir_perp"],
@@ -696,11 +708,6 @@ def track(config_path):
                               for f in os.listdir(config["prob_map_chunks_par_dir"]) if f.endswith(".h5")]
 
                 """
-                Check which Chunks hold the ROI.
-                """
-                
-
-                """
                 Extract id, and volume information from chunks
                 and compare with ROI
                 """
@@ -721,7 +728,7 @@ def track(config_path):
                     assert(attrs_perp[0][1] == attrs_par[0][1])
          
                     """
-                    We want to process those changes where all chunk
+                    We want to process those chunks where all chunk
                     limits overlap with the ROI
                     """
                     chunk_limit = attrs_perp[1][1]
@@ -753,23 +760,11 @@ def track(config_path):
                                   voxel_size=config["voxel_size"],
                                   overwrite=config["overwrite_candidates"])
 
-            # Update roi volume size:
-            roi_volume_size = np.array([r[1] - r[0] for r in roi]) * config["voxel_size"]
-            roi_offset = np.array([r[0] for r in roi]) * config["voxel_size"]
-
             """
             Solve the ROI and write to specified database. The result
             is written out depending on the options in the Output section
             of the config file. The collection defaults to /microtubules/.
             """
-
-            x_lim_roi = {"min": roi_offset[0],
-                         "max": roi_offset[0] + roi_volume_size[0]}
-            y_lim_roi = {"min": roi_offset[1],
-                         "max": roi_offset[1] + roi_volume_size[1]}
-            z_lim_roi = {"min": roi_offset[2],
-                         "max": roi_offset[2] + roi_volume_size[2]}
-
 
             solve_candidate_volume(name_db=config["db_name"],
                                    collection="candidates",
@@ -834,7 +829,8 @@ def track(config_path):
 
     else:
         """
-        Use vanilla solver w.o. cores.
+        Use vanilla solver w.o. cores. I.e. the whole ROI is solved as one chunk.
+        Only for small ROIs and sanity check.
         """
         if config["solve"]:
             if config["prob_map_chunks_perp_dir"] == "None":
