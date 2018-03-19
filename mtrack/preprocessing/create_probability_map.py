@@ -61,7 +61,12 @@ def from_h5_to_h5stack(input_directory, output_file):
     f.close()
     
 
-def get_prob_map_ilastik(input_directory, output_directory, ilastik_source_directory, ilastik_project, verbose=False):
+def get_prob_map_ilastik(input_directory, 
+                         output_directory, 
+                         ilastik_source_directory, 
+                         ilastik_project, 
+                         verbose=False,
+                         file_extension='.png'):
 
     assert(os.path.exists(input_directory))
     
@@ -79,8 +84,7 @@ def get_prob_map_ilastik(input_directory, output_directory, ilastik_source_direc
     except:
         pass
 
-    input_files = glob.glob(input_directory + '*.png')
-    
+    input_files = glob.glob(input_directory + '*' + file_extension)
     #Get Probability map:
     cmd = ilastik_source_directory + "/run_ilastik.sh --headless --project=" + ilastik_project + " "
     
