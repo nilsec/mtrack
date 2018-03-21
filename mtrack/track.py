@@ -1,5 +1,5 @@
 from mtrack.cores import CoreSolver, CoreBuilder, CoreScheduler, ExceptionWrapper, VanillaSolver
-from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker, slices_to_chunks, get_prob_map_ilastik
+from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker, slices_to_chunks, stack_to_chunks, get_prob_map_ilastik
 from mtrack.mt_utils import read_config, check_overlap
 from mtrack.postprocessing import skeletonize
 from mtrack.evaluation import evaluate
@@ -16,8 +16,8 @@ def chunk_pms(volume_shape,
               max_chunk_shape,
               voxel_size,
               overlap,
-              prob_map_perp_dir,
-              prob_map_par_dir,
+              perp_stack_h5,
+              par_stack_h5,
               output_dir):
 
     dir_perp = os.path.join(output_dir, "perp")
@@ -35,13 +35,13 @@ def chunk_pms(volume_shape,
                       overlap)
 
     chunks = chunker.chunk()
-    slices_to_chunks(prob_map_perp_dir,
-                     dir_perp,
-                     chunks)
-
-    slices_to_chunks(prob_map_par_dir,
-                     dir_par,
-                     chunks)
+    
+    stack_to_chunks(input_stack=perp_stack_h5,
+                    output_dir=dir_perp,
+                    chunks=chunks)
+    stack_to_chunks(input_stack=par_stack_h5,
+                    output_dir=dir_par,
+                    chunks=chunks)
 
     return dir_perp, dir_par
 
@@ -652,23 +652,30 @@ def track(config_path):
     z_lim_roi = {"min": roi_offset[2],
                  "max": roi_offset[2] + roi_volume_size[2]}
 
-    if config["extract_prob_maps"]:
-        """
-        Extract probability map via Ilastic classifier from specified input dir and ilastik project.
-        """
-        get_prob_map_ilastik(config["image_dir"],
-                             config["pm_output_dir_perp"],
-                             config["ilastik_source_dir"],
-                             config["ilastik_project_perp"],
+    """
+    Extract probability map via Ilastik classifier from specified input dir and ilastik project.
+    """
+    if config["extract_perp"]:
+        get_prob_map_ilastik(input_directory=config["image_dir"],
+                             output_directory=config["pm_output_dir_perp"],
+                             ilastik_source_directory=config["ilastik_source_dir"],
+                             ilastik_project=config["ilastik_project_perp"],
                              verbose=True,
-                             file_extension=config["file_extension"])
+                             file_extension=config["file_extension"],
+                             h5_input_path=config["h5_input_path"])
+
+        cfg["prob_maps_perp_dir"] = cfg["pm_output_dir_perp"]
+
+    if config["extract_par"]: 
+        get_prob_map_ilastik(input_directory=config["image_dir"],
+                             output_directory=config["pm_output_dir_par"],
+                             ilastik_source_directory=config["ilastik_source_dir"],
+                             ilastik_project=config["ilastik_project_par"],
+                             verbose=True,
+                             file_extension=config["file_extension"],
+                             h5_input_path=config["h5_input_path"])
         
-        get_prob_map_ilastik(config["image_dir"],
-                             config["pm_output_dir_par"],
-                             config["ilastik_source_dir"],
-                             config["ilastik_project_par"],
-                             verbose=True,
-                             file_extension=config["file_extension"])
+        cfg["prob_maps_par_dir"] = cfg["pm_output_dir_par"]
 
     if config["core_wise"]:
         if config["solve"]:
@@ -690,8 +697,8 @@ def track(config_path):
                                                   max_chunk_shape=config["max_chunk_shape"],
                                                   voxel_size=config["voxel_size"],
                                                   overlap=config["chunk_overlap"],
-                                                  prob_map_perp_dir=config["prob_maps_perp_dir"],
-                                                  prob_map_par_dir=config["prob_maps_par_dir"],
+                                                  perp_stack_h5=config["perp_stack_h5"],
+                                                  par_stack_h5=config["par_stack_h5"],
                                                   output_dir=config["chunk_output_dir"])
 
                     """
@@ -843,8 +850,8 @@ def track(config_path):
                                               max_chunk_shape=config["max_chunk_shape"],
                                               voxel_size=config["voxel_size"],
                                               overlap=config["chunk_overlap"],
-                                              prob_map_perp_dir=config["prob_maps_perp_dir"],
-                                              prob_map_par_dir=config["prob_maps_par_dir"],
+                                              perp_stack_h5=config["perp_stack_h5"],
+                                              par_stack_h5=config["par_stack_h5"],
                                               output_dir=config["chunk_output_dir"])
 
                 """

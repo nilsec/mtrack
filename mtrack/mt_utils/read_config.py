@@ -20,7 +20,8 @@ def read_config(path):
     
 
     # Ilastik
-    cfg_dict["extract_prob_maps"] = config.getboolean("Ilastik", "extract_prob_maps")
+    cfg_dict["extract_perp"] = config.getboolean("Ilastik", "extract_perp")
+    cfg_dict["extract_par"] = config.getboolean("Ilastik", "extract_par")
     cfg_dict["pm_output_dir_perp"] = config.get("Ilastik", "pm_output_dir_perp")
     cfg_dict["pm_output_dir_par"] = config.get("Ilastik", "pm_output_dir_par")
     cfg_dict["ilastik_source_dir"] = config.get("Ilastik", "ilastik_source_dir")
@@ -28,12 +29,13 @@ def read_config(path):
     cfg_dict["ilastik_project_par"] = config.get("Ilastik", "ilastik_project_par")
     cfg_dict["image_dir"] = config.get("Ilastik", "image_dir")
     cfg_dict["file_extension"] = config.get("Ilastik", "file_extension")
+    cfg_dict["h5_input_path"] = config.get("Ilastik", "h5_input_path")
 
     # Data
     cfg_dict["prob_map_chunks_perp_dir"] = config.get("Data", "prob_map_chunks_perp_dir")
     cfg_dict["prob_map_chunks_par_dir"] = config.get("Data", "prob_map_chunks_par_dir")
-    cfg_dict["prob_maps_perp_dir"] = config.get("Data", "prob_maps_perp_dir")
-    cfg_dict["prob_maps_par_dir"] = config.get("Data", "prob_maps_par_dir")
+    cfg_dict["perp_stack_h5"] = config.get("Data", "perp_stack_h5")
+    cfg_dict["par_stack_h5"] = config.get("Data", "par_stack_h5")
     cfg_dict["db_name"] = config.get("Data", "db_name")
     cfg_dict["overwrite_candidates"] = config.getboolean("Data", "overwrite_candidates")
     cfg_dict["extract_candidates"] = config.getboolean("Data", "extract_candidates")
