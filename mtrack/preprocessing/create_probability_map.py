@@ -2,15 +2,57 @@ import os
 import glob
 import h5py
 import numpy as np
+import pdb
+
+def ilastik_get_prob_map(raw,
+                         output_dir,
+                         ilastik_source_dir,
+                         ilastik_project,
+                         file_extension,
+                         h5_dset=None):
+
+    h5_extensions = [".h5", ".hdf5", ".hdf"]
+    other_extensions = [".png", ".tiff", ".tif"]
+
+    allowed_extensions = h5_extensions + other_extensions
+    assert(file_extension in allowed_extensions)
+
+    if os.path.isdir(raw):
+        stack_path = ilastik_prob_map_from_zslices(raw,
+                                                   output_dir,
+                                                   ilastik_source_dir,
+                                                   ilastik_project,
+                                                   file_extension)
+
+    elif os.path.isfile(raw):
+        assert(h5_dset is not None)
+
+        is_h5 = np.any([raw.endswith(ext) for ext in h5_extensions])
+        assert(is_h5)
+
+        stack_path = ilastik_prob_map_from_h5stack(raw,
+                                                   h5_dset,
+                                                   output_dir,
+                                                   ilastik_source_dir,
+                                                   ilastik_project)
+
+    return stack_path
 
 
 def stack_to_chunks(input_stack, output_dir, chunks):
+    """
+    Chunk probability map h5 stack according to a list
+    of chunk objects. See mtrack/preprocessing/chunker.py
+    The input stack is expected to have 3 dimensions ordered 
+    according to z,y,x convention.
+    """
+
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-
     f0 = h5py.File(input_stack)
     data = f0["exported_data"]
+    assert(len(data.shape) == 3)
  
     for chunk in chunks:
         limits = chunk.limits
@@ -25,115 +67,137 @@ def stack_to_chunks(input_stack, output_dir, chunks):
         f.close()
     f0.close()
  
-def slices_to_chunks(input_dir, output_dir, chunks):
+
+def ilastik_prob_map_from_zslices(input_dir,
+                                  output_dir, 
+                                  ilastik_source_dir, 
+                                  ilastik_project, 
+                                  file_extension='.png'):
     """
-    The input dir should contain the probability
-    maps of the volume z-slice wise in h5 format.
-    This function produces h5 files of chunk sizes
-    corresponding to the given chunk list.
+    The input dir should contain z-wise slices of the raw data
+    with the file extension specified. This can be for example
+    png or tiff. The resulting h5 prob map stack will be 
+    3 dimensional in (z,y,x) convention consistent with the
+    output of ilastik_prob_map_from_h5stack.
     """
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    z_slices = glob.glob(input_dir + '/*.h5')
-    z_slices.sort()
-
-    f0 = h5py.File(z_slices[0])
-    s0 = f0["exported_data"].value
-    f0.close()
- 
-    for chunk in chunks:
-        limits = chunk.limits
-        slices = z_slices[limits[2][0]:limits[2][1]]
- 
-        h5_chunk = np.zeros(chunk.shape, dtype=s0.dtype)
-
-        z = 0
-        for z_slice in slices:
-            f = h5py.File(z_slice)
-            data = f["exported_data"].value
-            f.close()
-            
-            h5_chunk[z,:,:] = data[limits[0][0]:limits[0][1], limits[1][0]:limits[1][1], 0]
-            z += 1
-        
-        f = h5py.File(output_dir + "/chunk_{}.h5".format(chunk.id), 'w')
-        f.create_dataset("exported_data", data=h5_chunk)
-        f["exported_data"].attrs.create("chunk_id", chunk.id)
-        f["exported_data"].attrs.create("limits", limits)
-        f.close()
-
-def from_h5_to_h5stack(input_directory, output_file):
-    input_files = glob.glob(input_directory + '/*.h5')
-    input_files.sort()
-
-    if len(input_files) == 1:
-        os.rename(input_files[0], output_file)
     
-    else:
-        for n, input_file in enumerate(input_files):
-            f = h5py.File(input_file)
-            data = f['exported_data'].value
-            f.close()
-                
-            if n == 0:
-                h5stack = np.zeros((len(input_files), data.shape[1], data.shape[0]), dtype=data.dtype)
+    output_stack_dir = output_dir + '/stack'
+    if not os.path.exists(output_stack_dir):
+        os.makedirs(output_stack_dir)
 
-            h5stack[n, :, :] = data[:, :, 0]
-        
-        f = h5py.File(output_file, 'w')
-        f.create_dataset('exported_data', data=h5stack)
-        f.close()
-        
-
-def get_prob_map_ilastik(output_directory, 
-                         ilastik_source_directory, 
-                         ilastik_project, 
-                         input_directory=None,
-                         file_extension='.hdf5',
-                         h5_input_path=None,
-                         verbose=False):
-
-    if h5_input_path == "None":
-        """
-        Config reader workaround
-        """
-        h5_input_path = None
-
-    assert(not (h5_input_path is None) or not (input_directory is None))
-    
-    if verbose:
-        print "\nCreate Ilastik probability map...\n" 
-        print "Input Data: " + input_directory + "\n"
-        print "Ilastik Project: " + ilastik_project + "\n"
-        print "Ilastik Source: " + ilastik_source_directory + "\n\n\n"
-            
-
-    output_path = output_directory + '/stack'
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
-    """
-    if h5_input_path is None:
-        input_files = glob.glob(input_directory + '*' + file_extension)
-    else:
-        input_files = [h5_input_path]
-    #Get Probability map:
-    cmd = ilastik_source_directory + "/run_ilastik.sh --headless --project=" + ilastik_project + " "
+    input_files = glob.glob(input_dir + '/*' + file_extension)
+    cmd = ilastik_source_dir + "/run_ilastik.sh --headless --project=" + ilastik_project + " "
     
     for input_file in input_files:
         cmd += input_file + " "
 
-    cmd += " --output_filename_format=" + output_directory + "/{nickname}.h5"
+    pdb.set_trace()
+    cmd += " --output_filename_format=" + output_dir + "/{nickname}.h5"
     os.system(cmd)
-    """
-    #Write h5 stack:
-    print output_directory
-    output_stack = output_path + "/stack.h5"
-    from_h5_to_h5stack(output_directory, output_stack)
-
-    if verbose:
-        print "Ilastik probability map written to " + output_stack
     
+    #Write h5 stack:
+    output_stack = output_stack_dir + "/stack.h5"
+    from_h5_to_h5stack(output_dir, output_stack)
+
     return output_stack
+
+
+def ilastik_prob_map_from_h5stack(h5stack,
+                                  h5_dset,
+                                  output_dir,
+                                  ilastik_source_dir,
+                                  ilastik_project):
+
+    """
+    This function generates a probability map h5 stack
+    from a 3D input volume given as an h5 stack.
+    The raw data dimensions are expected to follow a dimensional
+    ordering of z,y,x
+    
+    Ilastik somehow adds a 4th dimension to a 3D dataset if 
+    its processing a h5 stack. Cannot find this behavior documented.
+    This function implements a workaround by cutting of the extra 
+    dimension and saving the resulting dset in a corrected h5 stack.
+    """
+   
+    output_dir += "/stack"
+
+    f_in = h5py.File(h5stack)
+    dset = f_in[h5_dset]
+    input_shape = dset.shape
+    f_in.close()
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    cmd = ilastik_source_dir + "/run_ilastik.sh --headless --project=" + ilastik_project + " "
+    cmd += h5stack
+    cmd += h5_dset
+    cmd += " --output_filename_format=" + output_dir + "/{nickname}.hdf5"
+
+    os.system(cmd)
+    
+    output_stack = os.path.join(output_dir, os.path.basename(h5stack))
+    f_out = h5py.File(output_stack, "r")
+    # exported_data is the dset naming convention by ilastik
+    dset = f_out["exported_data"]
+    output_shape = dset.shape
+
+    assert(np.all(np.array(input_shape) == np.array(output_shape)[:-1]))
+    output_stack_corrected = output_stack.replace(".hdf5","_corrected.hdf5") 
+    f_out_corrected = h5py.File(output_stack_corrected, "w")
+    f_out_corrected.create_dataset("exported_data", data=dset[:,:,:,0])
+    f_out.close()
+    f_out_corrected.close()
+
+    # Clean up
+    os.remove(output_stack)
+
+    return output_stack_corrected
+
+
+def from_h5_to_h5stack(input_dir, output_file):
+    """
+    Take a collection of h5 z-slices and stack them
+    along the z dimensions. The resulting dataset
+    is ordered according to z,y,x convention.
+    """
+    input_files = glob.glob(input_dir + '/*.h5')
+    input_files.sort()
+
+    for n, input_file in enumerate(input_files):
+        f = h5py.File(input_file)
+        data = f['exported_data'].value
+        f.close()
+            
+        if n == 0:
+            h5stack = np.zeros((len(input_files), data.shape[1], data.shape[0]), dtype=data.dtype)
+
+        h5stack[n, :, :] = data[:, :, 0]
+    
+    f = h5py.File(output_file, 'w')
+    f.create_dataset('exported_data', data=h5stack)
+    f.close()
+
+
+if __name__ == "__main__":
+    base_path = "/media/nilsec/d0/gt_mt_data/data_cremi/MTTest_CremiTraining_Aligned"
+    output_dir = "/media/nilsec/d0/gt_mt_data/probability_maps/cremi/sampleA_aligned"
+    h5_dset = "/volumes/raw"
+    """
+    ilastik_get_prob_map(base_path + "/sample_A.augmented.0.hdf5",
+                         output_dir,
+                         ilastik_source_dir="/usr/local/src/ilastik-1.2.0rc10-Linux",
+                         ilastik_project="/media/nilsec/d0/gt_mt_data/data_cremi/ilastik/perp.ilp",
+                         file_extension=".hdf5",
+                         h5_dset=h5_dset)
+    """
+
+    raw = "/media/nilsec/d0/gt_mt_data/data/Validation/raw_0_250"
+    output_dir = "/media/nilsec/d0/gt_mt_data/data/probability_maps/l3_val_0_250_test"
+    ilastik_get_prob_map(raw,
+                         output_dir,
+                         ilastik_source_dir="/usr/local/src/ilastik-1.2.0rc10-Linux",
+                         ilastik_project="/media/nilsec/d0/gt_mt_data/ilastik/perpendicular.ilp",
+                         file_extension=".png",
+                         h5_dset=None) 
