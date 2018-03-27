@@ -17,7 +17,7 @@ from mtrack.graphs import g1_graph, graph_converter,\
 from mtrack.preprocessing import g1_to_nml, extract_candidates,\
                           DirectionType, candidates_to_g1,\
                           connect_graph_locally, Chunker,\
-                          slices_to_chunks, Chunk
+                          Chunk
 
 from mtrack.postprocessing import combine_knossos_solutions,\
                            combine_gt_solutions

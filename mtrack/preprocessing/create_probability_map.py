@@ -9,7 +9,8 @@ def ilastik_get_prob_map(raw,
                          ilastik_source_dir,
                          ilastik_project,
                          file_extension,
-                         h5_dset=None):
+                         h5_dset=None,
+                         label=0):
 
     h5_extensions = [".h5", ".hdf5", ".hdf"]
     other_extensions = [".png", ".tiff", ".tif"]
@@ -22,7 +23,8 @@ def ilastik_get_prob_map(raw,
                                                    output_dir,
                                                    ilastik_source_dir,
                                                    ilastik_project,
-                                                   file_extension)
+                                                   file_extension,
+                                                   label)
 
     elif os.path.isfile(raw):
         assert(h5_dset is not None)
@@ -34,7 +36,8 @@ def ilastik_get_prob_map(raw,
                                                    h5_dset,
                                                    output_dir,
                                                    ilastik_source_dir,
-                                                   ilastik_project)
+                                                   ilastik_project,
+                                                   label)
 
     return stack_path
 
@@ -72,7 +75,8 @@ def ilastik_prob_map_from_zslices(input_dir,
                                   output_dir, 
                                   ilastik_source_dir, 
                                   ilastik_project, 
-                                  file_extension='.png'):
+                                  file_extension='.png',
+                                  label=0):
     """
     The input dir should contain z-wise slices of the raw data
     with the file extension specified. This can be for example
@@ -97,7 +101,7 @@ def ilastik_prob_map_from_zslices(input_dir,
     
     #Write h5 stack:
     output_stack = output_stack_dir + "/stack.h5"
-    from_h5_to_h5stack(output_dir, output_stack)
+    from_h5_to_h5stack(output_dir, output_stack, label)
 
     return output_stack
 
@@ -106,7 +110,8 @@ def ilastik_prob_map_from_h5stack(h5stack,
                                   h5_dset,
                                   output_dir,
                                   ilastik_source_dir,
-                                  ilastik_project):
+                                  ilastik_project,
+                                  label=0):
 
     """
     This function generates a probability map h5 stack
@@ -114,10 +119,9 @@ def ilastik_prob_map_from_h5stack(h5stack,
     The raw data dimensions are expected to follow a dimensional
     ordering of z,y,x
     
-    Ilastik somehow adds a 4th dimension to a 3D dataset if 
-    its processing a h5 stack. Cannot find this behavior documented.
-    This function implements a workaround by cutting of the extra 
-    dimension and saving the resulting dset in a corrected h5 stack.
+    Ilastik adds a 4th dimension to a 3D dataset indicating the labels. 
+    This function grabs only the label indicated and 
+    returns a 3D array consisting of prob(x=label).
     """
    
     output_dir += "/stack"
@@ -146,7 +150,7 @@ def ilastik_prob_map_from_h5stack(h5stack,
     assert(np.all(np.array(input_shape) == np.array(output_shape)[:-1]))
     output_stack_corrected = output_stack.replace(".hdf5","_corrected.hdf5") 
     f_out_corrected = h5py.File(output_stack_corrected, "w")
-    f_out_corrected.create_dataset("exported_data", data=dset[:,:,:,0])
+    f_out_corrected.create_dataset("exported_data", data=dset[:,:,:,label])
     f_out.close()
     f_out_corrected.close()
 
@@ -156,7 +160,7 @@ def ilastik_prob_map_from_h5stack(h5stack,
     return output_stack_corrected
 
 
-def from_h5_to_h5stack(input_dir, output_file):
+def from_h5_to_h5stack(input_dir, output_file, label=0):
     """
     Take a collection of h5 z-slices and stack them
     along the z dimensions. The resulting dataset
@@ -173,7 +177,7 @@ def from_h5_to_h5stack(input_dir, output_file):
         if n == 0:
             h5stack = np.zeros((len(input_files), data.shape[1], data.shape[0]), dtype=data.dtype)
 
-        h5stack[n, :, :] = data[:, :, 0]
+        h5stack[n, :, :] = data[:, :, label]
     
     f = h5py.File(output_file, 'w')
     f.create_dataset('exported_data', data=h5stack)

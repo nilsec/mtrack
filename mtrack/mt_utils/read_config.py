@@ -27,9 +27,10 @@ def read_config(path):
     cfg_dict["ilastik_source_dir"] = config.get("Ilastik", "ilastik_source_dir")
     cfg_dict["ilastik_project_perp"] = config.get("Ilastik", "ilastik_project_perp")
     cfg_dict["ilastik_project_par"] = config.get("Ilastik", "ilastik_project_par")
-    cfg_dict["image_dir"] = config.get("Ilastik", "image_dir")
+    cfg_dict["raw"] = config.get("Ilastik", "raw")
     cfg_dict["file_extension"] = config.get("Ilastik", "file_extension")
-    cfg_dict["h5_input_path"] = config.get("Ilastik", "h5_input_path")
+    cfg_dict["h5_dset"] = config.get("Ilastik", "h5_dset")
+    cfg_dict["label"] = config.getint("Ilastik", "label")
 
     # Data
     cfg_dict["prob_map_chunks_perp_dir"] = config.get("Data", "prob_map_chunks_perp_dir")

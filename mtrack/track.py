@@ -1,5 +1,5 @@
 from mtrack.cores import CoreSolver, CoreBuilder, CoreScheduler, ExceptionWrapper, VanillaSolver
-from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker, slices_to_chunks, stack_to_chunks, get_prob_map_ilastik
+from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker, stack_to_chunks, ilastik_get_prob_map
 from mtrack.mt_utils import read_config, check_overlap
 from mtrack.postprocessing import skeletonize
 from mtrack.evaluation import evaluate
@@ -656,24 +656,24 @@ def track(config_path):
     Extract probability map via Ilastik classifier from specified input dir and ilastik project.
     """
     if config["extract_perp"]:
-        get_prob_map_ilastik(input_directory=config["image_dir"],
-                             output_directory=config["pm_output_dir_perp"],
-                             ilastik_source_directory=config["ilastik_source_dir"],
+        ilastik_get_prob_map(raw=config["raw"],
+                             output_dir=config["pm_output_dir_perp"],
+                             ilastik_source_dir=config["ilastik_source_dir"],
                              ilastik_project=config["ilastik_project_perp"],
-                             verbose=True,
                              file_extension=config["file_extension"],
-                             h5_input_path=config["h5_input_path"])
+                             h5_dset=config["h5_dset"],
+                             label=config["label"])
 
         cfg["prob_maps_perp_dir"] = cfg["pm_output_dir_perp"]
 
     if config["extract_par"]: 
-        get_prob_map_ilastik(input_directory=config["image_dir"],
-                             output_directory=config["pm_output_dir_par"],
-                             ilastik_source_directory=config["ilastik_source_dir"],
+        get_prob_map_ilastik(raw=config["raw"],
+                             output_dir=config["pm_output_dir_par"],
+                             ilastik_source_dir=config["ilastik_source_dir"],
                              ilastik_project=config["ilastik_project_par"],
-                             verbose=True,
                              file_extension=config["file_extension"],
-                             h5_input_path=config["h5_input_path"])
+                             h5_dset=config["h5_dset"],
+                             label=config["label"])
         
         cfg["prob_maps_par_dir"] = cfg["pm_output_dir_par"]
 
