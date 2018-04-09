@@ -656,26 +656,26 @@ def track(config_path):
     Extract probability map via Ilastik classifier from specified input dir and ilastik project.
     """
     if config["extract_perp"]:
-        ilastik_get_prob_map(raw=config["raw"],
-                             output_dir=config["pm_output_dir_perp"],
-                             ilastik_source_dir=config["ilastik_source_dir"],
-                             ilastik_project=config["ilastik_project_perp"],
-                             file_extension=config["file_extension"],
-                             h5_dset=config["h5_dset"],
-                             label=config["label"])
+        perp_stack_h5 = ilastik_get_prob_map(raw=config["raw"],
+                                             output_dir=config["pm_output_dir_perp"],
+                                             ilastik_source_dir=config["ilastik_source_dir"],
+                                             ilastik_project=config["ilastik_project_perp"],
+                                             file_extension=config["file_extension"],
+                                             h5_dset=config["h5_dset"],
+                                             label=config["label"])
 
-        cfg["prob_maps_perp_dir"] = cfg["pm_output_dir_perp"]
+        config["perp_stack_h5"] = perp_stack_h5
 
     if config["extract_par"]: 
-        get_prob_map_ilastik(raw=config["raw"],
-                             output_dir=config["pm_output_dir_par"],
-                             ilastik_source_dir=config["ilastik_source_dir"],
-                             ilastik_project=config["ilastik_project_par"],
-                             file_extension=config["file_extension"],
-                             h5_dset=config["h5_dset"],
-                             label=config["label"])
+        par_stack_h5 = ilastik_get_prob_map(raw=config["raw"],
+                                            output_dir=config["pm_output_dir_par"],
+                                            ilastik_source_dir=config["ilastik_source_dir"],
+                                            ilastik_project=config["ilastik_project_par"],
+                                            file_extension=config["file_extension"],
+                                            h5_dset=config["h5_dset"],
+                                            label=config["label"])
         
-        cfg["prob_maps_par_dir"] = cfg["pm_output_dir_par"]
+        config["par_stack_h5"] = par_stack_h5
 
     if config["core_wise"]:
         if config["solve"]:
