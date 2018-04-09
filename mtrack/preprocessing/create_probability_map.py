@@ -37,7 +37,8 @@ def ilastik_get_prob_map(raw,
                                                    output_dir,
                                                    ilastik_source_dir,
                                                    ilastik_project,
-                                                   label)
+                                                   label,
+                                                   file_extension)
 
     return stack_path
 
@@ -95,7 +96,6 @@ def ilastik_prob_map_from_zslices(input_dir,
     for input_file in input_files:
         cmd += input_file + " "
 
-    pdb.set_trace()
     cmd += " --output_filename_format=" + output_dir + "/{nickname}.h5"
     os.system(cmd)
     
@@ -111,7 +111,8 @@ def ilastik_prob_map_from_h5stack(h5stack,
                                   output_dir,
                                   ilastik_source_dir,
                                   ilastik_project,
-                                  label=0):
+                                  label=0,
+                                  file_extension=".hdf5"):
 
     """
     This function generates a probability map h5 stack
@@ -123,7 +124,8 @@ def ilastik_prob_map_from_h5stack(h5stack,
     This function grabs only the label indicated and 
     returns a 3D array consisting of prob(x=label).
     """
-   
+  
+    print "FE:", file_extension 
     output_dir += "/stack"
 
     f_in = h5py.File(h5stack)
@@ -137,18 +139,18 @@ def ilastik_prob_map_from_h5stack(h5stack,
     cmd = ilastik_source_dir + "/run_ilastik.sh --headless --project=" + ilastik_project + " "
     cmd += h5stack
     cmd += h5_dset
-    cmd += " --output_filename_format=" + output_dir + "/{nickname}.hdf5"
+    cmd += " --output_filename_format=" + output_dir + "/{nickname}" + file_extension
 
     os.system(cmd)
     
-    output_stack = os.path.join(output_dir, os.path.basename(h5stack))
+    output_stack = os.path.join(output_dir, os.path.basename(h5stack.replace(file_extension, ".h5")))
     f_out = h5py.File(output_stack, "r")
     # exported_data is the dset naming convention by ilastik
     dset = f_out["exported_data"]
     output_shape = dset.shape
 
     assert(np.all(np.array(input_shape) == np.array(output_shape)[:-1]))
-    output_stack_corrected = output_stack.replace(".hdf5","_corrected.hdf5") 
+    output_stack_corrected = output_stack.replace(".h5","_corrected" + file_extension) 
     f_out_corrected = h5py.File(output_stack_corrected, "w")
     f_out_corrected.create_dataset("exported_data", data=dset[:,:,:,label])
     f_out.close()
