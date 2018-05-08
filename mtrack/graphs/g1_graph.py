@@ -18,6 +18,8 @@ class G1(G):
                 G.new_vertex_property(self, "orientation", dtype="vector<double>")
                 G.new_vertex_property(self, "position", dtype="vector<double>")
                 G.new_vertex_property(self, "partner", dtype="long long")
+                G.new_vertex_property(self, "force", dtype="bool", value=False)
+                G.new_edge_property(self, "force", dtype="bool", vals=False)
         
                 for v in G.get_vertex_iterator(self):
                     self.set_partner(v, -1) 
