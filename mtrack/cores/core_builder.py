@@ -31,7 +31,7 @@ class CoreBuilder(object):
             raise ValueError("Cores should tile the effective volume without overlap")
 
 
-    def generate_cores(self):
+    def generate_cores(self, gen_nbs=False):
         """
         TODO: Replace loops
         """
@@ -62,9 +62,10 @@ class CoreBuilder(object):
                     cores.append(core)
                     core_id += 1
 
-        nbs_dict = self._gen_all_nbs(cores)
-        for core in cores:
-            core.nbs = nbs_dict[core.id]
+        if gen_nbs:
+            nbs_dict = self._gen_all_nbs(cores)
+            for core in cores:
+                core.nbs = nbs_dict[core.id]
 
         return cores
 
