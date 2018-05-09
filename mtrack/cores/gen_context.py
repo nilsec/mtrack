@@ -7,6 +7,17 @@ def lcm(denominators):
     return reduce(lambda a,b: a*b // gcd(a,b), denominators)
 
 
+def get_core_cfs(core_size, context_size, volume_size, pad=True, debug=True):
+
+    nbsizes = np.ceil(2*context_size.astype(float)/core_size) + 1
+    effective_volume_size = volume_size - 2 * context_size
+    cube_size = effective_volume_size/core_size
+    cube = np.arange(reduce(lambda x,y: x*y, cube_size)).reshape(cube_size)
+
+    return get_cfs(cube, nbsizes.astype(int), pad, debug)
+
+
+
 def get_cfs(cube, nbsizes, pad=True, debug=True):
     """
     Generates conflict free sets for a 3d cube with arbitrary
