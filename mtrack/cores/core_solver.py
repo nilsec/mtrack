@@ -207,26 +207,12 @@ class CoreSolver(object):
                        orientation_factor,
                        comb_angle_factor,
                        core_id,
-                       save_connected,
-                       output_dir,
                        voxel_size,
                        time_limit,
-                       write=True,
                        hcs=False):
 
         subgraph_connected = connect_graph_locally(subgraph, distance_threshold, cores=True)
        
-        if save_connected:
-            connected_output_dir = os.path.join(output_dir, "core_graphs/connected")
-            
-            if not os.path.exists(connected_output_dir):
-                os.makedirs(connected_output_dir)
-
-            g1_to_nml(subgraph_connected, 
-                      os.path.join(connected_output_dir, "core_connected_{}.nml".format(core_id)), 
-                      knossos=True, 
-                      voxel_size=voxel_size)
-
         print "Solve connected subgraphs..."
         if hcs:
             subgraph_connected.new_edge_property("weight", 
