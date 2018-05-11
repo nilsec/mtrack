@@ -2,6 +2,7 @@ import numpy as np
 import os
 
 from mtrack.cores import Core
+from gen_context import get_core_cfs
 
 
 class CoreBuilder(object):
@@ -22,14 +23,14 @@ class CoreBuilder(object):
         self.context_size = np.array(context_size, dtype=int)
         self.offset = np.array(offset, dtype=int)
 
-        self.effective_volume_size = volume_size - 2 * context_size
-        if np.any(self.effective_volume_size == 0):
+        self.effective_volume_size = self.volume_size - 2 * self.context_size
+        if np.any(self.effective_volume_size <= 0):
             raise Warning("No cores in volume - context too large")
-        self.block_size = self.core_size + self.context_size
-        
         if not np.all(self.effective_volume_size % self.core_size == np.array([0]*3)):
             raise ValueError("Cores should tile the effective volume without overlap")
 
+        self.block_size = self.core_size + self.context_size
+        
 
     def generate_cores(self, gen_nbs=False):
         """
@@ -37,8 +38,9 @@ class CoreBuilder(object):
         """
         n_cores = self.effective_volume_size/self.core_size
         max_ids = reduce(lambda x,y: x*y, n_cores)        
-
+        
         cores = []
+        core_ids = []
         core_id = 0
         for x_core in range(n_cores[0]):
             x_0 = self.context_size[0] + x_core * self.core_size[0]
@@ -60,6 +62,7 @@ class CoreBuilder(object):
                                 nbs=None)
 
                     cores.append(core)
+                    core_ids.append(core.id)
                     core_id += 1
 
         if gen_nbs:
@@ -67,12 +70,20 @@ class CoreBuilder(object):
             for core in cores:
                 core.nbs = nbs_dict[core.id]
 
+        assert(np.all(np.arange(len(core_ids)) == np.array(core_ids)))
+
         return cores
 
-       
+    def gen_cfs(self):
+        return get_core_cfs(self.core_size, 
+                            self.context_size, 
+                            self.volume_size, 
+                            pad=True, 
+                            debug=True)
+         
     def _gen_all_nbs(self, cores):
         """
-        TODO: Very inefficient, replace.
+        LEGACY CODE - Only used for testing.
         """
 
         print "Generate core neighbours..."
