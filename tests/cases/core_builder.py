@@ -18,7 +18,7 @@ class GenerateCoresTestCase(CoreBaseTest):
                               offset=self.offset,
                               context_size=self.context_size)
 
-        cores = builder.generate_cores()
+        cores = builder.generate_cores(gen_nbs=True)
         # Check that we have the correct number of cores
         self.assertTrue(len(cores) == reduce(lambda x,y: x*y, self.n_cores))
 
@@ -71,7 +71,7 @@ class NeighbourTestCase(CoreBaseTest):
                                   offset=self.offset,
                                   context_size=context_size)
 
-            cores = builder.generate_cores()
+            cores = builder.generate_cores(gen_nbs=True)
 
             len_nbs = [len(x.nbs) for x in cores]
             self.assertTrue(max(len_nbs) == max_nbs[i])

@@ -16,13 +16,16 @@ class GenContextBaseTest(unittest.TestCase):
 
 class GenContextTestCase(GenContextBaseTest):
     def runTest(self):
+
         for cs in [[0,0,0], 
                    [10,10,10], 
                    [15,15,15], 
                    [5,10,15],
                    [15,10,5],
                    [10,5,15]]:
+
             self.context_size = np.array(cs)
+
             if cs[0] != cs[1]:
                 degenerate = True
             else:
@@ -33,7 +36,7 @@ class GenContextTestCase(GenContextBaseTest):
                                   offset=self.offset,
                                   context_size=self.context_size)
 
-            cores = builder.generate_cores()
+            cores = builder.generate_cores(gen_nbs=True)
 
             # Completeness of generated cores checked with debug=True
             cf_lists = get_core_cfs(self.core_size, 
