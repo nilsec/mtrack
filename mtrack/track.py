@@ -234,7 +234,7 @@ def solve_candidate_volume(name_db,
 
             # Catch exceptions and SIGINTs
             for result in results:
-                result.get(4320) 
+                result.get(60*60*24*3) 
 
     finally:
         pool.terminate()
@@ -538,12 +538,7 @@ def track(config_path):
                  collection="microtubules", 
                  x_lim=x_lim_roi, 
                  y_lim=y_lim_roi, 
-                 z_lim=z_lim_roi, 
-                 save_roi=config["save_roi"], 
-                 nml=config["nml"], 
-                 gt=config["gt"],
-                 output_dir=config["output_dir"],
-                 voxel_size=config["voxel_size"]) 
+                 z_lim=z_lim_roi)
 
     if config["cluster"]:
        cluster(name_db=config["db_name"],
@@ -573,7 +568,7 @@ def track(config_path):
                      pair_cost_factor=config["eval_pair_cost_factor"],
                      max_edges=config["max_edges"],
                      voxel_size=config["voxel_size"],
-                     output_dir=config["output_dir"],
+                     output_dir=config["eval_output_dir"],
                      time_limit=config["eval_time_limit"])
  
                 
