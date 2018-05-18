@@ -8,8 +8,7 @@ def retrieve(name_db,
              y_lim,
              z_lim,
              voxel_size,
-             save_dir,
-             distance_threshold=None):
+             output_path):
 
     solver = CoreSolver()
     vertices, edges = solver.get_subgraph(name_db,
@@ -21,25 +20,15 @@ def retrieve(name_db,
     g1, index_map = solver.subgraph_to_g1(vertices, edges)
 
     g1_to_nml(g1, 
-              os.path.join(save_dir, "{}_{}_small.nml".format(name_db, collection)),
+              output_path,
               knossos=True,
               voxel_size=voxel_size)
 
-    if distance_threshold is not None:
-        g1 = connect_graph_locally(g1, distance_threshold)
-        g1_to_nml(g1,
-                  os.path.join(save_dir, "{}_{}_dt{}.nml".format(name_db, 
-                                                                 collection, 
-                                                                 distance_threshold)),
-                  knossos=True,
-                  voxel_size=voxel_size)
-
 if __name__ == "__main__":
-    retrieve("validation_volume_9",
-             "candidates",
-             {"min":0, "max":250 * 5},
-             {"min":0, "max":250* 5},
-             {"min":0, "max":50*50},
+    retrieve("cremi_validation_a0_1",
+             "microtubules",
+             {"min":350*5, "max":1050 * 5},
+             {"min":350*5, "max":1050* 5},
+             {"min":7*50, "max":47 * 50},
              [5.,5.,50.],
-             "/media/nilsec/d0/gt_mt_data/",
-             distance_threshold=None)
+             "/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_1/roi.nml")
