@@ -17,6 +17,7 @@ def read_config(path):
     cfg_dict["eval_pair_cost_factor"] = config.getfloat("Evaluate", "eval_pair_cost_factor")
     cfg_dict["max_edges"] = config.getint("Evaluate", "max_edges")
     cfg_dict["eval_time_limit"] = config.getint("Evaluate", "eval_time_limit") 
+    cfg_dict["eval_output_dir"] = config.get("Evaluate", "eval_output_dir")
     
 
     # Ilastik
@@ -67,14 +68,6 @@ def read_config(path):
     cfg_dict["roi_x"] = np.array(config.get("Output", "roi_x").split(", "), dtype=int)
     cfg_dict["roi_y"] = np.array(config.get("Output", "roi_y").split(", "), dtype=int)
     cfg_dict["roi_z"] = np.array(config.get("Output", "roi_z").split(", "), dtype=int)
-    cfg_dict["output_dir"] = config.get("Output", "output_dir")
-    cfg_dict["save_cores"] = config.getboolean("Output", "save_cores")
-    cfg_dict["save_candidates"] = config.getboolean("Output", "save_candidates")
-    cfg_dict["save_connected"] = config.getboolean("Output", "save_connected")
-    cfg_dict["save_core_graphs"] = config.getboolean("Output", "save_core_graphs")
-    cfg_dict["save_roi"] = config.getboolean("Output", "save_roi")
-    cfg_dict["nml"] = config.getboolean("Output", "nml")
-    cfg_dict["gt"] = config.getboolean("Output", "gt")
     
     # Solve
     cfg_dict["solve"] = config.getboolean("Solve", "solve")

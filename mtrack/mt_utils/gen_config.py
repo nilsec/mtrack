@@ -10,6 +10,7 @@ def gen_config(evaluate,
                eval_pair_cost_factor,
                max_edges,
                eval_time_limit,
+               eval_output_dir,
                extract_perp,
                extract_par,
                pm_output_dir_perp,
@@ -45,14 +46,6 @@ def gen_config(evaluate,
                roi_x,
                roi_y,
                roi_z,
-               output_dir,
-               save_cores,
-               save_candidates,
-               save_roi,
-               save_connected,
-               save_core_graphs,
-               nml,
-               gt,
                solve,
                mp,  
                cc_min_vertices,
@@ -86,6 +79,7 @@ def gen_config(evaluate,
     config.set('Evaluate', 'eval_pair_cost_factor', str(eval_pair_cost_factor))
     config.set('Evaluate', 'max_edges', str(max_edges))
     config.set('Evaluate', 'eval_time_limit', str(eval_time_limit))
+    config.set('Evaluate', 'eval_output_dir', str(eval_output_dir))
 
     config.add_section('Ilastik')
     config.set('Ilastik', 'extract_perp', str(extract_perp))
@@ -147,14 +141,6 @@ def gen_config(evaluate,
     config.set('Output', 'roi_x', str(roi_x[0]) + ', ' + str(roi_x[1]))
     config.set('Output', 'roi_y', str(roi_y[0]) + ', ' + str(roi_y[1]))
     config.set('Output', 'roi_z', str(roi_z[0]) + ', ' + str(roi_z[1]))
-    config.set('Output', 'output_dir', str(output_dir))
-    config.set('Output', 'save_cores', str(save_cores))
-    config.set('Output', 'save_candidates', str(save_candidates))
-    config.set('Output', 'save_roi', str(save_roi))
-    config.set('Output', 'save_connected', str(save_connected))
-    config.set('Output', 'save_core_graphs', str(save_core_graphs))
-    config.set('Output', 'nml', str(nml))
-    config.set('Output', 'gt', str(gt))
 
     config.add_section('Solve')
     config.set('Solve', 'solve', str(solve))
