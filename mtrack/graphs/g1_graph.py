@@ -2,7 +2,6 @@ import numpy as np
 from numpy.core.umath_tests import inner1d
 import os
 import itertools
-import pdb
 
 from mtrack.graphs.graph import G
 from mtrack.graphs.start_edge import StartEdge 
