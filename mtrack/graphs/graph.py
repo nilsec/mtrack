@@ -60,9 +60,13 @@ class G:
         u_there = self.get_vertex(u)
         v_there = self.get_vertex(v)
 
+        # Check that they are distinct - no self edges allowed:
+        assert(u_there != v_there)
+
         # Check that edge does not exist
         edges = self.g.edge(u,v, all_edges=True, add_missing=False)
-        assert(len(edges) <= 1)
+        assert(len(edges) == 0)
+        
 
         # Add edge if it does not exist
         if not edges:
