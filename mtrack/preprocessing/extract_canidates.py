@@ -299,9 +299,16 @@ def connect_graph_locally(g1, distance_threshold, cores=False):
     
     for edge in pairs:
         if g1.get_partner(edge[0]) != edge[1]:
-            e = g1.add_edge(*edge)
-            if cores:
-                g1.set_edge_property("force", u=0, v=0, value=False, e=e)
+            """
+            Only connect edges that have not been
+            connected before. Can happen in context area.
+            """
+            try:
+                e = g1.add_edge(*edge)
+                if cores:
+                    g1.set_edge_property("force", u=0, v=0, value=False, e=e)
+            except AssertionError:
+                pass
 
     return g1
 
