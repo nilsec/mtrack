@@ -2,6 +2,7 @@ import numpy as np
 from mtrack.graphs.g1_graph import G1
 from mtrack.graphs.g2_graph import G2
 
+import pdb
 
 class GraphConverter:
     def __init__(self, g1):
@@ -196,5 +197,22 @@ class GraphConverter:
                                   constraint["g2_vertices_r"])
 
         g2.add_forced(g2_forced)
+
+        """
+        Check for infeasibility due to force/conflict clashes:
+        All elements in cc in g2_center_conflicts are exclusive
+        thus each cc list can have at most one g2 vertex in it 
+        that is forced. If multiple are present we get an infeasible
+        model. Similar for partner conflicts.
+        """
+        forced_center_conflicts = [len(set(cc) & set(g2_forced)) for cc in g2_center_conflicts]
+        if forced_center_conflicts:
+            #if max(forced_center_conflicts) > 1:
+            #    pdb.set_trace() 
+            assert(max(forced_center_conflicts) <= 1) 
+
+        forced_partner_conflicts = [len(set(pc) & set(g2_forced)) for pc in g2_partner_conflicts]
+        if forced_partner_conflicts:
+            assert(max(forced_partner_conflicts) <= 1)
 
         return g2, index_maps
