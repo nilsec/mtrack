@@ -12,6 +12,7 @@ import os
 import multiprocessing, logging
 import sys
 import signal
+import traceback
 
 
 def chunk_pms(volume_shape,
@@ -169,7 +170,8 @@ def solve_candidate_volume(name_db,
                            copy_target="microtubules",
                            offset=np.array([0.,0.,0.]),
                            overwrite_copy_target=False,
-                           skip_solved_cores=True):
+                           skip_solved_cores=True,
+                           mp=True):
 
     solver = CoreSolver()
 
@@ -215,7 +217,8 @@ def solve_candidate_volume(name_db,
             
             results = []
             for core_id in cf_core_ids:
-                results.append(pool.apply_async(solve_core, (cores[core_id],
+                if mp:
+                    results.append(pool.apply_async(solve_core, (cores[core_id],
                                                              solver,
                                                              name_db,
                                                              collection,
@@ -231,10 +234,27 @@ def solve_candidate_volume(name_db,
                                                              voxel_size,
                                                              skip_solved_cores,
                                                              )))
+                    # Catch exceptions and SIGINTs
+                    for result in results:
+                        result.get(60*60*24*3) 
 
-            # Catch exceptions and SIGINTs
-            for result in results:
-                result.get(60*60*24*3) 
+                else:
+                    results.append(solve_core(cores[core_id],
+                                                             solver,
+                                                             name_db,
+                                                             collection,
+                                                             distance_threshold,
+                                                             cc_min_vertices,
+                                                             start_edge_prior,
+                                                             selection_cost,
+                                                             distance_factor,
+                                                             orientation_factor,
+                                                             comb_angle_factor,
+                                                             time_limit,
+                                                             hcs,
+                                                             voxel_size,
+                                                             skip_solved_cores,
+                                                             ))
 
     finally:
         pool.terminate()
@@ -256,64 +276,67 @@ def solve_core(core,
                hcs,
                voxel_size,
                skip_solved_cores):
-    
-    print "Core id {}".format(core.id)
-    print "Process core {}...".format(core.id)
 
-    core_finished = False
-    if skip_solved_cores:
-        if solver.core_finished(core_id=core.id,
-                                name_db=name_db,
-                                collection="candidates"):
+    try:
+        print "Core id {}".format(core.id)
+        print "Process core {}...".format(core.id)
 
-            print "Core already solved... continue"
-            core_finished = True
+        core_finished = False
+        if skip_solved_cores:
+            if solver.core_finished(core_id=core.id,
+                                    name_db=name_db,
+                                    collection="candidates"):
 
-    if not core_finished:
-        vertices, edges = solver.get_subgraph(name_db,
-                                              collection,
-                                              x_lim=core.x_lim_context,
-                                              y_lim=core.y_lim_context,
-                                              z_lim=core.z_lim_context)
+                print "Core already solved... continue"
+                core_finished = True
 
-        g1, index_map = solver.subgraph_to_g1(vertices,
-                                              edges)
+        if not core_finished:
+            vertices, edges = solver.get_subgraph(name_db,
+                                                  collection,
+                                                  x_lim=core.x_lim_context,
+                                                  y_lim=core.y_lim_context,
+                                                  z_lim=core.z_lim_context)
 
-        solutions = solver.solve_subgraph(g1,
-                                          index_map,
-                                          distance_threshold=distance_threshold,
-                                          cc_min_vertices=cc_min_vertices,
-                                          start_edge_prior=start_edge_prior,
-                                          selection_cost=selection_cost,
-                                          distance_factor=distance_factor,
-                                          orientation_factor=orientation_factor,
-                                          comb_angle_factor=comb_angle_factor,
-                                          core_id=core.id,
-                                          voxel_size=voxel_size,
-                                          time_limit=time_limit,
-                                          hcs=hcs)
+            g1, index_map = solver.subgraph_to_g1(vertices,
+                                                  edges)
+
+            solutions = solver.solve_subgraph(g1,
+                                              index_map,
+                                              distance_threshold=distance_threshold,
+                                              cc_min_vertices=cc_min_vertices,
+                                              start_edge_prior=start_edge_prior,
+                                              selection_cost=selection_cost,
+                                              distance_factor=distance_factor,
+                                              orientation_factor=orientation_factor,
+                                              comb_angle_factor=comb_angle_factor,
+                                              core_id=core.id,
+                                              voxel_size=voxel_size,
+                                              time_limit=time_limit,
+                                              hcs=hcs)
 
 
-        for solution in solutions:
-            solver.write_solution(solution, 
-                                  index_map,
-                                  name_db,
-                                  collection,
-                                  x_lim=core.x_lim_core,
-                                  y_lim=core.y_lim_core,
-                                  z_lim=core.z_lim_core)
+            for solution in solutions:
+                solver.write_solution(solution, 
+                                      index_map,
+                                      name_db,
+                                      collection,
+                                      x_lim=core.x_lim_core,
+                                      y_lim=core.y_lim_core,
+                                      z_lim=core.z_lim_core)
 
-        solver.remove_deg_0_vertices(name_db,
-                                     collection,
-                                     x_lim=core.x_lim_core,
-                                     y_lim=core.y_lim_core,
-                                     z_lim=core.z_lim_core)
-        
-        solver.finish_core(core_id=core.id,
-                           name_db=name_db,
-                           collection="candidates")
+            solver.remove_deg_0_vertices(name_db,
+                                         collection,
+                                         x_lim=core.x_lim_core,
+                                         y_lim=core.y_lim_core,
+                                         z_lim=core.z_lim_core)
+            
+            solver.finish_core(core_id=core.id,
+                               name_db=name_db,
+                               collection="candidates")
 
-    return core.id
+        return core.id
+    except:
+        raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
 
 def clean_up(name_db, 
@@ -573,4 +596,4 @@ def track(config_path):
  
                 
 if __name__ == "__main__":
-    track("../config.ini")
+    track("/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_9/config.ini")
