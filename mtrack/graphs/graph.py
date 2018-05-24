@@ -67,12 +67,8 @@ class G:
         edges = self.g.edge(u,v, all_edges=True, add_missing=False)
         assert(len(edges) == 0)
         
-
         # Add edge if it does not exist
-        if not edges:
-            e = self.g.add_edge(u, v)
-        else:
-            e = edges[0]
+        e = self.g.add_edge(u, v)
 
         return e
  
