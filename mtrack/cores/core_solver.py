@@ -10,6 +10,7 @@ from pymongo import MongoClient, IndexModel, ASCENDING
 from scipy.spatial import KDTree
 import itertools
 from functools import partial
+import pdb
 
 from mtrack.graphs import g1_graph, graph_converter,\
                    cost_converter, g2_solver
@@ -62,6 +63,9 @@ class CoreSolver(object):
                 self.create_collection(name_db=name_db, 
                                        collection=collection, 
                                        overwrite=True)
+
+                # Check that collection is empty after overwrite:
+                assert(db.find({}).count() == 0)
 
             print "Collection already exists, request {}.{}...".format(name_db, collection)
         else:
@@ -189,8 +193,6 @@ class CoreSolver(object):
             e0 = index_map[np.uint64(e["id_v0_global"])]
             e1 = index_map[np.uint64(e["id_v1_global"])]
             e = g1.add_edge(e0, e1)
-
-            # All edges in the db are solved edges:
             g1.set_edge_property("force", u=0, v=0, value=True, e=e)
 
         return g1, index_map_inv
@@ -305,6 +307,14 @@ class CoreSolver(object):
         if edge_array.size:
             edges_global = index_map_get(np.delete(edge_array, 2, 1))
 
+            # Check for duplicate entries:
+            unique_edges = np.vstack({tuple(row) for row in np.delete(edge_array, 2, 1)})
+            assert(len(unique_edges) == len(edge_array))
+
+            # Check for branchings:
+            for v in solution.get_vertex_iterator():
+                assert(len(solution.get_incident_edges(v)) <= 2)
+
             print "Insert solved edges..."
             for edge_id in edges_global:
                 edge = deepcopy(self.template_edge)
@@ -321,12 +331,18 @@ class CoreSolver(object):
                 for v in vedges:
                     edge_pos += np.array([v["px"], v["py"], v["pz"]])
 
-                if x_lim is not None:
-                    edge_pos /= 2.
-                    if np.all(edge_pos >= min_lim) and np.all(edge_pos <= max_lim):
-                        inside = True
-                else:
+                if (x_lim is None) or (y_lim is None) or (z_lim is None):
+                    assert(x_lim is None)
+                    assert(y_lim is None)
+                    assert(z_lim is None)
                     inside = True
+
+                else:
+                    edge_pos /= 2.
+                    if np.all(edge_pos >= min_lim) and np.all(edge_pos < max_lim):
+                        inside = True
+                    else:
+                        inside = False
                 
                 if inside:
                     graph.update_many({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}}, 
@@ -334,7 +350,13 @@ class CoreSolver(object):
                                        "$set": {"id_partner_global": -1, "solved": True}},
                                       upsert=False)
 
+                    # Check if edge is already in db
+                    edges_there = graph.find({"$and": [{"id_v0_mongo": edge["id_v0_mongo"]},
+                                                       {"id_v1_mongo": edge["id_v1_mongo"]}]}).count()
+                    assert(edges_there == 0)
+
                     graph.insert_one(edge)
+
         else:
             print "No edges in solution, skip..."
         
