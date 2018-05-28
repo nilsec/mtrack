@@ -240,21 +240,21 @@ def solve_candidate_volume(name_db,
 
                 else:
                     results.append(solve_core(cores[core_id],
-                                                             solver,
-                                                             name_db,
-                                                             collection,
-                                                             distance_threshold,
-                                                             cc_min_vertices,
-                                                             start_edge_prior,
-                                                             selection_cost,
-                                                             distance_factor,
-                                                             orientation_factor,
-                                                             comb_angle_factor,
-                                                             time_limit,
-                                                             hcs,
-                                                             voxel_size,
-                                                             skip_solved_cores,
-                                                             ))
+                                                 solver,
+                                                 name_db,
+                                                 collection,
+                                                 distance_threshold,
+                                                 cc_min_vertices,
+                                                 start_edge_prior,
+                                                 selection_cost,
+                                                 distance_factor,
+                                                 orientation_factor,
+                                                 comb_angle_factor,
+                                                 time_limit,
+                                                 hcs,
+                                                 voxel_size,
+                                                 skip_solved_cores,
+                                                 ))
 
     finally:
         pool.terminate()
