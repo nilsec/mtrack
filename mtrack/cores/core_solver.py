@@ -65,7 +65,7 @@ class CoreSolver(object):
                                        overwrite=True)
 
                 # Check that collection is empty after overwrite:
-                assert(db.find({}).count() == 0)
+                assert(db[collection].find({}).count() == 0)
 
             print "Collection already exists, request {}.{}...".format(name_db, collection)
         else:
