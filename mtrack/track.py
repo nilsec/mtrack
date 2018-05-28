@@ -171,7 +171,7 @@ def solve_candidate_volume(name_db,
                            offset=np.array([0.,0.,0.]),
                            overwrite_copy_target=False,
                            skip_solved_cores=True,
-                           mp=False):
+                           mp=True):
 
     solver = CoreSolver()
 
