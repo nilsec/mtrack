@@ -83,6 +83,16 @@ class CoreSolver(object):
         db = client[name_db]
         return db
 
+    def _check_forced(self, g1):
+        """
+        Check that the number of forced egdes
+        incident to any vertex is <= 2 for 
+        a given g1 graph.
+        """
+        for v in g1.get_vertex_iterator():
+            incident = g1.get_incident_edges(v)
+            forced = [g1.get_edge_property("force", u=e.source(), v=e.target()) for e in incident]
+            assert(sum(forced)<=2)
 
     def create_collection(self, name_db, collection="graph", overwrite=False):
         print "Create new db collection {}.{}...".format(name_db, collection)
@@ -195,6 +205,7 @@ class CoreSolver(object):
             e = g1.add_edge(e0, e1)
             g1.set_edge_property("force", u=0, v=0, value=True, e=e)
 
+        self._check_forced(g1)
         return g1, index_map_inv
 
 
@@ -214,7 +225,8 @@ class CoreSolver(object):
                        hcs=False):
 
         subgraph_connected = connect_graph_locally(subgraph, distance_threshold, cores=True)
-       
+        self._check_forced(subgraph_connected)
+
         print "Solve connected subgraphs..."
         if hcs:
             subgraph_connected.new_edge_property("weight", 
@@ -234,7 +246,9 @@ class CoreSolver(object):
         j = 0
         solutions = []
         for cc in ccs:
-            cc.g.reindex_edges()
+            cc.reindex_edges_save()
+            self._check_forced(cc)
+
             cc_solution = solve(cc,
                                 start_edge_prior,
                                 distance_factor,
@@ -250,7 +264,8 @@ class CoreSolver(object):
             j += 1
 
             solutions.append(cc_solution)
-        
+       
+
         return solutions
 
     def finish_core(self,
@@ -307,11 +322,11 @@ class CoreSolver(object):
         if edge_array.size:
             edges_global = index_map_get(np.delete(edge_array, 2, 1))
 
-            # Check for duplicate entries:
+            # We have no duplicate edge entries:
             unique_edges = np.vstack({tuple(row) for row in np.delete(edge_array, 2, 1)})
             assert(len(unique_edges) == len(edge_array))
 
-            # Check for branchings:
+            # We have no branchings in database:
             for v in solution.get_vertex_iterator():
                 assert(len(solution.get_incident_edges(v)) <= 2)
 
@@ -339,6 +354,7 @@ class CoreSolver(object):
 
                 else:
                     edge_pos /= 2.
+                    # Note that we check the half open interval s.t. we have no overlap:
                     if np.all(edge_pos >= min_lim) and np.all(edge_pos < max_lim):
                         inside = True
                     else:
