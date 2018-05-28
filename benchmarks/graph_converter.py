@@ -1,5 +1,6 @@
 from mtrack.graphs import GraphConverter, g1_graph
 from cgraph_converter import CGraphConverter
+from graph_converter_fast import GraphConverterFast
 import numpy as np
 
 from numpy.random import randint, randn
@@ -34,27 +35,36 @@ class RandomInputGraph(object):
         graph_converter = GraphConverter(self.g1)
         self.g2, self.index_maps = graph_converter.get_g2_graph()
         t1 = time.time()
-
-        print "Converting graph with {} vertices and {} edges took: ".format(self.N, 
-                                                                    self.g1.get_number_of_edges())
-        print " {} seconds".format(t1 - t0)
+        return t1 - t0
 
     def benchmark_cython(self):
         t0 = time.time()
         graph_converter = CGraphConverter(self.g1)
         self.g2, self.index_maps = graph_converter.get_g2_graph()
         t1 = time.time()
+        return t1 - t0
 
-        print "Converting graph with {} vertices and {} edges took: ".format(self.N, 
-                                                                    self.g1.get_number_of_edges())
-        print " {} seconds".format(t1 - t0)
+    def benchmark_fast(self):
+        t0 = time.time()
+        graph_converter = GraphConverterFast(self.g1)
+        self.g2, self.index_maps = graph_converter.get_g2_graph()
+        t1 = time.time()
+        return t1 - t0
+
+ 
 
 
 
 if __name__ == "__main__":
-    rig = RandomInputGraph(1000, 1000)
-    rig.benchmark()
-    rig.benchmark_cython()
+    t0 = 0
+    tc = 0
+    for i in range(10):
+        rig = RandomInputGraph(1000, 1000)
+        t0 += rig.benchmark()
+        tc += rig.benchmark_cython()
+
+    print "t0: ", t0
+    print "tc: ", tc
 
         
         
