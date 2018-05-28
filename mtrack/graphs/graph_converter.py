@@ -2,8 +2,6 @@ import numpy as np
 from mtrack.graphs.g1_graph import G1
 from mtrack.graphs.g2_graph import G2
 
-import pdb
-
 class GraphConverter:
     def __init__(self, g1):
         self.g1 = g1
@@ -207,8 +205,6 @@ class GraphConverter:
         """
         forced_center_conflicts = [len(set(cc) & set(g2_forced)) for cc in g2_center_conflicts]
         if forced_center_conflicts:
-            #if max(forced_center_conflicts) > 1:
-            #    pdb.set_trace() 
             assert(max(forced_center_conflicts) <= 1) 
 
         forced_partner_conflicts = [len(set(pc) & set(g2_forced)) for pc in g2_partner_conflicts]
