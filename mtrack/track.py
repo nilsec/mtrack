@@ -171,7 +171,7 @@ def solve_candidate_volume(name_db,
                            offset=np.array([0.,0.,0.]),
                            overwrite_copy_target=False,
                            skip_solved_cores=True,
-                           mp=True):
+                           mp=False):
 
     solver = CoreSolver()
 
@@ -214,10 +214,11 @@ def solve_candidate_volume(name_db,
     try:
         for cf_core_ids in cf_lists:
             print "Working on ", cf_core_ids
-            
+                        
             results = []
-            for core_id in cf_core_ids:
-                if mp:
+            if mp:
+                for core_id in cf_core_ids:
+                    print "Add core {} to pool (mp: {})".format(core_id, mp)
                     results.append(pool.apply_async(solve_core, (cores[core_id],
                                                              solver,
                                                              name_db,
@@ -234,11 +235,12 @@ def solve_candidate_volume(name_db,
                                                              voxel_size,
                                                              skip_solved_cores,
                                                              )))
-                    # Catch exceptions and SIGINTs
-                    for result in results:
-                        result.get(60*60*24*3) 
+                # Catch exceptions and SIGINTs
+                for result in results:
+                    result.get(60*60*24*3) 
 
-                else:
+            else:
+                for core_id in cf_core_ids:
                     results.append(solve_core(cores[core_id],
                                                  solver,
                                                  name_db,
@@ -255,7 +257,6 @@ def solve_candidate_volume(name_db,
                                                  voxel_size,
                                                  skip_solved_cores,
                                                  ))
-
     finally:
         pool.terminate()
         pool.join()
@@ -596,4 +597,4 @@ def track(config_path):
  
                 
 if __name__ == "__main__":
-    track("/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_9/config.ini")
+    track("/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_1/config.ini")
