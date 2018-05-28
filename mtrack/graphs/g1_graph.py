@@ -17,6 +17,7 @@ class G1(G):
                 G.new_vertex_property(self, "orientation", dtype="vector<double>")
                 G.new_vertex_property(self, "position", dtype="vector<double>")
                 G.new_vertex_property(self, "partner", dtype="long long")
+
                 G.new_vertex_property(self, "force", dtype="bool", value=False)
                 G.new_edge_property(self, "force", dtype="bool", vals=False)
         
@@ -105,7 +106,39 @@ class G1(G):
         vertex_cost[-1] = 0.0
 
         return vertex_cost
-            
+
+    def reindex_edges_save(self):
+        """
+        Reindex edges to range 0,N
+        but preserve the force edge property
+        by saving the vertex indices of forced
+        edges before.
+        """ 
+        
+        force_ep = self.get_edge_property("force")
+        
+        """
+        Save vertex ids of forced edges
+        """
+        forced_edges = []
+        for e in self.get_edge_iterator():
+            if force_ep[e]:
+                forced_edges.append((e.source(), e.target()))
+        
+        # Reindex edges                
+        self.g.reindex_edges()
+
+        """
+        Initialize new property map with old
+        vertex ids.
+        """
+        new_force_edges = self.g.new_edge_property("bool")
+        for e in forced_edges:
+            new_force_edges[self.get_edge(*e)] = True
+         
+        self.g.edge_properties["force"] = new_force_edges
+                
+                
     def get_edge_cost(self, distance_factor, orientation_factor, start_edge_prior):
         edge_array = G.get_edge_array(self)
         vertex_array = G.get_vertex_array(self)
