@@ -52,7 +52,7 @@ class CoreSolver(object):
     def _get_client(self, name_db, collection="graph", overwrite=False):
         print "Get client..."
 
-        client = MongoClient()
+        client = MongoClient(connect=False)
 
         db = client[name_db]
         collections = db.collection_names()
