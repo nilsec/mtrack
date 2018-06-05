@@ -286,7 +286,7 @@ def solve_core(core,
         if skip_solved_cores:
             if solver.core_finished(core_id=core.id,
                                     name_db=name_db,
-                                    collection="candidates"):
+                                    collection="microtubules"):
 
                 print "Core already solved... continue"
                 core_finished = True
@@ -333,7 +333,7 @@ def solve_core(core,
             
             solver.finish_core(core_id=core.id,
                                name_db=name_db,
-                               collection="candidates")
+                               collection="microtubules")
 
         return core.id
     except:
@@ -597,4 +597,4 @@ def track(config_path):
  
                 
 if __name__ == "__main__":
-    track("/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_1/config.ini")
+    track("/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_2/config.ini")
