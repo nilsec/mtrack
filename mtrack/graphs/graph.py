@@ -1,4 +1,5 @@
 import graph_tool.all as gt
+gt.openmp_set_num_threads(1) # openmp does not play well with multiprocessing
 import numpy as np
 
 class G:
