@@ -4,7 +4,7 @@ Automatic extraction of microtubules in electron microscopy volumes of neural ti
 
 Usage for arbitrary (small scale - no db interaction required) pathwise tracking problems:
 
-0. Install Gurobi and pylp (github.com/funkey/pylp) as well as graph-tool(https://graph-tool.skewed.de/). Further requirements will be included. 
+0. Install Gurobi and pylp (http://github.com/funkey/pylp) as well as graph-tool(https://graph-tool.skewed.de/). Further requirements will be included. 
 
 1. Extract position (and orientation) for each instance of interest and initialize a 
    G1-Graph where each vertex encodes an instance/candidate. See mtrack/graphs/g1_graph
