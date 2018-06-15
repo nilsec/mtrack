@@ -7,7 +7,7 @@ Usage for arbitrary (small scale - no db interaction required) pathwise tracking
 0. Install Gurobi and pylp (http://github.com/funkey/pylp) as well as graph-tool(https://graph-tool.skewed.de/). Further requirements will be included. 
 
 1. Extract position (and orientation) for each instance of interest and initialize a 
-   G1-Graph where each vertex encodes an instance/candidate. See mtrack/graphs/g1_graph
+   G1-Graph where each vertex encodes an instance/candidate (see mtrack/graphs/g1_graph).
    For an example of how to do that and add position and orientation see tests/cases/g1_graph
 
 2. (Optional) If you want to use a custom cost function based on position and orientation infor       mation on vertices, edges and combinations of edges inherit from the g1 graph class and over       write the corresponding methods for calculation of vertex-, edge- and edge-combination cost.
