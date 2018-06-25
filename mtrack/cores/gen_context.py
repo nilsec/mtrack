@@ -71,9 +71,3 @@ def check_conflicts(cf_lists, max_id):
         for j in range(n_lists):
             if i>j:
                 assert(not (set(cf_lists[i]) & set(cf_lists[j])))
-
-
-if __name__ == "__main__":
-    cube = np.arange(6*6*6).reshape(6,6,6)
-    cf_lists = get_cfs(cube, [2,2,12])
-    check_conflicts(cf_lists, 6*6*6)
