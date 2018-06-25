@@ -184,26 +184,3 @@ def from_h5_to_h5stack(input_dir, output_file, label=0):
     f = h5py.File(output_file, 'w')
     f.create_dataset('exported_data', data=h5stack)
     f.close()
-
-
-if __name__ == "__main__":
-    base_path = "/media/nilsec/d0/gt_mt_data/data_cremi/MTTest_CremiTraining_Aligned"
-    output_dir = "/media/nilsec/d0/gt_mt_data/probability_maps/cremi/sampleA_aligned"
-    h5_dset = "/volumes/raw"
-    """
-    ilastik_get_prob_map(base_path + "/sample_A.augmented.0.hdf5",
-                         output_dir,
-                         ilastik_source_dir="/usr/local/src/ilastik-1.2.0rc10-Linux",
-                         ilastik_project="/media/nilsec/d0/gt_mt_data/data_cremi/ilastik/perp.ilp",
-                         file_extension=".hdf5",
-                         h5_dset=h5_dset)
-    """
-
-    raw = "/media/nilsec/d0/gt_mt_data/data/Validation/raw_0_250"
-    output_dir = "/media/nilsec/d0/gt_mt_data/data/probability_maps/l3_val_0_250_test"
-    ilastik_get_prob_map(raw,
-                         output_dir,
-                         ilastik_source_dir="/usr/local/src/ilastik-1.2.0rc10-Linux",
-                         ilastik_project="/media/nilsec/d0/gt_mt_data/ilastik/perpendicular.ilp",
-                         file_extension=".png",
-                         h5_dset=None) 
