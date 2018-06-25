@@ -39,7 +39,6 @@ def gen_config(evaluate,
                volume_shape,
                max_chunk_shape,
                chunk_output_dir,
-               core_wise,
                core_size,
                context_size,
                voxel_size,
@@ -47,6 +46,7 @@ def gen_config(evaluate,
                roi_y,
                roi_z,
                solve,
+               backend,
                mp,  
                cc_min_vertices,
                start_edge_prior,
@@ -64,8 +64,7 @@ def gen_config(evaluate,
                cluster_orientation_factor,
                remove_singletons,
                use_ori,
-               cfg_output_dir
-               ):
+               cfg_output_dir):
 
     config = ConfigParser.ConfigParser()
 
@@ -125,7 +124,6 @@ def gen_config(evaluate,
     config.set('Chunks', 'chunk_output_dir', str(chunk_output_dir))
 
     config.add_section('Cores')
-    config.set('Cores', 'core_wise', str(core_wise))
     config.set('Cores', 'core_size', str(core_size[0]) + ", " +\
                                      str(core_size[1]) + ", " +\
                                      str(core_size[2]))
@@ -144,6 +142,7 @@ def gen_config(evaluate,
 
     config.add_section('Solve')
     config.set('Solve', 'solve', str(solve))
+    config.set('Solve', 'backend', str(backend))
     config.set('Solve', 'mp', str(mp))
     config.set('Solve', 'cc_min_vertices', str(cc_min_vertices))
     config.set('Solve', 'start_edge_prior', str(start_edge_prior))
@@ -172,8 +171,8 @@ def gen_config(evaluate,
 
 
 if __name__ == "__main__":
-    gen_config(evaluate=True,
-               tracing_file="./tracing_file",
+    gen_config(evaluate=False,
+               tracing_file=None,
                eval_chunk_size=10,
                eval_distance_tolerance=100,
                eval_dummy_cost=10000000,
@@ -181,22 +180,23 @@ if __name__ == "__main__":
                eval_pair_cost_factor=1.0,
                max_edges=3,
                eval_time_limit=5000,
-               extract_perp=True,
-               extract_par=True,
-               pm_output_dir_perp="./pm_perp",
-               pm_output_dir_par="./pm_par",
-               ilastik_source_dir="./ilastik_source",
-               ilastik_project_perp="./ilastik_project_perp",
-               ilastik_project_par="./ilastik_project_par",
-               raw="./raw",
-               file_extension="file_extension",
-               h5_dset="h5_dset",
+               eval_output_dir=None,
+               extract_perp=False,
+               extract_par=False,
+               pm_output_dir_perp=None,
+               pm_output_dir_par=None,
+               ilastik_source_dir=None,
+               ilastik_project_perp=None,
+               ilastik_project_par=None,
+               raw=None,
+               file_extension=None,
+               h5_dset=None,
                label=0,
-               prob_map_chunks_perp_dir=None,
-               prob_map_chunks_par_dir=None,
-               perp_stack_h5="./perp_stack_h5",
-               par_stack_h5="./par_stack_h5",
-               db_name="db_name",
+               prob_map_chunks_perp_dir="/media/nilsec/d0/gt_mt_data/probability_maps/validation/perpendicular/stack",
+               prob_map_chunks_par_dir="/media/nilsec/d0/gt_mt_data/probability_maps/validation/parallel/stack",
+               perp_stack_h5="stack_corrected.h5",
+               par_stack_h5="stack_corrected.h5",
+               db_name="l3_val_test",
                overwrite_candidates=True,
                extract_candidates=True,
                overwrite_copy_target=True,
@@ -208,23 +208,15 @@ if __name__ == "__main__":
                distance_threshold=175,
                volume_shape=[154,1524,1524],
                max_chunk_shape=[50,1524,1524],
-               chunk_output_dir="./chunk_output_dir",
-               core_wise=True,
-               core_size=[361,361,30],
-               context_size=[40,40,5],
+               chunk_output_dir="/media/nilsec/d0/gt_mt_data/mtrack/run_0/chunks",
+               core_size=[300,300,30],
+               context_size=[50,50,5],
                voxel_size=[5.,5.,50.],
-               roi_x=[0,1524],
-               roi_y=[0,1524],
-               roi_z=[0,100],
-               output_dir="./output_dir",
-               save_cores=True,
-               save_candidates=True,
-               save_roi=True,
-               save_connected=True,
-               save_core_graphs=True,
-               nml=True,
-               gt=True,
+               roi_x=[0,700],
+               roi_y=[0,700],
+               roi_z=[0,40],
                solve=True,
+               backend="Scip",
                mp=True,  
                cc_min_vertices=4,
                start_edge_prior=160.0,
@@ -235,13 +227,11 @@ if __name__ == "__main__":
                time_limit_per_cc=1000,
                get_hcs=False,
                cluster=False,
-               cluster_output_dir="./cluster_dir",
+               cluster_output_dir=None,
                epsilon_lines=150,
                epsilon_volumes=100,
                min_overlap_volumes=1,
                cluster_orientation_factor=1000,
                remove_singletons=1,
                use_ori=True,
-               cfg_output_dir="./config")
-
-
+               cfg_output_dir="../../")

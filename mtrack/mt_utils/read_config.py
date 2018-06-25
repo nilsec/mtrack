@@ -58,7 +58,6 @@ def read_config(path):
     cfg_dict["chunk_output_dir"] = config.get("Chunks", "chunk_output_dir")
 
     # Cores
-    cfg_dict["core_wise"] = config.getboolean("Cores", "core_wise")
     cfg_dict["core_size"] = np.array(config.get("Cores", "core_size").split(", "), dtype=int)
     cfg_dict["context_size"] = np.array(config.get("Cores", "context_size").split(", "), dtype=int)
     cfg_dict["min_core_overlap"] = np.array(config.get("Cores", "min_core_overlap").split(", "), dtype=int)
@@ -71,6 +70,7 @@ def read_config(path):
     
     # Solve
     cfg_dict["solve"] = config.getboolean("Solve", "solve")
+    cfg_dict["backend"] = config.get("Solve", "backend")
     cfg_dict["mp"] = config.getboolean("Solve", "mp")
     cfg_dict["cc_min_vertices"] = config.getint("Solve", "cc_min_vertices")
     cfg_dict["start_edge_prior"] = config.getfloat("Solve", "start_edge_prior")
@@ -95,4 +95,4 @@ def read_config(path):
     return cfg_dict
 
 if __name__ == "__main__":
-    read_config_2("../../config.ini")   
+    read_config("../../config.ini")   
