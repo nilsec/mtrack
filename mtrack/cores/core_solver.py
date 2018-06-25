@@ -10,19 +10,9 @@ from pymongo import MongoClient, IndexModel, ASCENDING
 from scipy.spatial import KDTree
 import itertools
 from functools import partial
-import pdb
 
-from mtrack.graphs import g1_graph, graph_converter,\
-                   cost_converter, g2_solver
-
-from mtrack.preprocessing import g1_to_nml, extract_candidates,\
-                          DirectionType, candidates_to_g1,\
-                          connect_graph_locally, Chunker,\
-                          Chunk
-
-from mtrack.postprocessing import combine_knossos_solutions,\
-                           combine_gt_solutions
-
+from mtrack.graphs import g1_graph
+from mtrack.preprocessing import extract_candidates, connect_graph_locally
 from mtrack.solve import solve
 
 
@@ -151,7 +141,7 @@ class CoreSolver(object):
         if query_edges:
             print "Perform edge query..."
             edges = list(graph.find({"$and": [{"id_v0_mongo": {"$in": vertex_ids}},
-                                              {"id_v1_mongo": {"$in": vertex_ids}}]}))
+                                             {"id_v1_mongo": {"$in": vertex_ids}}]}))
         
         print "...Done"
 
@@ -198,7 +188,6 @@ class CoreSolver(object):
             partner = np.array(partner)
             g1.set_partner(0,0, vals=partner)
 
-        n = 0
         for e in edges:
             e0 = index_map[np.uint64(e["id_v0_global"])]
             e1 = index_map[np.uint64(e["id_v1_global"])]
@@ -222,7 +211,8 @@ class CoreSolver(object):
                        core_id,
                        voxel_size,
                        time_limit,
-                       hcs=False):
+                       hcs=False,
+                       backend="Gurobi"):
 
         subgraph_connected = connect_graph_locally(subgraph, distance_threshold, cores=True)
         self._check_forced(subgraph_connected)
@@ -258,13 +248,15 @@ class CoreSolver(object):
                                 time_limit,
                                 output_dir=None,
                                 voxel_size=None,
-                                z_correction=0,
-                                chunk_shift=np.array([0.,0.,0.]))
+                                chunk_shift=np.array([0.,0.,0.]),
+                                backend=backend)
+
+            for v in cc_solution.get_vertex_iterator():
+                assert(len(cc_solution.get_incident_edges(v)) <= 2)
+ 
+            solutions.append(cc_solution)
 
             j += 1
-
-            solutions.append(cc_solution)
-       
 
         return solutions
 
@@ -317,11 +309,8 @@ class CoreSolver(object):
             max_lim = np.array([]) 
 
         index_map[-1] = -1
-        index_map_get = np.vectorize(index_map.get)
         edge_array = solution.get_edge_array()
         if edge_array.size:
-            edges_global = index_map_get(np.delete(edge_array, 2, 1))
-
             # We have no duplicate edge entries:
             unique_edges = np.vstack({tuple(row) for row in np.delete(edge_array, 2, 1)})
             assert(len(unique_edges) == len(edge_array))
@@ -331,7 +320,8 @@ class CoreSolver(object):
                 assert(len(solution.get_incident_edges(v)) <= 2)
 
             print "Insert solved edges..."
-            for edge_id in edges_global:
+            for sol_edge in solution.get_edge_iterator():
+                edge_id = [index_map[sol_edge.source()], index_map[sol_edge.target()]]
                 edge = deepcopy(self.template_edge)
             
                 edge["id_v0_global"] = str(edge_id[0][0])
@@ -340,11 +330,15 @@ class CoreSolver(object):
                 edge["id_v1_mongo"] = edge_id[1][1]
             
                 # Check if edge lies in limits
-                vedges = graph.find({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}})
+                # vedges_glob = graph.find({"_id": {"$in": [edge_id[0][1], edge_id[1][1]]}})
+
+                pos_vedges_loc = [np.array(solution.get_position(sol_edge.source())), 
+                                  np.array(solution.get_position(sol_edge.target()))]
+
                 edge_pos = np.array([0.,0.,0.])
                 inside = False
-                for v in vedges:
-                    edge_pos += np.array([v["px"], v["py"], v["pz"]])
+                for v in pos_vedges_loc:
+                    edge_pos += v
 
                 if (x_lim is None) or (y_lim is None) or (z_lim is None):
                     assert(x_lim is None)
@@ -370,8 +364,14 @@ class CoreSolver(object):
                     edges_there = graph.find({"$and": [{"id_v0_mongo": edge["id_v0_mongo"]},
                                                        {"id_v1_mongo": edge["id_v1_mongo"]}]}).count()
                     assert(edges_there == 0)
-
+                    
                     graph.insert_one(edge)
+                    if graph.find({"degree": {"$gte": 3}}).count() != 0:
+                        solution.save("./graph_violation.gt")
+                        print "Violating edge: ", edge
+                        print "Edge position: ", edge_pos
+                        print "Write limits: ", min_lim, max_lim
+                        raise ValueError("Degree = 3")
 
         else:
             print "No edges in solution, skip..."
