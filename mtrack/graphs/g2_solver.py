@@ -2,10 +2,16 @@ import numpy as np
 import pylp
 
 class G2Solver:
-    def __init__(self, g2):
+    def __init__(self, g2, backend="Gurobi"):
         self.g2_vertices_N = g2.get_number_of_vertices()
         
-        self.backend = pylp.GurobiBackend()
+        if backend == "Gurobi":
+            self.backend = pylp.GurobiBackend()
+        elif backend == "Scip":
+            self.backend = pylp.ScipBackend()
+        else:
+            raise NotImplementedError("Choose between Gurobi or Scip backend")
+
         self.backend.initialize(self.g2_vertices_N, pylp.VariableType.Binary)
 
         self.objective = pylp.LinearObjective(self.g2_vertices_N)
@@ -64,7 +70,11 @@ class G2Solver:
         print "and " + str(self.g2_vertices_N) + " variables.\n"
 
         if time_limit != None:
-            self.backend.set_timelimit(time_limit)
+            try:
+                self.backend.set_timelimit(time_limit)
+            except AttributeError:
+                print "WARNING: Unable to set time limit"
+                pass
 
         #self.backend.set_num_threads(num_threads)
 
