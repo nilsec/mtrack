@@ -1,1 +1,1 @@
-This directory contains all necessary files to create a mtrack Docker image.
+This directory contains all necessary files to create a mtrack Docker image. Right now the Docker install only supports the Scip solver as usage of Gurobi inside Docker containers is not covered by the free academic license.

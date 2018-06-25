@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM mongo:rc-xenial
 LABEL maintainer nilsec@ini.ethz.ch
 
 # Set environment variables for gurobi
