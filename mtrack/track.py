@@ -171,8 +171,12 @@ def solve_candidate_volume(name_db,
                            offset=np.array([0.,0.,0.]),
                            overwrite_copy_target=False,
                            skip_solved_cores=True,
-                           mp=True):
+                           mp=True,
+                           backend="Gurobi"):
 
+    if np.any(context_size<2*distance_threshold):
+        raise ValueError("The context size needs to be at least " +\
+                         "twice as large as the distance threshold in all dimensions")
     solver = CoreSolver()
 
     pipeline = [{"$match": {}},
@@ -234,6 +238,7 @@ def solve_candidate_volume(name_db,
                                                              hcs,
                                                              voxel_size,
                                                              skip_solved_cores,
+                                                             backend,
                                                              )))
                 # Catch exceptions and SIGINTs
                 for result in results:
@@ -256,6 +261,7 @@ def solve_candidate_volume(name_db,
                                                  hcs,
                                                  voxel_size,
                                                  skip_solved_cores,
+                                                 backend,
                                                  ))
     finally:
         pool.terminate()
@@ -276,7 +282,8 @@ def solve_core(core,
                time_limit,
                hcs,
                voxel_size,
-               skip_solved_cores):
+               skip_solved_cores,
+               backend):
 
     try:
         print "Core id {}".format(core.id)
@@ -313,7 +320,8 @@ def solve_core(core,
                                               core_id=core.id,
                                               voxel_size=voxel_size,
                                               time_limit=time_limit,
-                                              hcs=hcs)
+                                              hcs=hcs,
+                                              backend=backend)
 
 
             for solution in solutions:
@@ -484,15 +492,20 @@ def track(config_path):
             roi_chunks = []
 
             for f_chunk_perp, f_chunk_par in zip(chunks_perp, chunks_par):
+                if not os.path.isfile(f_chunk_perp):
+                    raise ValueError("{} is not a file".format(f_chunk_perp))
+
                 f = h5py.File(f_chunk_perp, "r")
                 attrs_perp = f["exported_data"].attrs.items()
                 f.close()
 
+                if not os.path.isfile(f_chunk_par):
+                    raise ValueError("{} is not a file".format(f_chunk_par))
+
                 f = h5py.File(f_chunk_par, "r")
                 attrs_par = f["exported_data"].attrs.items()
                 f.close()
-
-                # Sanity check that par and perp chunks have same id
+                
                 assert(attrs_perp[0][1] == attrs_par[0][1])
      
                 """
@@ -552,7 +565,9 @@ def track(config_path):
                                copy_target="microtubules",
                                offset=np.array(roi_offset),
                                overwrite_copy_target=config["overwrite_copy_target"],
-                               skip_solved_cores=config["skip_solved_cores"]) 
+                               skip_solved_cores=config["skip_solved_cores"],
+                               mp=config["mp"],
+                               backend=config["backend"]) 
 
         """
         Clean up all remaining degree 0 vertices in context area inside
@@ -597,4 +612,4 @@ def track(config_path):
  
                 
 if __name__ == "__main__":
-    track("/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_2/config.ini")
+    track("/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_1/config.ini")
