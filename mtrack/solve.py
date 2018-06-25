@@ -18,8 +18,8 @@ def solve(g1,
           time_limit,
           output_dir=None,
           voxel_size=None,
-          z_correction=None,
-          chunk_shift=np.array([0.,0.,0.])):
+          chunk_shift=np.array([0.,0.,0.]),
+          backend="Gurobi"):
 
     """
     Base solver given a g1 graph.
@@ -59,7 +59,7 @@ def solve(g1,
         g2.set_cost(v, g2_cost[v])
 
     print "Create ILP..."
-    solver = g2_solver.G2Solver(g2)
+    solver = g2_solver.G2Solver(g2, backend=backend)
     
     print "Solve ILP..."
     g2_solution = solver.solve(time_limit=time_limit)
@@ -69,7 +69,6 @@ def solve(g1,
                                     g1, 
                                     g2, 
                                     index_maps, 
-                                    z_correction=z_correction, 
                                     chunk_shift=chunk_shift)
    
 
@@ -113,7 +112,6 @@ def g2_to_g1_solution(g2_solution,
                       g2, 
                       index_maps, 
                       voxel_size=[5.,5.,50.], 
-                      z_correction=None, 
                       chunk_shift=np.array([0.,0.,0.])):
 
     g1_selected_edges = set()
@@ -139,15 +137,7 @@ def g2_to_g1_solution(g2_solution,
     for v in g1.get_vertex_iterator():
         if v in g1_selected_vertices:
             vertex_mask.append(True)
-            # Revert the z-position to lie on the section:
-            z_factor = 0.5
-
-            if z_correction is not None:
-                z_factor += 1
-
-            z_shift = z_factor * voxel_size[2]
             pos = g1.get_position(v)
-            pos[2] += z_shift
             pos += chunk_shift * np.array(voxel_size)
             g1.set_position(v, np.array(pos))
 
