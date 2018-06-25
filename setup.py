@@ -11,6 +11,7 @@ setup(
     packages=[
         'mtrack',
         'mtrack.graphs',
+        'mtrack.cores',
         'mtrack.preprocessing',
         'mtrack.postprocessing',
         'mtrack.evaluation',
@@ -21,5 +22,6 @@ setup(
         'scipy',
         'h5py',
         'scikit-image',
+        'pymongo',
             ],
 )   
