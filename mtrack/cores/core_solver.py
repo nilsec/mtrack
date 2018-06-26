@@ -1,15 +1,6 @@
 import numpy as np
-import os
-import json
-from timeit import default_timer as timer
-from shutil import copyfile
 from copy import deepcopy
-import glob
-import h5py
-from pymongo import MongoClient, IndexModel, ASCENDING
-from scipy.spatial import KDTree
-import itertools
-from functools import partial
+from pymongo import MongoClient, ASCENDING
 
 from mtrack.graphs import g1_graph
 from mtrack.preprocessing import extract_candidates, connect_graph_locally
