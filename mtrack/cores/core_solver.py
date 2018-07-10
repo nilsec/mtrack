@@ -10,6 +10,7 @@ from pymongo import MongoClient, IndexModel, ASCENDING
 from scipy.spatial import KDTree
 import itertools
 from functools import partial
+import pdb
 
 from mtrack.graphs import g1_graph
 from mtrack.preprocessing import extract_candidates, connect_graph_locally
