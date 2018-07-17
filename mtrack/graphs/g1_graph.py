@@ -18,12 +18,13 @@ class G1(G):
                 G.new_vertex_property(self, "position", dtype="vector<double>")
                 G.new_vertex_property(self, "partner", dtype="long long")
 
-                G.new_vertex_property(self, "force", dtype="bool", value=False)
-                G.new_edge_property(self, "force", dtype="bool", vals=False)
+                G.new_vertex_property(self, "selected", dtype="bool", value=False)
+                G.new_vertex_property(self, "solved", dtype="bool", value=False)
+                G.new_edge_property(self, "selected", dtype="bool", value=False)
+                G.new_edge_property(self, "solved", dtype="bool", value=False)
         
                 for v in G.get_vertex_iterator(self):
                     self.set_partner(v, -1) 
-        
 
         # NOTE: Start/End dummy node and edge are implicit
         self.edge_index_map = G.get_edge_index_map(self)
@@ -35,6 +36,18 @@ class G1(G):
 
     def add_edge_list(self, edges, hashed=False):
         self.g.add_edge_list(edges, hashed)
+
+    def select_vertex(self, u):
+        G.set_vertex_property(self, "selected", u, True)
+
+    def solve_vertex(self, u):
+        G.set_vertex_property(self, "solved", u, True)
+
+    def select_edge(self, e):
+        G.set_edge_property(self, "selected", None, None, True, e)
+
+    def solve_edge(self, e):
+        G.set_edge_property(self, "solved", None, None, True, e)
         
     def set_orientation(self, u, value):
         assert(type(value) == np.ndarray)
@@ -110,33 +123,45 @@ class G1(G):
     def reindex_edges_save(self):
         """
         Reindex edges to range 0,N
-        but preserve the force edge property
-        by saving the vertex indices of forced
-        edges before.
+        but preserve the selected & solved edge property
+        by saving the (unchanged) vertex 
+        indices of edges before reindexing.
         """ 
         
-        force_ep = self.get_edge_property("force")
-        
+        selected_ep = self.get_edge_property("selected")
+        solved_ep = self.get_edge_property("solved")        
+
         """
-        Save vertex ids of forced edges
+        Save vertex ids
         """
-        forced_edges = []
+        selected_edges = []
+        solved_edges = []
         for e in self.get_edge_iterator():
-            if force_ep[e]:
-                forced_edges.append((e.source(), e.target()))
+            if selected_ep[e]:
+                selected_edges.append((e.source(), e.target()))
+                assert(solved_ep[e])
+                solved_edges.append((e.source(), e.target()))
+
+            elif solved_ep[e]:
+                solved_edges.append((e.source(), e.target()))
         
-        # Reindex edges                
+        # Reindex edges
         self.g.reindex_edges()
 
         """
-        Initialize new property map with old
+        Initialize new property maps with old
         vertex ids.
         """
-        new_force_edges = self.g.new_edge_property("bool")
-        for e in forced_edges:
-            new_force_edges[self.get_edge(*e)] = True
+        new_selected_edges = self.g.new_edge_property("bool")
+        for e in selected_edges:
+            new_selected_edges[self.get_edge(*e)] = True
+
+        new_solved_edges = self.g.new_edge_property("bool")
+        for e in solved_edges:
+            new_solved_edges[self.get_edge(*e)] = True
          
-        self.g.edge_properties["force"] = new_force_edges
+        self.g.edge_properties["selected"] = new_selected_edges
+        self.g.edge_properties["solved"] = new_solved_edges
                 
                 
     def get_edge_cost(self, distance_factor, orientation_factor, start_edge_prior):
