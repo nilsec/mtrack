@@ -43,6 +43,7 @@ def read_config(path):
     cfg_dict["extract_candidates"] = config.getboolean("Data", "extract_candidates")
     cfg_dict["overwrite_copy_target"] = config.getboolean("Data", "overwrite_copy_target")
     cfg_dict["skip_solved_cores"] = config.getboolean("Data", "skip_solved_cores")
+    cfg_dict["reset"] = config.getboolean("Data", "reset")
 
     # Preprocessing
     cfg_dict["gaussian_sigma_perp"] = config.getfloat("Preprocessing", "gaussian_sigma_perp")

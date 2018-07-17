@@ -31,6 +31,7 @@ def gen_config(evaluate,
                extract_candidates,
                overwrite_copy_target,
                skip_solved_cores,
+               reset,
                gaussian_sigma_perp,
                gaussian_sigma_par,
                point_threshold_perp,
@@ -104,6 +105,7 @@ def gen_config(evaluate,
     config.set('Data', 'extract_candidates', str(extract_candidates))
     config.set('Data', 'overwrite_copy_target', str(overwrite_copy_target))
     config.set('Data', 'skip_solved_cores', str(skip_solved_cores))
+    config.set('Data', 'reset', str(reset))
 
     config.add_section('Preprocessing')
     config.set('Preprocessing', 'gaussian_sigma_perp', str(gaussian_sigma_perp))
@@ -201,6 +203,7 @@ if __name__ == "__main__":
                extract_candidates=True,
                overwrite_copy_target=True,
                skip_solved_cores=False,
+               reset=False,
                gaussian_sigma_perp=0.5,
                gaussian_sigma_par=0.5,
                point_threshold_perp=0.6,
