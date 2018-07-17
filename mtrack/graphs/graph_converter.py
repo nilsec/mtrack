@@ -101,12 +101,12 @@ class GraphConverter:
                         v_all = [e1.source(), e1.target(), e2.source(), e2.target()]
                         v_all_forced = np.array([False, False, False, False])
 
-                        force_e1 = self.g1.get_edge_property("force", e1.source(), e1.target())
-                        force_e2 = self.g1.get_edge_property("force", e2.source(), e2.target())
+                        force_e1 = self.g1.get_edge_property("selected", e1.source(), e1.target())
+                        force_e2 = self.g1.get_edge_property("selected", e2.source(), e2.target())
 
                         k = 0
                         for vc in v_all:
-                            force_vc = self.g1.get_vertex_property("force", vc)
+                            force_vc = self.g1.get_vertex_property("selected", vc)
                             v_all_forced[k] = force_vc
                             k += 1
                              
