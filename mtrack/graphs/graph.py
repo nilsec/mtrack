@@ -147,8 +147,8 @@ class G:
         else:
             return self.g.vertex_properties[name]
 
-    def new_edge_property(self, name, dtype, vals=None):
-        ep = self.g.new_edge_property(dtype, vals=vals)
+    def new_edge_property(self, name, dtype, value=None):
+        ep = self.g.new_edge_property(dtype, vals=value)
         self.g.edge_properties[name] = ep
         return ep
 
