@@ -1,4 +1,4 @@
-from mtrack.cores import CoreSolver, CoreBuilder, VanillaSolver
+from mtrack.cores import CoreSolver, CoreBuilder, VanillaSolver, DB
 from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker,\
                                  stack_to_chunks, ilastik_get_prob_map
 from mtrack.mt_utils import read_config, check_overlap
@@ -13,398 +13,7 @@ import multiprocessing, logging
 import sys
 import signal
 import traceback
-
-
-def chunk_pms(volume_shape,
-              max_chunk_shape,
-              voxel_size,
-              overlap,
-              perp_stack_h5,
-              par_stack_h5,
-              output_dir):
-
-    dir_perp = os.path.join(output_dir, "perp")
-    dir_par = os.path.join(output_dir, "par") 
-
-    if not os.path.exists(dir_par):
-        os.makedirs(dir_par)
-
-    if not os.path.exists(dir_perp):
-        os.makedirs(dir_perp)
-    
-    chunker = Chunker(volume_shape,
-                      max_chunk_shape,
-                      voxel_size,
-                      overlap)
-
-    chunks = chunker.chunk()
-    
-    stack_to_chunks(input_stack=perp_stack_h5,
-                    output_dir=dir_perp,
-                    chunks=chunks)
-    stack_to_chunks(input_stack=par_stack_h5,
-                    output_dir=dir_par,
-                    chunks=chunks)
-
-    return dir_perp, dir_par
-
-
-def cluster(name_db,
-            collection,
-            roi,
-            output_dir,
-            epsilon_lines,
-            epsilon_volumes,
-            min_overlap_volumes,
-            cluster_orientation_factor,
-            remove_singletons,
-            voxel_size,
-            use_ori=True):
-
-    solver = CoreSolver()
-    client = solver._get_client(name_db, collection, overwrite=False)
-
-    x_lim_roi = {"min": roi[0][0] * voxel_size[0],
-                 "max": roi[0][1] * voxel_size[0]}
-    y_lim_roi = {"min": roi[1][0] * voxel_size[1],
-                 "max": roi[1][1] * voxel_size[1]}
-    z_lim_roi = {"min": roi[2][0] * voxel_size[2],
-                 "max": roi[2][1] * voxel_size[2]}
-
-    vertices, edges = solver.get_subgraph(name_db,
-                                          collection,
-                                          x_lim=x_lim_roi,
-                                          y_lim=y_lim_roi,
-                                          z_lim=z_lim_roi)
-
-    g1, index_map = solver.subgraph_to_g1(vertices, 
-                                          edges)
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    solution_file = os.path.join(output_dir, "cluster_roi.gt")
-    g1.save(solution_file)
-
-    skeletonize(solution_file,
-                output_dir,
-                epsilon_lines,
-                epsilon_volumes,
-                min_overlap_volumes,
-                canvas_shape=[roi[2][1] - roi[2][0], 
-                              roi[1][1] - roi[1][0], 
-                              roi[0][1] - roi[0][0]],
-                offset=np.array([roi[0][0],
-                                 roi[1][0],
-                                 roi[2][0]]),
-                orientation_factor=cluster_orientation_factor,
-                remove_singletons=remove_singletons,
-                use_ori=use_ori,
-                voxel_size=voxel_size)
-
-
-def extract_pm_chunks(pm_chunks_par,
-                      pm_chunks_perp,
-                      name_db,
-                      collection,
-                      gs,
-                      ps,
-                      distance_threshold,
-                      voxel_size,
-                      overwrite=False):
-
-
-    
-    solver = CoreSolver()
-
-    print "Extract pm chunks..."
-
-    n_chunk = 0
-    id_offset = 0
-
-    if overwrite:
-        solver._get_client(name_db, collection, overwrite=overwrite)
-
-    for pm_perp, pm_par in zip(pm_chunks_perp, pm_chunks_par):
-        print "Extract chunk {}/{}...".format(n_chunk, len(pm_chunks_par))
-
-        prob_map_stack = DirectionType(pm_perp, pm_par)
-
-        f = h5py.File(pm_perp, "r")
-        attrs = f["exported_data"].attrs.items()
-        f.close()
-
-        chunk_limits = attrs[1][1]
-        offset_chunk = [chunk_limits[0][0], 
-                        chunk_limits[1][0], 
-                        chunk_limits[2][0]]
-
-        id_offset_tmp = solver.save_candidates(name_db,
-                                           prob_map_stack,
-                                           offset_chunk,
-                                           gs,
-                                           ps,
-                                           voxel_size,
-                                           id_offset=id_offset,
-                                           collection=collection,
-                                           overwrite=False)
-        id_offset = id_offset_tmp
-        n_chunk += 1
-
-
-def solve_candidate_volume(name_db,
-                           collection,
-                           distance_threshold,
-                           cc_min_vertices,
-                           start_edge_prior,
-                           selection_cost,
-                           distance_factor,
-                           orientation_factor,
-                           comb_angle_factor,
-                           time_limit,
-                           hcs,
-                           core_size,
-                           context_size,
-                           volume_size,
-                           voxel_size,
-                           copy_target="microtubules",
-                           offset=np.array([0.,0.,0.]),
-                           overwrite_copy_target=False,
-                           skip_solved_cores=True,
-                           mp=True,
-                           backend="Gurobi"):
-
-    if np.any(context_size<2*distance_threshold):
-        raise ValueError("The context size needs to be at least " +\
-                         "twice as large as the distance threshold in all dimensions")
-    solver = CoreSolver()
-
-    pipeline = [{"$match": {}},
-                {"$out": copy_target},]
-
-    db = solver._get_db(name_db)
-
-    if copy_target not in db.collection_names():
-        print "{} does not exist, copy candidate collection...".format(copy_target)
-        db["candidates"].aggregate(pipeline)
-        collection = copy_target
-
-    else:
-        if overwrite_copy_target:
-            print "Overwrite " + copy_target + "..."
-            db[copy_target].remove({})
-            assert(db[copy_target].find({}).count() == 0)
-            db["candidates"].aggregate(pipeline)
-            collection = copy_target
-        else:
-            collection = copy_target
- 
-    builder = CoreBuilder(volume_size,
-                          core_size,
-                          context_size,
-                          offset)
-    
-    # Generate core geometry
-    cores = builder.generate_cores()
-
-    # Get conflict free core lists
-    cf_lists = builder.gen_cfs()
-
-    # Don't forward SIGINT to child processes
-    sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
-    pool = multiprocessing.Pool()
-    signal.signal(signal.SIGINT, sigint_handler)
-
-    try:
-        for cf_core_ids in cf_lists:
-            print "Working on ", cf_core_ids
-                        
-            results = []
-            if mp:
-                for core_id in cf_core_ids:
-                    print "Add core {} to pool (mp: {})".format(core_id, mp)
-                    results.append(pool.apply_async(solve_core, (cores[core_id],
-                                                             solver,
-                                                             name_db,
-                                                             collection,
-                                                             distance_threshold,
-                                                             cc_min_vertices,
-                                                             start_edge_prior,
-                                                             selection_cost,
-                                                             distance_factor,
-                                                             orientation_factor,
-                                                             comb_angle_factor,
-                                                             time_limit,
-                                                             hcs,
-                                                             voxel_size,
-                                                             skip_solved_cores,
-                                                             backend,
-                                                             )))
-                # Catch exceptions and SIGINTs
-                for result in results:
-                    result.get(60*60*24*3) 
-
-            else:
-                for core_id in cf_core_ids:
-                    results.append(solve_core(cores[core_id],
-                                                 solver,
-                                                 name_db,
-                                                 collection,
-                                                 distance_threshold,
-                                                 cc_min_vertices,
-                                                 start_edge_prior,
-                                                 selection_cost,
-                                                 distance_factor,
-                                                 orientation_factor,
-                                                 comb_angle_factor,
-                                                 time_limit,
-                                                 hcs,
-                                                 voxel_size,
-                                                 skip_solved_cores,
-                                                 backend,
-                                                 ))
-    finally:
-        pool.terminate()
-        pool.join()
-
-
-def solve_core(core, 
-               solver,
-               name_db,
-               collection,
-               distance_threshold,
-               cc_min_vertices,
-               start_edge_prior,
-               selection_cost,
-               distance_factor,
-               orientation_factor,
-               comb_angle_factor,
-               time_limit,
-               hcs,
-               voxel_size,
-               skip_solved_cores,
-               backend):
-
-    try:
-        print "Core id {}".format(core.id)
-        print "Process core {}...".format(core.id)
-
-        core_finished = False
-        if skip_solved_cores:
-            if solver.core_finished(core_id=core.id,
-                                    name_db=name_db,
-                                    collection="microtubules"):
-
-                print "Core already solved... continue"
-                core_finished = True
-
-        if not core_finished:
-            vertices, edges = solver.get_subgraph(name_db,
-                                                  collection,
-                                                  x_lim=core.x_lim_context,
-                                                  y_lim=core.y_lim_context,
-                                                  z_lim=core.z_lim_context)
-
-            g1, index_map = solver.subgraph_to_g1(vertices,
-                                                  edges)
-
-            solutions = solver.solve_subgraph(g1,
-                                              index_map,
-                                              distance_threshold=distance_threshold,
-                                              cc_min_vertices=cc_min_vertices,
-                                              start_edge_prior=start_edge_prior,
-                                              selection_cost=selection_cost,
-                                              distance_factor=distance_factor,
-                                              orientation_factor=orientation_factor,
-                                              comb_angle_factor=comb_angle_factor,
-                                              core_id=core.id,
-                                              voxel_size=voxel_size,
-                                              time_limit=time_limit,
-                                              hcs=hcs,
-                                              backend=backend)
-
-
-            for solution in solutions:
-                solver.write_solution(solution, 
-                                      index_map,
-                                      name_db,
-                                      collection,
-                                      x_lim=core.x_lim_core,
-                                      y_lim=core.y_lim_core,
-                                      z_lim=core.z_lim_core)
-
-            solver.remove_deg_0_vertices(name_db,
-                                         collection,
-                                         x_lim=core.x_lim_core,
-                                         y_lim=core.y_lim_core,
-                                         z_lim=core.z_lim_core)
-            
-            solver.finish_core(core_id=core.id,
-                               name_db=name_db,
-                               collection="microtubules")
-
-        return core.id
-    except:
-        raise Exception("".join(traceback.format_exception(*sys.exc_info())))
-
-
-def clean_up(name_db, 
-             collection, 
-             x_lim, 
-             y_lim, 
-             z_lim):
-
-    solver = CoreSolver()
-
-    solver.remove_deg_0_vertices(name_db,
-                                 collection,
-                                 x_lim=x_lim,
-                                 y_lim=y_lim,
-                                 z_lim=z_lim)
-
-
-def evaluate_roi(name_db,
-                 collection,
-                 x_lim,
-                 y_lim,
-                 z_lim,
-                 tracing_file,
-                 chunk_size,
-                 distance_tolerance,
-                 dummy_cost,
-                 edge_selection_cost,
-                 pair_cost_factor,
-                 max_edges,
-                 voxel_size,
-                 time_limit,
-                 output_dir):
-
-    solver = CoreSolver()
-
-    vertices, edges = solver.get_subgraph(name_db,
-                                          collection,
-                                          x_lim=x_lim,
-                                          y_lim=y_lim,
-                                          z_lim=z_lim)
-
-    g1, index_map = solver.subgraph_to_g1(vertices,
-                                          edges,
-                                          set_partner=False)
-
-    evaluate(tracing_file=tracing_file,
-             solution_file=g1,
-             chunk_size=chunk_size,
-             distance_tolerance=distance_tolerance,
-             dummy_cost=dummy_cost,
-             edge_selection_cost=edge_selection_cost,
-             pair_cost_factor=pair_cost_factor,
-             max_edges=max_edges,
-             voxel_size=voxel_size,
-             output_dir=output_dir,
-             time_limit=time_limit,
-             tracing_line_paths=None,
-             rec_line_paths=None)
-
+import pdb
 
 def track(config_path):
     config = read_config(config_path)
@@ -421,6 +30,22 @@ def track(config_path):
 
     z_lim_roi = {"min": roi_offset[2],
                  "max": roi_offset[2] + roi_volume_size[2]}
+
+
+    if np.any(config["context_size"] * config["voxel_size"] < 2*config["distance_threshold"]):
+        raise ValueError("The context size needs to be at least " +\
+                         "twice as large as the distance threshold in all dimensions")
+
+    # Generate core geometry: 
+    builder = CoreBuilder(volume_size=roi_volume_size,
+                          core_size=config["core_size"] * config["voxel_size"],
+                          context_size=config["context_size"] * config["voxel_size"],
+                          offset=roi_offset)
+    
+    cores = builder.generate_cores()
+    
+    # Get conflict free core lists
+    cf_lists = builder.gen_cfs()
 
     """
     Extract probability map via Ilastik classifier from specified input dir and ilastik project.
@@ -529,26 +154,36 @@ def track(config_path):
             Extract candidates from all ROI chunks and write to specified
             database. The collection defaults to /candidates/.
             """
-            extract_pm_chunks(pm_chunks_par=[pm[1] for pm in roi_chunks],
-                              pm_chunks_perp=[pm[0] for pm in roi_chunks],
-                              name_db=config["db_name"],
-                              collection="candidates",
-                              gs=DirectionType(config["gaussian_sigma_perp"], 
+
+            write_candidate_graph(pm_chunks_par=[pm[1] for pm in roi_chunks],
+                                  pm_chunks_perp=[pm[0] for pm in roi_chunks],
+                                  name_db=config["db_name"],
+                                  collection="microtubules",
+                                  gs=DirectionType(config["gaussian_sigma_perp"], 
                                                config["gaussian_sigma_par"]),
-                              ps=DirectionType(config["point_threshold_perp"],
+                                  ps=DirectionType(config["point_threshold_perp"],
                                                config["point_threshold_par"]),
-                              distance_threshold=config["distance_threshold"],
-                              voxel_size=config["voxel_size"],
-                              overwrite=config["overwrite_candidates"])
+                                  distance_threshold=config["distance_threshold"],
+                                  voxel_size=config["voxel_size"],
+                                  cores=cores,
+                                  overwrite=True)
+
+        
+
 
         """
         Solve the ROI and write to specified database. The result
         is written out depending on the options in the Output section
         of the config file. The collection defaults to /microtubules/.
         """
+        if config["reset"]:
+            db = DB()
+            db.reset_collection(config["db_name"], 
+                                "microtubules")
+
 
         solve_candidate_volume(name_db=config["db_name"],
-                               collection="candidates",
+                               collection="microtubules",
                                distance_threshold=config["distance_threshold"],
                                cc_min_vertices=config["cc_min_vertices"],
                                start_edge_prior=config["start_edge_prior"],
@@ -558,9 +193,8 @@ def track(config_path):
                                comb_angle_factor=config["comb_angle_factor"],
                                time_limit=config["time_limit_per_cc"],
                                hcs=config["get_hcs"],
-                               core_size=config["core_size"] * config["voxel_size"],
-                               context_size=config["context_size"] * config["voxel_size"],
-                               volume_size=roi_volume_size,
+                               cores=cores,
+                               cf_lists=cf_lists,
                                voxel_size=config["voxel_size"],
                                copy_target="microtubules",
                                offset=np.array(roi_offset),
@@ -569,15 +203,6 @@ def track(config_path):
                                mp=config["mp"],
                                backend=config["backend"]) 
 
-        """
-        Clean up all remaining degree 0 vertices in context area inside
-        the solved ROI.
-        """
-        clean_up(name_db=config["db_name"], 
-                 collection="microtubules", 
-                 x_lim=x_lim_roi, 
-                 y_lim=y_lim_roi, 
-                 z_lim=z_lim_roi)
 
     if config["cluster"]:
        cluster(name_db=config["db_name"],
@@ -609,7 +234,322 @@ def track(config_path):
                      voxel_size=config["voxel_size"],
                      output_dir=config["eval_output_dir"],
                      time_limit=config["eval_time_limit"])
- 
-                
+
+
+def chunk_pms(volume_shape,
+              max_chunk_shape,
+              voxel_size,
+              overlap,
+              perp_stack_h5,
+              par_stack_h5,
+              output_dir):
+
+    dir_perp = os.path.join(output_dir, "perp")
+    dir_par = os.path.join(output_dir, "par") 
+
+    if not os.path.exists(dir_par):
+        os.makedirs(dir_par)
+
+    if not os.path.exists(dir_perp):
+        os.makedirs(dir_perp)
+    
+    chunker = Chunker(volume_shape,
+                      max_chunk_shape,
+                      voxel_size,
+                      overlap)
+
+    chunks = chunker.chunk()
+    
+    stack_to_chunks(input_stack=perp_stack_h5,
+                    output_dir=dir_perp,
+                    chunks=chunks)
+    stack_to_chunks(input_stack=par_stack_h5,
+                    output_dir=dir_par,
+                    chunks=chunks)
+
+    return dir_perp, dir_par
+
+
+def write_candidate_graph(pm_chunks_par,
+                          pm_chunks_perp,
+                          name_db,
+                          collection,
+                          gs,
+                          ps,
+                          distance_threshold,
+                          voxel_size,
+                          cores,
+                          overwrite=False):
+
+
+    print "Extract pm chunks..."
+    db = DB()
+    n_chunk = 0
+    id_offset = 1
+
+    # Overwrite if necesseray:
+    graph = db.get_client(name_db, collection, overwrite=overwrite)
+
+    for pm_perp, pm_par in zip(pm_chunks_perp, pm_chunks_par):
+        print "Extract chunk {}/{}...".format(n_chunk, len(pm_chunks_par))
+
+        prob_map_stack = DirectionType(pm_perp, pm_par)
+
+        f = h5py.File(pm_perp, "r")
+        attrs = f["exported_data"].attrs.items()
+        f.close()
+
+        chunk_limits = attrs[1][1]
+        offset_chunk = [chunk_limits[0][0], 
+                        chunk_limits[1][0], 
+                        chunk_limits[2][0]]
+
+        id_offset_tmp = db.write_candidates(name_db,
+                                           prob_map_stack,
+                                           offset_chunk,
+                                           gs,
+                                           ps,
+                                           voxel_size,
+                                           id_offset=id_offset,
+                                           collection=collection,
+                                           overwrite=False)
+
+        print id_offset_tmp, graph.find({"selected": {"$exists": True}}).count()
+        assert(graph.find({"selected": {"$exists": True}}).count() == id_offset_tmp)
+
+        id_offset = id_offset_tmp + 1
+        n_chunk += 1
+
+    # Connect all candidates locally & context wise, i.e. with overlap:
+    print "Connect candidates"
+    for core in cores:
+        db.connect_candidates(name_db,
+                              collection,
+                              x_lim=core.x_lim_context,
+                              y_lim=core.y_lim_context,
+                              z_lim=core.z_lim_context,
+                              distance_threshold=distance_threshold)
+
+
+def solve_candidate_volume(name_db,
+                           collection,
+                           distance_threshold,
+                           cc_min_vertices,
+                           start_edge_prior,
+                           selection_cost,
+                           distance_factor,
+                           orientation_factor,
+                           comb_angle_factor,
+                           time_limit,
+                           hcs,
+                           cores,
+                           cf_lists,
+                           voxel_size,
+                           copy_target="microtubules",
+                           offset=np.array([0.,0.,0.]),
+                           overwrite_copy_target=False,
+                           skip_solved_cores=True,
+                           mp=True,
+                           backend="Gurobi"):
+
+    # Don't forward SIGINT to child processes
+    sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    pool = multiprocessing.Pool()
+    signal.signal(signal.SIGINT, sigint_handler)
+
+    try:
+        for cf_core_ids in cf_lists:
+            print "Working on ", cf_core_ids
+                        
+            results = []
+            if mp:
+                for core_id in cf_core_ids:
+                    print "Add core {} to pool (mp: {})".format(core_id, mp)
+                    results.append(pool.apply_async(solve_core, (cores[core_id],
+                                                             name_db,
+                                                             collection,
+                                                             distance_threshold,
+                                                             cc_min_vertices,
+                                                             start_edge_prior,
+                                                             selection_cost,
+                                                             distance_factor,
+                                                             orientation_factor,
+                                                             comb_angle_factor,
+                                                             time_limit,
+                                                             hcs,
+                                                             voxel_size,
+                                                             backend,
+                                                             )))
+                # Catch exceptions and SIGINTs
+                for result in results:
+                    result.get(60*60*24*3) 
+
+            else:
+                for core_id in cf_core_ids:
+                    results.append(solve_core(cores[core_id],
+                                                 name_db,
+                                                 collection,
+                                                 distance_threshold,
+                                                 cc_min_vertices,
+                                                 start_edge_prior,
+                                                 selection_cost,
+                                                 distance_factor,
+                                                 orientation_factor,
+                                                 comb_angle_factor,
+                                                 time_limit,
+                                                 hcs,
+                                                 voxel_size,
+                                                 backend,
+                                                 ))
+    finally:
+        pool.terminate()
+        pool.join()
+
+
+def solve_core(core, 
+               name_db,
+               collection,
+               distance_threshold,
+               cc_min_vertices,
+               start_edge_prior,
+               selection_cost,
+               distance_factor,
+               orientation_factor,
+               comb_angle_factor,
+               time_limit,
+               hcs,
+               voxel_size,
+               backend):
+
+    try:
+        print "Core id {}".format(core.id)
+        print "Process core {}...".format(core.id)
+        db = DB()
+        solver = CoreSolver()
+
+        g1, index_map = db.get_g1(name_db,
+                                  collection,
+                                  x_lim=core.x_lim_context,
+                                  y_lim=core.y_lim_context,
+                                  z_lim=core.z_lim_context)
+
+        solutions = solver.solve_subgraph(g1,
+                                          index_map,
+                                          distance_threshold=distance_threshold,
+                                          cc_min_vertices=cc_min_vertices,
+                                          start_edge_prior=start_edge_prior,
+                                          selection_cost=selection_cost,
+                                          distance_factor=distance_factor,
+                                          orientation_factor=orientation_factor,
+                                          comb_angle_factor=comb_angle_factor,
+                                          core_id=core.id,
+                                          voxel_size=voxel_size,
+                                          time_limit=time_limit,
+                                          backend=backend)
+
+
+        for solution in solutions:
+            db.write_solution(solution, 
+                              index_map,
+                              name_db,
+                              collection,
+                              x_lim=core.x_lim_core,
+                              y_lim=core.y_lim_core,
+                              z_lim=core.z_lim_core)
+
+        return core.id
+    except:
+        raise Exception("".join(traceback.format_exception(*sys.exc_info())))
+
+
+def evaluate_roi(name_db,
+                 collection,
+                 x_lim,
+                 y_lim,
+                 z_lim,
+                 tracing_file,
+                 chunk_size,
+                 distance_tolerance,
+                 dummy_cost,
+                 edge_selection_cost,
+                 pair_cost_factor,
+                 max_edges,
+                 voxel_size,
+                 time_limit,
+                 output_dir):
+
+    db = DB()
+    
+    g1, index_map = db.get_selected(name_db,
+                                    collection,
+                                    x_lim=x_lim,
+                                    y_lim=y_lim,
+                                    z_lim=z_lim)
+
+    evaluate(tracing_file=tracing_file,
+             solution_file=g1,
+             chunk_size=chunk_size,
+             distance_tolerance=distance_tolerance,
+             dummy_cost=dummy_cost,
+             edge_selection_cost=edge_selection_cost,
+             pair_cost_factor=pair_cost_factor,
+             max_edges=max_edges,
+             voxel_size=voxel_size,
+             output_dir=output_dir,
+             time_limit=time_limit,
+             tracing_line_paths=None,
+             rec_line_paths=None)
+
+
+def cluster(name_db,
+            collection,
+            roi,
+            output_dir,
+            epsilon_lines,
+            epsilon_volumes,
+            min_overlap_volumes,
+            cluster_orientation_factor,
+            remove_singletons,
+            voxel_size,
+            use_ori=True):
+
+    db = DB()
+
+    x_lim_roi = {"min": roi[0][0] * voxel_size[0],
+                 "max": roi[0][1] * voxel_size[0]}
+    y_lim_roi = {"min": roi[1][0] * voxel_size[1],
+                 "max": roi[1][1] * voxel_size[1]}
+    z_lim_roi = {"min": roi[2][0] * voxel_size[2],
+                 "max": roi[2][1] * voxel_size[2]}
+
+    g1, index_map = db.get_selected(name_db,
+                                    collection,
+                                    x_lim=x_lim_roi,
+                                    y_lim=y_lim_roi,
+                                    z_lim=z_lim_roi)
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    solution_file = os.path.join(output_dir, "cluster_roi.gt")
+    g1.save(solution_file)
+
+    skeletonize(solution_file,
+                output_dir,
+                epsilon_lines,
+                epsilon_volumes,
+                min_overlap_volumes,
+                canvas_shape=[roi[2][1] - roi[2][0], 
+                              roi[1][1] - roi[1][0], 
+                              roi[0][1] - roi[0][0]],
+                offset=np.array([roi[0][0],
+                                 roi[1][0],
+                                 roi[2][0]]),
+                orientation_factor=cluster_orientation_factor,
+                remove_singletons=remove_singletons,
+                use_ori=use_ori,
+                voxel_size=voxel_size)
+
+
 if __name__ == "__main__":
-    track("/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_1/config.ini")
+    track("/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_1/config_rerun.ini")
