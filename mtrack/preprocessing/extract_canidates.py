@@ -275,7 +275,7 @@ def candidates_to_g1(candidates, voxel_size):
     return g1
 
 
-def connect_graph_locally(g1, distance_threshold, cores=False):
+def connect_graph_locally(g1, distance_threshold):
     if not cores:
         if g1.get_number_of_edges() != 0:
             raise Warning("G1 graph already connected")
@@ -305,8 +305,6 @@ def connect_graph_locally(g1, distance_threshold, cores=False):
             """
             try:
                 e = g1.add_edge(*edge)
-                if cores:
-                    g1.set_edge_property("force", u=0, v=0, value=False, e=e)
             except AssertionError:
                 pass
 

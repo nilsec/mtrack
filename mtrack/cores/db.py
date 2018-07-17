@@ -311,8 +311,7 @@ class DB(object):
 
         # Already present edges are not added again here:
         g1_connected = connect_graph_locally(g1_candidates,
-                                             distance_threshold,
-                                             cores=True)
+                                             distance_threshold)
 
         graph = self.get_client(name_db,
                                 collection)
