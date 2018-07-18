@@ -107,19 +107,19 @@ class GetEdgeCombinationCostTestCase(SmallSquareGraphTestCase):
         self.assertEqual(edge_combination_cost[(e_30, start_edge)], 0.0)
 
 
-class GetForcedTestCase(SmallSquareGraphTestCase):
+class GetSelectedTestCase(SmallSquareGraphTestCase):
     def runTest(self):
         """
         Make sure that by default no edges and vertices
         are forced. This is only relevant for core processing.
         """
-        forced = self.g1.get_edge_property("force")
+        selected = self.g1.get_edge_property("selected")
         for e in self.g1.get_edge_iterator():
-            self.assertFalse(forced[e])
+            self.assertFalse(selected[e])
 
-        forced = self.g1.get_vertex_property("force")
+        selected = self.g1.get_vertex_property("selected")
         for v in self.g1.get_vertex_iterator():
-            self.assertFalse(forced[v])
+            self.assertFalse(selected[v])
 
 if __name__ == "__main__":
     unittest.main()
