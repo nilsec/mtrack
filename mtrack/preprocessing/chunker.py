@@ -45,7 +45,7 @@ class Chunk(object):
         
 
 class Chunker(object):
-    def __init__(self, volume_shape, max_chunk_shape, voxel_size, overlap, offset=np.array([0,0,0]), phys=False):
+    def __init__(self, volume_shape, max_chunk_shape, voxel_size, overlap=np.array([0,0,0]), offset=np.array([0,0,0]), phys=False):
         """
         volume_shape: shape of base volume you want to chunk [z,y,x]
         max_chunk_size: maximum chunk shape after chunking [z,y,x]

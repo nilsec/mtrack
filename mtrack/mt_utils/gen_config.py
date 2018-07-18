@@ -101,10 +101,7 @@ def gen_config(evaluate,
     config.set('Data', 'perp_stack_h5', str(perp_stack_h5))
     config.set('Data', 'par_stack_h5', str(par_stack_h5))
     config.set('Data', 'db_name', str(db_name))
-    config.set('Data', 'overwrite_candidates', str(overwrite_candidates))
     config.set('Data', 'extract_candidates', str(extract_candidates))
-    config.set('Data', 'overwrite_copy_target', str(overwrite_copy_target))
-    config.set('Data', 'skip_solved_cores', str(skip_solved_cores))
     config.set('Data', 'reset', str(reset))
 
     config.add_section('Preprocessing')
@@ -122,7 +119,6 @@ def gen_config(evaluate,
                                             str(max_chunk_shape[1]) + ", " +\
                                             str(max_chunk_shape[2]))
 
-    config.set('Chunks', 'chunk_overlap', '0, 0, 0')
     config.set('Chunks', 'chunk_output_dir', str(chunk_output_dir))
 
     config.add_section('Cores')
@@ -132,7 +128,6 @@ def gen_config(evaluate,
     config.set('Cores', 'context_size', str(context_size[0]) + ", " +\
                                         str(context_size[1]) + ", " +\
                                         str(context_size[2]))
-    config.set('Cores', 'min_core_overlap', '0, 0, 0')
     config.set('Cores', 'voxel_size', str(voxel_size[0]) + ", " +\
                                       str(voxel_size[1]) + ", " +\
                                       str(voxel_size[2]))
@@ -153,7 +148,6 @@ def gen_config(evaluate,
     config.set('Solve', 'orientation_factor', str(orientation_factor))
     config.set('Solve', 'comb_angle_factor', str(comb_angle_factor))
     config.set('Solve', 'time_limit_per_cc', str(time_limit_per_cc))
-    config.set('Solve', 'get_hcs', str(get_hcs))
 
     config.add_section('Cluster')
     config.set('Cluster', 'cluster', str(cluster))

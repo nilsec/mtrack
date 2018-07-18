@@ -39,10 +39,7 @@ def read_config(path):
     cfg_dict["perp_stack_h5"] = config.get("Data", "perp_stack_h5")
     cfg_dict["par_stack_h5"] = config.get("Data", "par_stack_h5")
     cfg_dict["db_name"] = config.get("Data", "db_name")
-    cfg_dict["overwrite_candidates"] = config.getboolean("Data", "overwrite_candidates")
     cfg_dict["extract_candidates"] = config.getboolean("Data", "extract_candidates")
-    cfg_dict["overwrite_copy_target"] = config.getboolean("Data", "overwrite_copy_target")
-    cfg_dict["skip_solved_cores"] = config.getboolean("Data", "skip_solved_cores")
     cfg_dict["reset"] = config.getboolean("Data", "reset")
 
     # Preprocessing
@@ -55,13 +52,11 @@ def read_config(path):
     # Chunks
     cfg_dict["volume_shape"] = np.array(config.get("Chunks", "volume_shape").split(", "), dtype=int)
     cfg_dict["max_chunk_shape"] = np.array(config.get("Chunks", "max_chunk_shape").split(", "), dtype=int)
-    cfg_dict["chunk_overlap"] = np.array(config.get("Chunks", "chunk_overlap").split(", "), dtype=int)
     cfg_dict["chunk_output_dir"] = config.get("Chunks", "chunk_output_dir")
 
     # Cores
     cfg_dict["core_size"] = np.array(config.get("Cores", "core_size").split(", "), dtype=int)
     cfg_dict["context_size"] = np.array(config.get("Cores", "context_size").split(", "), dtype=int)
-    cfg_dict["min_core_overlap"] = np.array(config.get("Cores", "min_core_overlap").split(", "), dtype=int)
     cfg_dict["voxel_size"] = np.array(config.get("Cores", "voxel_size").split(", "), dtype=float)
     
     # Output
@@ -80,7 +75,6 @@ def read_config(path):
     cfg_dict["orientation_factor"] = config.getfloat("Solve", "orientation_factor")
     cfg_dict["comb_angle_factor"] = config.getfloat("Solve", "comb_angle_factor")
     cfg_dict["time_limit_per_cc"] = config.getint("Solve", "time_limit_per_cc")
-    cfg_dict["get_hcs"] = config.getboolean("Solve", "get_hcs")
 
     # Cluster
     cfg_dict["cluster"] = config.getboolean("Cluster", "cluster")

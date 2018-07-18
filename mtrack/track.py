@@ -87,13 +87,12 @@ def track(config_path):
                 be performed, otherwise the chunk dir specified is used.
                 """
 
-                dir_perp, dir_par = chunk_pms(volume_shape=config["volume_shape"],
-                                              max_chunk_shape=config["max_chunk_shape"],
-                                              voxel_size=config["voxel_size"],
-                                              overlap=config["chunk_overlap"],
-                                              perp_stack_h5=config["perp_stack_h5"],
-                                              par_stack_h5=config["par_stack_h5"],
-                                              output_dir=config["chunk_output_dir"])
+                dir_perp, dir_par = chunk_prob_maps(volume_shape=config["volume_shape"],
+                                                    max_chunk_shape=config["max_chunk_shape"],
+                                                    voxel_size=config["voxel_size"],
+                                                    perp_stack_h5=config["perp_stack_h5"],
+                                                    par_stack_h5=config["par_stack_h5"],
+                                                    output_dir=config["chunk_output_dir"])
 
                 """
                 Update the config with the new output dirs for 
@@ -152,7 +151,7 @@ def track(config_path):
 
             """
             Extract candidates from all ROI chunks and write to specified
-            database. The collection defaults to /candidates/.
+            database.
             """
 
             write_candidate_graph(pm_chunks_par=[pm[1] for pm in roi_chunks],
@@ -167,8 +166,6 @@ def track(config_path):
                                   voxel_size=config["voxel_size"],
                                   cores=cores,
                                   overwrite=True)
-
-        
 
 
         """
@@ -192,14 +189,10 @@ def track(config_path):
                                orientation_factor=config["orientation_factor"],
                                comb_angle_factor=config["comb_angle_factor"],
                                time_limit=config["time_limit_per_cc"],
-                               hcs=config["get_hcs"],
                                cores=cores,
                                cf_lists=cf_lists,
                                voxel_size=config["voxel_size"],
-                               copy_target="microtubules",
                                offset=np.array(roi_offset),
-                               overwrite_copy_target=config["overwrite_copy_target"],
-                               skip_solved_cores=config["skip_solved_cores"],
                                mp=config["mp"],
                                backend=config["backend"]) 
 
@@ -236,13 +229,12 @@ def track(config_path):
                      time_limit=config["eval_time_limit"])
 
 
-def chunk_pms(volume_shape,
-              max_chunk_shape,
-              voxel_size,
-              overlap,
-              perp_stack_h5,
-              par_stack_h5,
-              output_dir):
+def chunk_prob_maps(volume_shape,
+                    max_chunk_shape,
+                    voxel_size,
+                    perp_stack_h5,
+                    par_stack_h5,
+                    output_dir):
 
     dir_perp = os.path.join(output_dir, "perp")
     dir_par = os.path.join(output_dir, "par") 
@@ -255,8 +247,7 @@ def chunk_pms(volume_shape,
     
     chunker = Chunker(volume_shape,
                       max_chunk_shape,
-                      voxel_size,
-                      overlap)
+                      voxel_size)
 
     chunks = chunker.chunk()
     
@@ -341,14 +332,10 @@ def solve_candidate_volume(name_db,
                            orientation_factor,
                            comb_angle_factor,
                            time_limit,
-                           hcs,
                            cores,
                            cf_lists,
                            voxel_size,
-                           copy_target="microtubules",
                            offset=np.array([0.,0.,0.]),
-                           overwrite_copy_target=False,
-                           skip_solved_cores=True,
                            mp=True,
                            backend="Gurobi"):
 
@@ -376,7 +363,6 @@ def solve_candidate_volume(name_db,
                                                              orientation_factor,
                                                              comb_angle_factor,
                                                              time_limit,
-                                                             hcs,
                                                              voxel_size,
                                                              backend,
                                                              )))
@@ -397,7 +383,6 @@ def solve_candidate_volume(name_db,
                                                  orientation_factor,
                                                  comb_angle_factor,
                                                  time_limit,
-                                                 hcs,
                                                  voxel_size,
                                                  backend,
                                                  ))
@@ -417,7 +402,6 @@ def solve_core(core,
                orientation_factor,
                comb_angle_factor,
                time_limit,
-               hcs,
                voxel_size,
                backend):
 
