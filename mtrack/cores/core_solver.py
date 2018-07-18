@@ -35,7 +35,7 @@ class CoreSolver(object):
 
         print "Solve connected subgraphs..."
         ccs = subgraph.get_components(min_vertices=cc_min_vertices,
-                                      output_folder="./ccs/",
+                                      output_folder=None,
                                       return_graphs=True)
 
         j = 0
