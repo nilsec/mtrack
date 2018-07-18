@@ -142,6 +142,27 @@ class DB(object):
         return g1_selected, index_map
 
 
+    def validate_selection(self, 
+                           name_db,
+                           collection,
+                           x_lim,
+                           y_lim,
+                           z_lim):
+
+        print "Validate Solution..."
+        g1_selected, index_map = self.get_selected(name_db,
+                                                   collection,
+                                                   x_lim,
+                                                   y_lim,
+                                                   z_lim)
+
+        for v in g1_selected.get_vertex_iterator():
+            assert(len(g1_selected.get_incident_edges(v)) <= 2),\
+                   "Selection has branchings"
+
+        print "...No violations"
+
+        
     def write_solution(self,
                        solution,
                        index_map,

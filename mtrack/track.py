@@ -13,7 +13,7 @@ import multiprocessing, logging
 import sys
 import signal
 import traceback
-import pdb
+
 
 def track(config_path):
     config = read_config(config_path)
@@ -194,7 +194,16 @@ def track(config_path):
                                voxel_size=config["voxel_size"],
                                offset=np.array(roi_offset),
                                mp=config["mp"],
-                               backend=config["backend"]) 
+                               backend=config["backend"])
+
+        
+        if config["validate_selection"]:
+            db = DB()
+            db.validate_selection(name_db=config["db_name"],
+                                  collection="microtubules",
+                                  x_lim=x_lim_roi,
+                                  y_lim=y_lim_roi,
+                                  z_lim=z_lim_roi) 
 
 
     if config["cluster"]:

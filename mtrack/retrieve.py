@@ -2,7 +2,6 @@ from mtrack.cores import DB, CoreBuilder
 from mtrack.preprocessing import g1_to_nml
 import os
 import numpy as np
-import pdb
 
 def retrieve(name_db,
              collection,
@@ -19,7 +18,10 @@ def retrieve(name_db,
                                              y_lim=y_lim,
                                              z_lim=z_lim)
 
-    pdb.set_trace()
+    print "Validate solution..."
+    for v in g1_selected.get_vertex_iterator():
+        assert(len(g1_selected.get_incident_edges(v)) <= 2), "Retrieved graph has branchings"
+    print "...No violations"
 
     g1_to_nml(g1_selected, 
               output_path,
@@ -57,7 +59,7 @@ if __name__ == "__main__":
                 "/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_1/context_{}.nml".format(core.id))
     """
     print "Retrieve full roi" 
-    retrieve("cremi_validation_a0_1",
+    retrieve("cremi_validation_a0_1_rerun",
                  "microtubules",
                 {"min":roi[0][0]*5, "max":roi[0][1]*5},
                 {"min":roi[1][0]*5, "max":roi[1][1]*5},
