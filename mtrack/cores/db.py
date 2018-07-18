@@ -1,8 +1,8 @@
 import numpy as np
 import os
 import json
-from timeit import default_timer as timer
 from shutil import copyfile
+import time
 from copy import deepcopy
 import glob
 import h5py
@@ -10,7 +10,6 @@ from pymongo import MongoClient, IndexModel, ASCENDING
 from scipy.spatial import KDTree
 import itertools
 from functools import partial
-import pdb
 
 from mtrack.graphs import g1_graph
 from mtrack.preprocessing import extract_candidates, connect_graph_locally
@@ -28,13 +27,17 @@ class DB(object):
                        "degree": None,
                        "solved": False,
                        "selected": False,
-					   "type": "vertex"}
+					   "type": "vertex",
+                       "time_selected": [],
+                       "by_selected": []}
 
         self.edge = {"id0": None,
                      "id1": None,
                      "solved": False,
                      "selected": False,
-					 "type": "edge"}
+					 "type": "edge",
+                     "time_selected": [],
+                     "by_selected": []}
 
 
     def get_db(self, name_db):
@@ -171,7 +174,7 @@ class DB(object):
                        x_lim=None,
                        y_lim=None,
                        z_lim=None,
-                       n=0):
+                       id_writer=-1):
         
         graph = self.get_client(name_db, collection, overwrite=False)
 
@@ -185,17 +188,6 @@ class DB(object):
             max_lim = np.array([])
 
         print "Write selected..."
-        """
-        for v in solution.get_vertex_iterator():
-            v_pos = np.array(solution.get_position(v))
-            if np.all(v_pos >= min_lim) and np.all(v_pos < max_lim):
-                v_mapped = index_map[v]
-                graph.update_one({"id": v_mapped},
-                                 {"$set": {"selected": True}},
-                                 upsert=False)
-
-        """
-
         for e in solution.get_edge_iterator():
             v0_pos = np.array(solution.get_position(e.source()))
             v1_pos = np.array(solution.get_position(e.target()))
@@ -207,19 +199,25 @@ class DB(object):
             
                 graph.update_one({"$and": [{"id0": {"$in": [v0_mapped, v1_mapped]}},
                                            {"id1": {"$in": [v0_mapped, v1_mapped]}}]},
-                                 {"$set": {"selected": True}},
+                                 {"$set": {"selected": True},
+                                  "$push": {"by_selected": id_writer, 
+                                            "time_selected": str(time.localtime(time.time()))}},
                                  upsert=False)
 
                 # Edge implies vertices:
                 graph.update_one({"id": v0_mapped},
                                  {"$inc": {"degree": 1},
-                                  "$set": {"selected": True}},
+                                  "$set": {"selected": True},
+                                  "$push": {"by_selected": id_writer, 
+                                            "time_selected": str(time.localtime(time.time()))}},
                                  upsert=False)
 
 
                 graph.update_one({"id": v1_mapped},
                                  {"$inc": {"degree": 1},
-                                  "$set": {"selected": True}},
+                                  "$set": {"selected": True},
+                                  "$push": {"by_selected": id_writer, 
+                                            "time_selected": str(time.localtime(time.time()))}},
                                  upsert=False)
  
                 assert(graph.find({"degree": {"$gte": 3}}).count()==0)
@@ -307,7 +305,11 @@ class DB(object):
         graph = self.get_client(name_db, collection)
 
         graph.update_many({}, 
-                          {"$set": {"selected": False, "solved": False, "degree": 0}},
+                          {"$set": {"selected": False, 
+                                    "solved": False, 
+                                    "degree": 0,
+                                    "time_selected": [],
+                                    "by_selected": []}},
                           upsert=False)
 
         n_selected = graph.find({"selected": True}).count()

@@ -448,7 +448,8 @@ def solve_core(core,
                               collection,
                               x_lim=core.x_lim_core,
                               y_lim=core.y_lim_core,
-                              z_lim=core.z_lim_core)
+                              z_lim=core.z_lim_core,
+                              id_writer=core.id)
 
         return core.id
     except:
