@@ -156,8 +156,8 @@ def track(config_path):
 
             write_candidate_graph(pm_chunks_par=[pm[1] for pm in roi_chunks],
                                   pm_chunks_perp=[pm[0] for pm in roi_chunks],
-                                  name_db=config["db_name"],
-                                  collection="microtubules",
+                                  name_db=config["name_db"],
+                                  collection=config["name_collection"],
                                   gs=DirectionType(config["gaussian_sigma_perp"], 
                                                config["gaussian_sigma_par"]),
                                   ps=DirectionType(config["point_threshold_perp"],
@@ -171,16 +171,16 @@ def track(config_path):
         """
         Solve the ROI and write to specified database. The result
         is written out depending on the options in the Output section
-        of the config file. The collection defaults to /microtubules/.
+        of the config file.
         """
         if config["reset"]:
             db = DB()
-            db.reset_collection(config["db_name"], 
-                                "microtubules")
+            db.reset_collection(config["name_db"], 
+                                config["name_collection"])
 
 
-        solve_candidate_volume(name_db=config["db_name"],
-                               collection="microtubules",
+        solve_candidate_volume(name_db=config["name_db"],
+                               collection=config["name_collection"],
                                distance_threshold=config["distance_threshold"],
                                cc_min_vertices=config["cc_min_vertices"],
                                start_edge_prior=config["start_edge_prior"],
@@ -199,16 +199,16 @@ def track(config_path):
         
         if config["validate_selection"]:
             db = DB()
-            db.validate_selection(name_db=config["db_name"],
-                                  collection="microtubules",
+            db.validate_selection(name_db=config["name_db"],
+                                  collection=config["name_collection"],
                                   x_lim=x_lim_roi,
                                   y_lim=y_lim_roi,
                                   z_lim=z_lim_roi) 
 
 
     if config["cluster"]:
-       cluster(name_db=config["db_name"],
-               collection="microtubules",
+       cluster(name_db=config["name_db"],
+               collection=config["name_collection"],
                roi=roi,
                output_dir=config["cluster_output_dir"],
                epsilon_lines=config["epsilon_lines"],
@@ -221,8 +221,8 @@ def track(config_path):
 
 
     if config["evaluate"]:
-        evaluate_roi(name_db=config["db_name"],
-                     collection="microtubules",
+        evaluate_roi(name_db=config["name_db"],
+                     collection=config["name_collection"],
                      x_lim=x_lim_roi,
                      y_lim=y_lim_roi,
                      z_lim=z_lim_roi,

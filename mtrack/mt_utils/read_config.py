@@ -38,7 +38,8 @@ def read_config(path):
     cfg_dict["prob_map_chunks_par_dir"] = config.get("Data", "prob_map_chunks_par_dir")
     cfg_dict["perp_stack_h5"] = config.get("Data", "perp_stack_h5")
     cfg_dict["par_stack_h5"] = config.get("Data", "par_stack_h5")
-    cfg_dict["db_name"] = config.get("Data", "db_name")
+    cfg_dict["name_db"] = config.get("Data", "name_db")
+    cfg_dict["name_collection"] = config.get("Data", "name_collection")
     cfg_dict["extract_candidates"] = config.getboolean("Data", "extract_candidates")
     cfg_dict["reset"] = config.getboolean("Data", "reset")
 
@@ -68,6 +69,7 @@ def read_config(path):
     cfg_dict["solve"] = config.getboolean("Solve", "solve")
     cfg_dict["backend"] = config.get("Solve", "backend")
     cfg_dict["mp"] = config.getboolean("Solve", "mp")
+    cfg_dict["validate_selection"] = config.getboolean("Solve", "validate_selection")
     cfg_dict["cc_min_vertices"] = config.getint("Solve", "cc_min_vertices")
     cfg_dict["start_edge_prior"] = config.getfloat("Solve", "start_edge_prior")
     cfg_dict["selection_cost"] = config.getfloat("Solve", "selection_cost")

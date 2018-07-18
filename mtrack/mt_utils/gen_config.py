@@ -26,7 +26,8 @@ def gen_config(evaluate,
                prob_map_chunks_par_dir,
                perp_stack_h5,
                par_stack_h5,
-               db_name,
+               name_db,
+               name_collection,
                overwrite_candidates,
                extract_candidates,
                overwrite_copy_target,
@@ -47,6 +48,7 @@ def gen_config(evaluate,
                roi_y,
                roi_z,
                solve,
+               validate_selection,
                backend,
                mp,  
                cc_min_vertices,
@@ -100,7 +102,8 @@ def gen_config(evaluate,
     config.set('Data', 'prob_map_chunks_par_dir', str(prob_map_chunks_par_dir))
     config.set('Data', 'perp_stack_h5', str(perp_stack_h5))
     config.set('Data', 'par_stack_h5', str(par_stack_h5))
-    config.set('Data', 'db_name', str(db_name))
+    config.set('Data', 'name_db', str(name_db))
+    config.set('Data', 'name_collection', str(name_collection))
     config.set('Data', 'extract_candidates', str(extract_candidates))
     config.set('Data', 'reset', str(reset))
 
@@ -141,6 +144,7 @@ def gen_config(evaluate,
     config.set('Solve', 'solve', str(solve))
     config.set('Solve', 'backend', str(backend))
     config.set('Solve', 'mp', str(mp))
+    config.set('Solve', 'validate_selection', str(validate_selection))
     config.set('Solve', 'cc_min_vertices', str(cc_min_vertices))
     config.set('Solve', 'start_edge_prior', str(start_edge_prior))
     config.set('Solve', 'selection_cost', str(selection_cost))
@@ -192,7 +196,8 @@ if __name__ == "__main__":
                prob_map_chunks_par_dir="/media/nilsec/d0/gt_mt_data/probability_maps/validation/parallel/stack",
                perp_stack_h5="stack_corrected.h5",
                par_stack_h5="stack_corrected.h5",
-               db_name="l3_val_test",
+               name_db="l3_val_test",
+               name_collection="c0",
                overwrite_candidates=True,
                extract_candidates=True,
                overwrite_copy_target=True,
@@ -215,6 +220,7 @@ if __name__ == "__main__":
                solve=True,
                backend="Scip",
                mp=True,  
+               validate_selection="True"
                cc_min_vertices=4,
                start_edge_prior=160.0,
                selection_cost=-70.0,
