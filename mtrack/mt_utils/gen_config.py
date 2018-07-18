@@ -220,7 +220,7 @@ if __name__ == "__main__":
                solve=True,
                backend="Scip",
                mp=True,  
-               validate_selection="True"
+               validate_selection="True",
                cc_min_vertices=4,
                start_edge_prior=160.0,
                selection_cost=-70.0,
