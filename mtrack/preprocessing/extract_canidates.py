@@ -276,10 +276,6 @@ def candidates_to_g1(candidates, voxel_size):
 
 
 def connect_graph_locally(g1, distance_threshold):
-    if not cores:
-        if g1.get_number_of_edges() != 0:
-            raise Warning("G1 graph already connected")
-
     print "Construct KDTree...\n"
 
     positions = []
