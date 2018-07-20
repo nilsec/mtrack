@@ -199,7 +199,7 @@ class DB(object):
             
                 graph.update_one({"$and": [{"id0": {"$in": [v0_mapped, v1_mapped]}},
                                            {"id1": {"$in": [v0_mapped, v1_mapped]}}]},
-                                 {"$set": {"selected": True},
+                                 {"$set": {"selected": True, "solved": True},
                                   "$push": {"by_selected": id_writer, 
                                             "time_selected": str(time.localtime(time.time()))}},
                                  upsert=False)
@@ -207,7 +207,7 @@ class DB(object):
                 # Edge implies vertices:
                 graph.update_one({"id": v0_mapped},
                                  {"$inc": {"degree": 1},
-                                  "$set": {"selected": True},
+                                  "$set": {"selected": True, "solved": True},
                                   "$push": {"by_selected": id_writer, 
                                             "time_selected": str(time.localtime(time.time()))}},
                                  upsert=False)
@@ -215,7 +215,7 @@ class DB(object):
 
                 graph.update_one({"id": v1_mapped},
                                  {"$inc": {"degree": 1},
-                                  "$set": {"selected": True},
+                                  "$set": {"selected": True, "solved": True},
                                   "$push": {"by_selected": id_writer, 
                                             "time_selected": str(time.localtime(time.time()))}},
                                  upsert=False)
@@ -254,18 +254,21 @@ class DB(object):
                          voxel_size,
                          id_offset,
                          collection,
-                         overwrite=False):
+                         overwrite=False,
+                         candidates=None):
+
 
         graph = self.get_client(name_db, collection, overwrite=overwrite)
 
-        candidates = extract_candidates(prob_map_stack_chunk,
-                                        gs,
-                                        ps,
-                                        voxel_size,
-                                        bounding_box=None,
-                                        bs_output_dir=None,
-                                        offset_pos=offset_chunk,
-                                        identifier_0=id_offset)
+        if candidates is None:
+            candidates = extract_candidates(prob_map_stack_chunk,
+                                            gs,
+                                            ps,
+                                            voxel_size,
+                                            bounding_box=None,
+                                            bs_output_dir=None,
+                                            offset_pos=offset_chunk,
+                                            identifier_0=id_offset)
 
         print "Write candidate vertices..."
         for candidate in candidates:
@@ -295,7 +298,6 @@ class DB(object):
 
             graph.insert_one(vertex)
 
-        return vertex_id
 
     def reset_collection(self,
                          name_db,
