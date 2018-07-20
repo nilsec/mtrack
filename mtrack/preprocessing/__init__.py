@@ -3,3 +3,4 @@ from .extract_canidates import extract_candidates, DirectionType, candidates_to_
 from .lemon_io import g1_to_lemon
 from .chunker import Chunker, Chunk
 from .create_probability_map import ilastik_get_prob_map, stack_to_chunks
+from .angle_estimate import MtCandidate
