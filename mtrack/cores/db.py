@@ -152,7 +152,7 @@ class DB(object):
                            y_lim,
                            z_lim):
 
-        print "Validate Solution..."
+        print "Validate Selection..."
         g1_selected, index_map = self.get_selected(name_db,
                                                    collection,
                                                    x_lim,
@@ -298,6 +298,7 @@ class DB(object):
 
             graph.insert_one(vertex)
 
+        return vertex_id
 
     def reset_collection(self,
                          name_db,
