@@ -138,7 +138,7 @@ def g2_to_g1_solution(g2_solution,
         if v in g1_selected_vertices:
             vertex_mask.append(True)
             pos = g1.get_position(v)
-            pos += chunk_shift * np.array(voxel_size)
+            pos += np.array(chunk_shift) * np.array(voxel_size)
             g1.set_position(v, np.array(pos))
 
         else:
