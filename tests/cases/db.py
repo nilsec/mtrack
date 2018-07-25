@@ -220,7 +220,7 @@ class MonolithicDBTestCase(DBBaseTest):
                            [tuple(o * self.voxel_size) for o in self.candidate_orientations])
 
             db_vertices = self.client.find({"id": index_map[v]})
-            self.assertTrue(db_v.count() == 1)
+            self.assertTrue(db_vertices.count() == 1)
             for v_db in db_vertices:
                 self.assertTrue( np.all(g1.get_position(v) ==\
                                  np.array([v_db["px"], v_db["py"], v_db["pz"]]) ) )
@@ -228,7 +228,8 @@ class MonolithicDBTestCase(DBBaseTest):
                 self.assertTrue( np.all(g1.get_orientation(v) ==\
                                  np.array([v_db["ox"], v_db["oy"], v_db["oz"]])))
 
-                self.assertEqual(v_db["id_partner"], g1.get_partner(v))
+                self.assertEqual(v_db["id_partner"], 
+                                 index_map[g1.get_partner(v)])
 
         for e in g1.get_edge_iterator():
             self.assertFalse(g1.get_edge_property("selected", e.source(), e.target()))
@@ -268,7 +269,8 @@ class MonolithicDBTestCase(DBBaseTest):
                 self.assertTrue( np.all(g1.get_orientation(id_v0) ==\
                                  np.array([v_db["ox"], v_db["oy"], v_db["oz"]])))
 
-                self.assertEqual(v_db["id_partner"], g1.get_partner(id_v0))
+                self.assertEqual(v_db["id_partner"], 
+                                 index_map[g1.get_partner(id_v0)])
                 self.assertEqual(v_db["type"], "vertex")
 
             for v_db in db_vertices1:
@@ -278,7 +280,8 @@ class MonolithicDBTestCase(DBBaseTest):
                 self.assertTrue( np.all(g1.get_orientation(id_v1) ==\
                                  np.array([v_db["ox"], v_db["oy"], v_db["oz"]])))
 
-                self.assertEqual(v_db["id_partner"], g1.get_partner(id_v1))
+                self.assertEqual(v_db["id_partner"], 
+                                 index_map[g1.get_partner(id_v1)])
                 self.assertEqual(v_db["type"], "vertex")
         
 if __name__ == "__main__":
