@@ -33,7 +33,9 @@ class G1Solver:
                                           orientation_factor,
                                           start_edge_prior)
 
-        self.edge_combination_cost = g1.get_edge_combination_cost(comb_angle_factor)
+        self.edge_combination_cost, self.edges_to_middle =\
+            g1.get_edge_combination_cost(comb_angle_factor=comb_angle_factor, 
+                                         return_edges_to_middle=True)
 
         self.n_vertices = g1.get_number_of_vertices()
         self.n_dummy = self.n_vertices
@@ -142,25 +144,38 @@ class G1Solver:
             e0 = ee[0]
             e1 = ee[1]
             
-            if e0 != G1.START_EDGE and e1 != G1.START_EDGE:
-                constraint = pylp.LinearConstraint()
-                constraint.set_coefficient(comb_to_binary(ee), 2)
-                constraint.set_coefficient(edge_to_binary(e0), -1)
-                constraint.set_coefficient(edge_to_binary(e1), -1)
-                constraint.set_relation(pylp.Relation.LessEqual)
-                constraint.set_value(0)
-                
-                self.constraints.add(constraint)
+            assert(e0 != G1.START_EDGE or e1 != G1.START_EDGE)
 
-                # Edges implies combination:
-                constraint = pylp.LinearConstraint()
-                constraint.set_coefficient(edge_to_binary(e0), 1)
-                constraint.set_coefficient(edge_to_binary(e1), 1)
-                constraint.set_coefficient(comb_to_binary(ee), -1)
-                constraint.set_relation(pylp.Relation.LessEqual)
-                constraint.set_value(1)
-                
-                self.constraints.add(constraint)
+            if e0 == G1.START_EDGE:
+                middle_vertex = edges_to_middle[ee]
+                b0 = dummy_to_binary[middle_vertex]
+                b1 = edge_to_binary[e1]
+
+            elif e1 == G1.START_EDGE:
+                middle_vertex = edges_to_middle[ee]
+                b0 = edge_to_binary[e0]
+                b1 = dummy_to_binary[middle_vertex]
+
             else:
-                raise NotImplementedError("Handle case for start edges")
+                b0 = edge_to_binary[e0]
+                b1 = edge_to_binary[e1]            
+
+            constraint = pylp.LinearConstraint()
+            constraint.set_coefficient(comb_to_binary(ee), 2)
+            constraint.set_coefficient(b0, -1)
+            constraint.set_coefficient(b1, -1)
+            constraint.set_relation(pylp.Relation.LessEqual)
+            constraint.set_value(0)
+            
+            self.constraints.add(constraint)
+
+            # Edges implies combination:
+            constraint = pylp.LinearConstraint()
+            constraint.set_coefficient(b0, 1)
+            constraint.set_coefficient(b1, 1)
+            constraint.set_coefficient(comb_to_binary(ee), -1)
+            constraint.set_relation(pylp.Relation.LessEqual)
+            constraint.set_value(1)
+            
+            self.constraints.add(constraint)
 

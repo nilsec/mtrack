@@ -205,7 +205,11 @@ class G1(G):
         return edge_cost_tot
 
 
-    def get_edge_combination_cost(self, comb_angle_factor, comb_angle_prior=0.0):
+    def get_edge_combination_cost(self, 
+                                  comb_angle_factor, 
+                                  comb_angle_prior=0.0,
+                                  return_edges_to_middle=False):
+
         edge_index_map = G.get_edge_index_map(self)
         """
         Only collect the indices for each edge combination in
@@ -213,6 +217,7 @@ class G1(G):
         form.
         """
         middle_indices = []
+        edges_to_middle = {}
         end_indices = []
         edges = []
         cost = []
@@ -250,6 +255,7 @@ class G1(G):
                         of edges to cost.
                         """
                         prior_cost[(e1, e2)] = comb_angle_prior
+                        edges_to_middle[(e1, e2)] = int(v)
  
                     else:
                         """
@@ -281,6 +287,7 @@ class G1(G):
                         end_vertices.remove(middle_vertex)
                         end_indices.extend(list(end_vertices))
                         edges.append((e1, e2))
+                        edges_to_middle[(e1, e2)] = int(v)
                         """
                         (e1, e2) -> end_indices, middle_indices
                         """
@@ -299,8 +306,11 @@ class G1(G):
 
         edge_combination_cost = dict(itertools.izip(edges, cost))
         edge_combination_cost.update(prior_cost)
- 
-        return edge_combination_cost
+
+        if return_edges_to_middle:
+            return edge_combination_cost, edges_to_middle
+        else:
+            return edge_combination_cost
     
     def get_sbm(self, output_folder, nested=False, edge_weights=False):
         print "Find SBM partition..."
