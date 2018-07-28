@@ -5,7 +5,7 @@ import json
 import signal
 
 from mtrack.mt_utils import gen_config, read_config,  NoDaemonPool # Need outer non-daemon pool
-from mtrack.preprocessing import ilastik_get_prob_map
+from mtrack.preprocessing.create_probability_map import ilastik_get_prob_map
 from mtrack import track
 
 def generate_grid(param_dict,
