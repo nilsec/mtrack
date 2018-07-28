@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from mtrack.graphs import cost_converter, graph_converter, g1_graph, g2_solver
-
+from mtrack import g2_to_g1_solution
 
 class SmallSquareGraphTestCase(unittest.TestCase):
         # orientation = (1, 0, 0)
@@ -35,20 +35,20 @@ class SmallSquareGraphTestCase(unittest.TestCase):
         self.graph_converter = graph_converter.GraphConverter(self.g1)
         self.g2, self.index_maps = self.graph_converter.get_g2_graph()
 
-        vertex_cost_params = {}
-        edge_cost_params = {"distance_factor": 1.0, 
+        self.vertex_cost_params = {}
+        self.edge_cost_params = {"distance_factor": 1.0, 
                             "orientation_factor": 10.0,
                             "start_edge_prior": 0.0}
-        edge_combination_cost_params = {"comb_angle_factor": 1.0}
+        self.edge_combination_cost_params = {"comb_angle_factor": 1.0}
 
-        selection_cost = -100.0
+        self.selection_cost = -100.0
 
 
         c_converter = cost_converter.CostConverter(self.g1,
-                                                   vertex_cost_params,
-                                                   edge_cost_params,
-                                                   edge_combination_cost_params,
-                                                   selection_cost)
+                                                   self.vertex_cost_params,
+                                                   self.edge_cost_params,
+                                                   self.edge_combination_cost_params,
+                                                   self.selection_cost)
 
 
         g2_cost = c_converter.get_g2_cost(self.g2, 
@@ -61,11 +61,18 @@ class SmallSquareGraphTestCase(unittest.TestCase):
 class SolverTestCase(SmallSquareGraphTestCase):
     def runTest(self):
         solver = g2_solver.G2Solver(self.g2)
-        g_solution = solver.solve()
+        solution = solver.solve()
+        g1_solution = g2_to_g1_solution(solution,
+                                        self.g1,
+                                        self.g2,
+                                        self.index_maps)
+
+        print "solution, n_edges: ", g1_solution.get_number_of_edges()
+        print "solution, n_vertices: ", g1_solution.get_number_of_vertices()
 
         print "g_solution: \n"
-        for i in range(len(g_solution)):
-            print "y_" + str(i) + ": " + str(g_solution[i])
+        for i in range(len(solution)):
+            print "y_" + str(i) + ": " + str(solution[i])
 
 if __name__ == "__main__":
     unittest.main()
