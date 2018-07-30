@@ -2,7 +2,6 @@ TAG="mtrack"
 
 .PHONY: default clean push configure
 default:
-	rm -rf ./mtrack/mtrack
 	mkdir ./mtrack/mtrack
 	cp -r ../mtrack ./mtrack/mtrack
 	cp ../requirements.txt ./mtrack/mtrack
@@ -14,6 +13,7 @@ push: default
 	docker push nilsec/$(TAG)
 
 clean:
+	rm -rf ./mtrack/mtrack
 	-docker rmi -f mtrack:latest
 	-docker rmi -f $(TAG)
 
