@@ -1,6 +1,6 @@
 TAG="mtrack"
 
-.PHONY: default clean push configure
+.PHONY: default clean push configure test
 default:
 	mkdir ./mtrack/mtrack
 	cp -r ../mtrack ./mtrack/mtrack
@@ -8,7 +8,7 @@ default:
 	cp ../setup.py ./mtrack/mtrack
 	docker build -t $(TAG) ./mtrack
 
-push: default
+push:
 	docker push nilsec/mtrack:latest
 	docker push nilsec/$(TAG)
 
@@ -17,8 +17,8 @@ clean:
 	-docker rmi -f mtrack:latest
 	-docker rmi -f $(TAG)
 
-test: default
-	docker run --rm $(TAG)
+test:
+	./run_docker -d $(TAG) python -u ../tests/test_suite.py
 
 reset:
 	docker rm -f $(TAG)
