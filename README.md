@@ -45,9 +45,23 @@ Automatic extraction of microtubules in electron microscopy volumes of neural ti
     docker exec -it <container_id> /bin/bash
     ```
 
-3. Set config parameters as appropriate in mtrack/config.ini or write your own config file using the provided config as a template.
+3. Set config parameters as appropriate in mtrack/config.ini or write your own config file using the provided config as a template. A typical workflow would require training of a microtubule RFC via Ilastik (http://ilastik.org/), tracing of a small validation set and then a grid search over the solve parameters:
 
-4. Track:
+```python
+    from mtrack.mt_utils.grid_search import generate_grid, run_grid
+    from mtrack.evaluation import EvaluationParser
+
+    parameter_dict = {"evaluate": [True],
+                      ...,
+                     "start_edge_prior": [140, 150, 160],
+                     "selection_cost": [-70.0, -80.0, -90.0],
+                     ...}
+
+    generate_grid(parameter_dict, "./grid_search")
+    run_grid("./grid_search", n_workers=8, skip_condition=lambda cfg: False)
+```
+
+4. Reconstruct microtubules in the volume with the best performing parameterTrack:
     ```python
     from mtrack import track
 
