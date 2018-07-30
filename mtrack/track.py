@@ -13,6 +13,7 @@ import multiprocessing, logging
 import sys
 import signal
 import traceback
+import functools
 
 
 def track(config_path):
@@ -51,6 +52,7 @@ def track(config_path):
     Extract probability map via Ilastik classifier from specified input dir and ilastik project.
     """
     if config["extract_perp"]:
+        print "Extract perp prob map from {}...".format(config["raw"])
         perp_stack_h5 = ilastik_get_prob_map(raw=config["raw"],
                                              output_dir=config["pm_output_dir_perp"],
                                              ilastik_source_dir=config["ilastik_source_dir"],
@@ -62,6 +64,7 @@ def track(config_path):
         config["perp_stack_h5"] = perp_stack_h5
 
     if config["extract_par"]: 
+        print "Extract par prob map from {}...".format(config["raw"])
         par_stack_h5 = ilastik_get_prob_map(raw=config["raw"],
                                             output_dir=config["pm_output_dir_par"],
                                             ilastik_source_dir=config["ilastik_source_dir"],
@@ -165,7 +168,9 @@ def track(config_path):
                                   distance_threshold=config["distance_threshold"],
                                   voxel_size=config["voxel_size"],
                                   cores=cores,
-                                  overwrite=True)
+                                  cf_lists=cf_lists,
+                                  overwrite=True,
+                                  mp=config["mp"])
 
 
         """
@@ -269,6 +274,24 @@ def chunk_prob_maps(volume_shape,
 
     return dir_perp, dir_par
 
+def connect_candidates_alias(db, 
+                             name_db,
+                             collection,
+                             x_lim,
+                             y_lim,
+                             z_lim,
+                             distance_threshold):
+    """
+    Alias for instance methods that allows us
+    to call them in a pool
+    """
+    
+    db.connect_candidates(name_db,
+                          collection,
+                          x_lim,
+                          y_lim,
+                          z_lim,
+                          distance_threshold)
 
 def write_candidate_graph(pm_chunks_par,
                           pm_chunks_perp,
@@ -279,14 +302,16 @@ def write_candidate_graph(pm_chunks_par,
                           distance_threshold,
                           voxel_size,
                           cores,
-                          overwrite=False):
+                          cf_lists,
+                          overwrite=False,
+                          mp=False):
 
 
     print "Extract pm chunks..."
     db = DB()
     n_chunk = 0
     id_offset = 1
-
+    
     # Overwrite if necesseray:
     graph = db.get_client(name_db, collection, overwrite=overwrite)
 
@@ -305,14 +330,14 @@ def write_candidate_graph(pm_chunks_par,
                         chunk_limits[2][0]]
 
         id_offset_tmp = db.write_candidates(name_db,
-                                           prob_map_stack,
-                                           offset_chunk,
-                                           gs,
-                                           ps,
-                                           voxel_size,
-                                           id_offset=id_offset,
-                                           collection=collection,
-                                           overwrite=False)
+                                            prob_map_stack,
+                                            offset_chunk,
+                                            gs,
+                                            ps,
+                                            voxel_size,
+                                            id_offset=id_offset,
+                                            collection=collection,
+                                            overwrite=False)
 
         print id_offset_tmp, graph.find({"selected": {"$exists": True}}).count()
         assert(graph.find({"selected": {"$exists": True}}).count() == id_offset_tmp)
@@ -320,15 +345,50 @@ def write_candidate_graph(pm_chunks_par,
         id_offset = id_offset_tmp + 1
         n_chunk += 1
 
-    # Connect all candidates locally & context wise, i.e. with overlap:
-    print "Connect candidates"
-    for core in cores:
-        db.connect_candidates(name_db,
-                              collection,
-                              x_lim=core.x_lim_context,
-                              y_lim=core.y_lim_context,
-                              z_lim=core.z_lim_context,
-                              distance_threshold=distance_threshold)
+    # Don't forward SIGINT to child processes
+    sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    pool = multiprocessing.Pool()
+    signal.signal(signal.SIGINT, sigint_handler)
+
+    bound_connect_candidates_alias = functools.partial(connect_candidates_alias, db)
+
+    print "Connect candidates..."
+    try:
+        for cf_core_ids in cf_lists:
+            print "Connecting ", cf_core_ids
+                        
+            results = []
+            if mp:
+                for core_id in cf_core_ids:
+                    print "Add context {} to pool (mp: {})".format(core_id, mp)
+                    core = cores[core_id]
+                    results.append(pool.apply_async(bound_connect_candidates_alias, 
+                                                    (name_db,
+                                                     collection,
+                                                     core.x_lim_context,
+                                                     core.y_lim_context,
+                                                     core.z_lim_context,
+                                                     distance_threshold,
+                                                     ))
+                                  )
+
+                # Catch exceptions and SIGINTs
+                for result in results:
+                    result.get(60*60*24*3) 
+            else:
+                for core_id in cf_core_ids:
+                    core = cores[core_id]
+                    results.append(db.connect_candidates(name_db,
+                                                         collection,
+                                                         core.x_lim_context,
+                                                         core.y_lim_context,
+                                                         core.z_lim_context,
+                                                         distance_threshold,
+                                                         ))
+    finally:
+        pool.terminate()
+        pool.join()
+
 
 
 def solve_candidate_volume(name_db,
@@ -546,4 +606,4 @@ def cluster(name_db,
 
 
 if __name__ == "__main__":
-    track("/media/nilsec/d0/gt_mt_data/mtrack/grid_A+/grid_1/config_rerun.ini")
+    track("../config.ini")
