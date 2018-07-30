@@ -34,16 +34,19 @@ Automatic extraction of microtubules in electron microscopy volumes of neural ti
 ### Using Docker:
 
 0.1. Start an mtrack docker container with mongodb instance:
-    ```
-    cd mtrack/docker
 
-    ./start_container
-    ```
+```
+cd mtrack/docker
+
+./start_container
+```
+
 0.2. The container created in 1. is now ready to be used. Your home directory is mounted into the countainer such that it is now possible to work interactively inside the container as if a local installation was performed. Use the container id provided by ./start_container to access a bash shell inside the container:
     
-    ```
-    docker exec -it <container_id> /bin/bash
-    ```
+```
+docker exec -it <container_id> /bin/bash
+```
+
 ### From source:
 
 1. A typical workflow would require training of a microtubule RFC via Ilastik (http://ilastik.org/), tracing of a small validation set and then a grid search over the solve parameters:
