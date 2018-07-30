@@ -359,7 +359,25 @@ class DB(object):
 
             if e_N == 0:
                 graph.insert_one(edge)
+    
+    def is_solved(self,
+                  name_db,
+                  collection,
+                  x_lim,
+                  y_lim,
+                  z_lim):
 
+        vertices, edges = self.__get_roi(name_db,
+                                         collection,
+                                         x_lim,
+                                         y_lim,
+                                         z_lim,
+                                         query_edges=True)
+
+        n_solved = len([e for e in edges if e["solved"]])
+        n_edges = len(edges)
+
+        return (n_edges == n_solved)
 
     def __get_roi(self,
                   name_db,

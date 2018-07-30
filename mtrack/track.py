@@ -479,37 +479,46 @@ def solve_core(core,
         print "Process core {}...".format(core.id)
         db = DB()
         solver = CoreSolver()
-
-        g1, index_map = db.get_g1(name_db,
-                                  collection,
-                                  x_lim=core.x_lim_context,
-                                  y_lim=core.y_lim_context,
-                                  z_lim=core.z_lim_context)
-
-        solutions = solver.solve_subgraph(g1,
-                                          index_map,
-                                          distance_threshold=distance_threshold,
-                                          cc_min_vertices=cc_min_vertices,
-                                          start_edge_prior=start_edge_prior,
-                                          selection_cost=selection_cost,
-                                          distance_factor=distance_factor,
-                                          orientation_factor=orientation_factor,
-                                          comb_angle_factor=comb_angle_factor,
-                                          core_id=core.id,
-                                          voxel_size=voxel_size,
-                                          time_limit=time_limit,
-                                          backend=backend)
-
-
-        for solution in solutions:
-            db.write_solution(solution, 
-                              index_map,
-                              name_db,
+        
+        solved = db.is_solved(name_db,
                               collection,
-                              x_lim=core.x_lim_core,
-                              y_lim=core.y_lim_core,
-                              z_lim=core.z_lim_core,
-                              id_writer=core.id)
+                              core.x_lim_core,
+                              core.y_lim_core,
+                              core.z_lim_core)
+
+        if not solved:
+            g1, index_map = db.get_g1(name_db,
+                                      collection,
+                                      x_lim=core.x_lim_context,
+                                      y_lim=core.y_lim_context,
+                                      z_lim=core.z_lim_context)
+
+            solutions = solver.solve_subgraph(g1,
+                                              index_map,
+                                              distance_threshold=distance_threshold,
+                                              cc_min_vertices=cc_min_vertices,
+                                              start_edge_prior=start_edge_prior,
+                                              selection_cost=selection_cost,
+                                              distance_factor=distance_factor,
+                                              orientation_factor=orientation_factor,
+                                              comb_angle_factor=comb_angle_factor,
+                                              core_id=core.id,
+                                              voxel_size=voxel_size,
+                                              time_limit=time_limit,
+                                              backend=backend)
+
+
+            for solution in solutions:
+                db.write_solution(solution, 
+                                  index_map,
+                                  name_db,
+                                  collection,
+                                  x_lim=core.x_lim_core,
+                                  y_lim=core.y_lim_core,
+                                  z_lim=core.z_lim_core,
+                                  id_writer=core.id)
+        else:
+            print "Skip core {}, already solved...".format(core.id)
 
         return core.id
     except:
@@ -606,4 +615,4 @@ def cluster(name_db,
 
 
 if __name__ == "__main__":
-    track("../config.ini")
+    track("/home/nilsec/Projects/l3_mtrack/paper/l3_test_run/config.ini")
