@@ -1,15 +1,45 @@
-Automatic extraction of microtubules in electron microscopy volumes of neural tissue.
+# Automatic extraction of microtubules in electron microscopy volumes of neural tissue.
 
-1. Start mongodb instance via: mongod --config /etc/mongod.conf
+## Install
 
-Usage for arbitrary (small scale - no db interaction required) pathwise tracking problems:
 
-0. Install Gurobi and pylp (http://github.com/funkey/pylp) as well as graph-tool(https://graph-tool.skewed.de/). Further requirements will be included. 
+### Using Docker [Recommended]
 
-1. Extract position (and orientation) for each instance of interest and initialize a 
-   G1-Graph where each vertex encodes an instance/candidate (see mtrack/graphs/g1_graph).
-   For an example of how to do that and add position and orientation see tests/cases/g1_graph
+1. Install docker: 
+    
+    For installation instructions see https://docs.docker.com/install/linux/docker-ce/ubuntu/
 
-2. (Optional) If you want to use a custom cost function based on position and orientation infor       mation on vertices, edges and combinations of edges inherit from the g1 graph class and over       write the corresponding methods for calculation of vertex-, edge- and edge-combination cost.
+2. Build the image:
+    
+    git clone https://github.com/nilsec/mtrack.git
+    cd mtrack/docker
+    make
 
-3. Set cost function hyperparemters and pass your initialized g1 graph to solve(...) in mtrack/solve. It will return the solved g1-graph which you can export in e.g. nml format via mtrack/preprocessing/nml_io/g1_to_nml and view with knossos.
+### Build from source
+
+1. See mtrack/docker/mtrack/Dockerfile for requirements, package version numbers and installation instructions.
+
+2. Once all requirements all fulfilled build an install with:
+
+    python setup.py install
+
+
+## Usage
+### Using Docker:
+
+1. Start an mtrack docker container with mongodb instance:
+    
+    cd mtrack/docker
+    ./start_container
+
+2. The container created in 1. is now ready to be used. Your home directory is mounted into the countainer such that it is now possible to work interactively inside the container as if a local installation was performed. Use the container id provided by ./start_container to access a bash shell inside the container:
+    
+    docker exec -it <container_id> /bin/bash
+
+3. Set config parameters as appropriate in mtrack/config.ini or write your own config file using the provided config as a template.
+
+4. Track:
+    ```python
+    from mtrack import track
+
+    track(cfg_path)

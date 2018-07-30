@@ -54,14 +54,10 @@ RUN git clone https://github.com/funkey/skeletopyze.git . && \
     echo "from skeletopyze import *" > ./skeletopyze/__init__.py
 ENV PYTHONPATH /src/skeletopyze:$PYTHONPATH
 
-# Set Scip env variable:
-ENV MUST_USE_SCIP True
-
 # Install mtrack
 ADD mtrack /src/mtrack
 WORKDIR /src/mtrack
 RUN pip install -r requirements.txt
 ENV PYTHONPATH /src/mtrack:$PYTHONPATH
 
-WORKDIR /src/tests 
-ADD test.py /src/tests
+WORKDIR /src/mtrack

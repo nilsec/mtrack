@@ -2,17 +2,12 @@
 set -e
 
 usage() {
-  echo "Usage: $0 [-w <working directory>] -d <docker image> -e <environmental variable>  <command> [<args>...]";
+  echo "Usage: $0 [-w <working directory>] -d <docker image> -e <environmental variable>";
   echo;
   echo "    -w  The working directory for <command>, defaults to current";
   echo "        directory.";
   echo;
-  echo "    -d  Docker image to use to execute <command>. The docker container";
-  echo "        will have";
-  echo "            /groups";
-  echo "            /nrs";
-  echo "            /scratch";
-  echo "        available.";
+  echo "    -d  Docker image to use to execute <command>";
   echo;
   echo "    -p  Ports to expose, see 'man docker run'.";
   echo;
@@ -22,7 +17,7 @@ usage() {
 # defaults
 
 WORK_DIR=$(pwd)
-DOCKER_IMAGE=''
+DOCKER_IMAGE='mtrack:latest'
 PORTS=''
 ENVI=''
 THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -66,15 +61,7 @@ then \
   exit
 fi
 
-if [ "${COMMAND}" == "" ];
-then \
-  echo No command provided!
-  echo
-  usage
-  exit
-fi
-
-CONTAINER_NAME=${CONTAINER_NAME:-${USER}-$(date +%y-%m-%d_%H-%M-%S)-${RANDOM}}
+CONTAINER_NAME=${CONTAINER_NAME:-${USER}-mtrack-${RANDOM}}
 
 # make sure we have the latest
 #docker pull ${DOCKER_IMAGE}
@@ -90,20 +77,20 @@ trap teardown SIGINT SIGTERM
 
 echo "Running docker as user:group `id -u $USER`:`id -g $USER`"
 
-# run docker in background
+# start up mongodb instance and create docker container
 docker \
   run \
-  --rm \
+  -d \
   --cgroup-parent=$(cat /proc/self/cpuset) \
   --name ${CONTAINER_NAME} \
   -e HOME="$HOME" \
-  -u `id -u $USER`:`id -g $USER` \
+  -e MUST_USE_SCIP="True" \
   -v /home:/home:shared \
   -w ${WORK_DIR} \
   ${ENVI} \
   ${PORTS} \
   ${DOCKER_IMAGE} \
-  ${COMMAND} &
+  mongod &
 
 wait $!
 
