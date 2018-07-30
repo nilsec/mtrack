@@ -61,7 +61,7 @@ Automatic extraction of microtubules in electron microscopy volumes of neural ti
     run_grid("./grid_search", n_workers=8, skip_condition=lambda cfg: False)
 ```
 
-4. Reconstruct microtubules in the volume with the best performing parameterTrack:
+4. Reconstruct microtubules in the volume with the best performing parameter setup:
     ```python
     from mtrack import track
 
