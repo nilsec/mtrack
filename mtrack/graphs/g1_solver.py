@@ -1,6 +1,10 @@
 import numpy as np
 from mtrack.graphs.g1_graph import G1
 import pylp
+import os
+
+# For usage inside docker without docker gurobi license
+MUST_USE_SCIP = os.environ.get("MUST_USE_SCIP", False) == "True"
 
 class G1Solver:
     def __init__(self, 
@@ -12,9 +16,15 @@ class G1Solver:
                  vertex_selection_cost,
                  backend="Gurobi"):
 
+        if MUST_USE_SCIP:
+            print "MUST_USE_SCIP=True"
+            backend = "Scip"
+
         if backend == "Gurobi":
+            print "Use Gurobi backend"
             self.backend = pylp.GurobiBackend()
         elif backend == "Scip":
+            print "Use Scip backend"
             self.backend = pylp.ScipBackend()
         else:
             raise NotImplementedError("Choose between Gurobi or Scip backend")

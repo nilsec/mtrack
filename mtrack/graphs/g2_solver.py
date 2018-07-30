@@ -1,13 +1,23 @@
 import numpy as np
 import pylp
+import os
+
+# For usage inside docker without docker gurobi license:
+MUST_USE_SCIP = os.environ.get("MUST_USE_SCIP", False) == "True"
 
 class G2Solver:
     def __init__(self, g2, backend="Gurobi"):
         self.g2_vertices_N = g2.get_number_of_vertices()
         
+        if MUST_USE_SCIP:
+            print "MUST_USE_SCIP=True"
+            backend = "Scip"
+
         if backend == "Gurobi":
+            print "Use Gurobi backend"
             self.backend = pylp.GurobiBackend()
         elif backend == "Scip":
+            print "Use Scip backend"
             self.backend = pylp.ScipBackend()
         else:
             raise NotImplementedError("Choose between Gurobi or Scip backend")
