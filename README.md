@@ -31,25 +31,21 @@ Automatic extraction of microtubules in electron microscopy volumes of neural ti
     ```
 
 ## Usage
-### Using Docker:
+1. Start an mtrack docker container with mongodb instance:
 
-0.1. Start an mtrack docker container with mongodb instance:
+    ```
+    cd mtrack/docker
 
-```
-cd mtrack/docker
+    ./start_container
+    ```
 
-./start_container
-```
-
-0.2. The container created in 1. is now ready to be used. Your home directory is mounted into the countainer such that it is now possible to work interactively inside the container as if a local installation was performed. Use the container id provided by ./start_container to access a bash shell inside the container:
+2. The container created in 1. is now ready to be used. Your home directory is mounted into the countainer such that it is now possible to work interactively inside the container as if a local installation was performed. Use the container id provided by ./start_container to access a bash shell inside the container:
     
-```
-docker exec -it <container_id> /bin/bash
-```
+    ```
+    docker exec -it <container_id> /bin/bash
+    ```
 
-### From source:
-
-1. A typical workflow would require training of a microtubule RFC via Ilastik (http://ilastik.org/), tracing of a small validation set and then a grid search over the solve parameters:
+3. A typical workflow would require training of a microtubule RFC via Ilastik (http://ilastik.org/), tracing of a small validation set and then a grid search over the solve parameters:
 
 ```python
     from mtrack.mt_utils.grid_search import generate_grid, run_grid
@@ -65,7 +61,7 @@ docker exec -it <container_id> /bin/bash
     run_grid("./grid_search", n_workers=8, skip_condition=lambda cfg: False)
 ```
 
-2. Set best performing config parameters in mtrack/config.ini or write your own config file using the provided config as a template. Reconstruct microtubules via:
+4. Set best performing config parameters in mtrack/config.ini or write your own config file using the provided config as a template. Reconstruct microtubules via:
     ```python
     from mtrack import track
 
