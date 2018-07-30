@@ -4,18 +4,18 @@ This directory contains all necessary files to create a mtrack Docker image. Rig
 
 In order to build the image locally run:
 
-    ```    
-    make
-    ```
+```    
+make
+```
 
 In order to start up a container run:
 
-    ```
-    ./start_container
-    ```
+```
+./start_container
+```
 
 Interactively work with the container via:
 
-    ```
-    docker exec -it <container_id> /bin/bash
-    ```
+```
+docker exec -it <container_id> /bin/bash
+```
