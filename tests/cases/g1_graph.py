@@ -36,6 +36,25 @@ class SmallSquareGraphTestCase(unittest.TestCase):
         for v in self.g1.get_vertex_iterator():
             self.g1.set_orientation(v, self.orientation)
 
+
+class EqualityTestCase(SmallSquareGraphTestCase):
+    def runTest(self):
+        self.assertTrue(self.g1 == self.g1)
+
+        g1_other = g1_graph.G1(0, G_in=self.g1)
+        self.assertTrue(self.g1 == g1_other)
+
+        try:
+            g1_other.set_position(3, np.array([0.0,0.0,0.0]))
+            self.g1 == g1_other
+            self.assertTrue(False)
+        except ValueError:
+            pass
+
+        g1_other.set_position(3, np.array([0.0,0.0,2.0]))
+        self.assertFalse(g1_other == self.g1)
+ 
+
 class SetGetOrientationTestCase(SmallCircleGraphTestCase):
     def runTest(self):
         orientation = np.array([1.0, 0.11111, 0.123])
