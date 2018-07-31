@@ -67,12 +67,15 @@ class SolverTestCase(SmallSquareGraphTestCase):
                                         self.g2,
                                         self.index_maps)
 
-        print "solution, n_edges: ", g1_solution.get_number_of_edges()
-        print "solution, n_vertices: ", g1_solution.get_number_of_vertices()
+        self.assertEqual(g1_solution.get_number_of_edges(), 2)
+        self.assertEqual(g1_solution.get_number_of_vertices(), 4)
 
-        print "g_solution: \n"
-        for i in range(len(solution)):
-            print "y_" + str(i) + ": " + str(solution[i])
+        for e in g1_solution.get_edge_iterator():
+            v0 = e.source()
+            v1 = e.target()
+            diff = np.abs(np.array(g1_solution.get_position(v0)) -\
+                          np.array(g1_solution.get_position(v1)))
+            self.assertTrue(np.all(diff == self.orientation))
 
 if __name__ == "__main__":
     unittest.main()
