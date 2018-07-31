@@ -45,17 +45,23 @@ Automatic extraction of microtubules in electron microscopy volumes of neural ti
     docker exec -it <container_id> /bin/bash
     ```
 
-3. A typical workflow would require training of a microtubule RFC via Ilastik (http://ilastik.org/), tracing of a small validation set and then a grid search over the solve parameters:
+3. A typical workflow would require training of a microtubule RFC (it is better to train one for perpendicular appearing mt's and another for elongated ones) via Ilastik (http://ilastik.org/), tracing of a small validation set and then a grid search over the solve parameters:
 
 ```python
     from mtrack.mt_utils.grid_search import generate_grid, run_grid
     from mtrack.evaluation import EvaluationParser
 
     parameter_dict = {"evaluate": [True],
+                      "tracing_file": ["Validation tracing path"],
                       ...,
                      "start_edge_prior": [140, 150, 160],
                      "selection_cost": [-70.0, -80.0, -90.0],
-                     ...}
+                     ...,
+                     "ilastik_source_dir": ["Your ilastik source dir"],
+                     "ilastik_project_perp": ["Perpendicular microtubule Ilastic classifier"],
+                     "ilastik_project_par": ["Parallel microtubule Ilastic classifier"],
+                     ...
+                     }
 
     generate_grid(parameter_dict, "./grid_search")
     run_grid("./grid_search", n_workers=8, skip_condition=lambda cfg: False)
