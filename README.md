@@ -57,9 +57,9 @@ Automatic extraction of microtubules in electron microscopy volumes of neural ti
                      "start_edge_prior": [140, 150, 160],
                      "selection_cost": [-70.0, -80.0, -90.0],
                      ...,
-                     "ilastik_source_dir": ["Your ilastik source dir"],
-                     "ilastik_project_perp": ["Perpendicular microtubule Ilastic classifier"],
-                     "ilastik_project_par": ["Parallel microtubule Ilastic classifier"],
+                     "ilastik_source_dir": ["Your Ilastik source dir"],
+                     "ilastik_project_perp": ["Perpendicular microtubule Ilastik classifier"],
+                     "ilastik_project_par": ["Parallel microtubule Ilastik classifier"],
                      ...
                      }
 
