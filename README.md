@@ -67,6 +67,8 @@ Automatic extraction of microtubules in electron microscopy volumes of neural ti
     run_grid("./grid_search", n_workers=8, skip_condition=lambda cfg: False)
 ```
 
+Note that ilastik probability map generation is currently not support within the docker container. Thus it is recommended to extract the probability maps before outside of docker and simply pass their locations to ```track``` or ```generate_grid``` via the config or the parameter_dict respectively. 
+
 4. Set best performing config parameters in mtrack/config.ini or write your own config file using the provided config as a template. Reconstruct microtubules via:
     ```python
     from mtrack import track
