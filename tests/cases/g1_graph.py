@@ -44,6 +44,17 @@ class EqualityTestCase(SmallSquareGraphTestCase):
         g1_other = g1_graph.G1(0, G_in=self.g1)
         self.assertTrue(self.g1 == g1_other)
 
+        v0_pos = np.array(self.g1.get_position(0))
+        v3_pos = np.array(self.g1.get_position(3))
+
+        g1_other.set_position(0, v3_pos)
+        g1_other.set_position(0, v0_pos)
+        self.assertTrue(self.g1 == g1_other)
+
+        g1_other.set_orientation(0, np.array([2.0, 0.0, 0.0]))
+        self.assertFalse(self.g1 == g1_other)
+        g1_other.set_orientation(0, self.orientation)
+
         try:
             g1_other.set_position(3, np.array([0.0,0.0,0.0]))
             self.g1 == g1_other
