@@ -28,7 +28,88 @@ class G1(G):
 
         # NOTE: Start/End dummy node and edge are implicit
         self.edge_index_map = G.get_edge_index_map(self)
- 
+
+
+    def __eq__(self, other):
+        # Number of vertices:
+        n_vertices = (self.get_number_of_vertices() == other.get_number_of_vertices())
+        if not n_vertices:
+            return False
+
+        # Number of edges:
+        n_edges = (self.get_number_of_edges() == other.get_number_of_edges())
+        if not n_edges:
+            return False
+
+        # Vertex comparison
+        other_to_self = {}
+        attr_other = []
+        attr_self = []
+
+        for v_self in self.get_vertex_iterator():
+            pos_self = self.get_position(v_self)
+            ori_self = self.get_orientation(v_self)
+            par_self = self.get_partner(v_self)
+            attr_self.append(tuple(list(pos_self) + list(ori_self) + [par_self]))
+
+            n_matches = 0
+            for v_other in other.get_vertex_iterator():
+                pos_other = other.get_position(v_other)
+                ori_other = other.get_orientation(v_other)
+                par_other = other.get_partner(v_other)
+                
+                if np.allclose(pos_self, pos_other):
+                    if np.allclose(ori_self, ori_other):
+                        other_to_self[v_other] = v_self
+                        n_matches += 1
+
+            if n_matches == 0:
+                return False
+
+            if n_matches > 1:
+                raise ValueError("Double match found in equality")
+
+        for v_other in other.get_vertex_iterator():
+            pos_other = other.get_position(v_other)
+            ori_other = other.get_orientation(v_other)
+            par_other = other.get_partner(v_other)
+            attr_other.append(tuple(list(pos_other) + list(ori_other) + [par_other]))
+
+        if len(attr_self) != len(set(attr_self)):
+            raise ValueError("LHS graph not valid")
+        if len(attr_other) != len(set(attr_other)):
+            raise ValueError("RHS graph not valid")
+
+        # Edge comparison
+        for v_other, v_self in other_to_self.iteritems():
+            incident_self = self.get_incident_edges(v_self)
+            incident_other = other.get_incident_edges(v_other)
+
+            if len(incident_self) != len(incident_other):
+                return False
+            
+            vedges_self = []
+            for e in incident_self:
+                v0 = e.source()
+                v1 = e.target()
+                vedges_self.append(tuple(sorted([v0,v1])))
+
+            vedges_other = []
+            for e in incident_other:
+                v0 = other_to_self[e.source()]
+                v1 = other_to_self[e.target()]
+                vedges_other.append(tuple(sorted([v0, v1])))
+
+            for vedge in vedges_self:
+                if not (vedge in vedges_other):
+                    return False
+            
+            for vedge in vedges_other:
+                if not (vedge in vedges_self):
+                    return False
+
+        return True 
+                    
         
     def add_edge(self, u, v):
         e = G.add_edge(self, u, v)
