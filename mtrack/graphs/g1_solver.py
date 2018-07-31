@@ -201,9 +201,11 @@ class G1Solver:
                     constraint.set_value(1)
                     self.constraints.add(constraint)
 
+        self.backend.set_constraints(self.constraints)
+
 
     def solve(self, time_limit=None):
-        print "with" + str(len(self.constraints)) + "constraints."
+        print "with " + str(len(self.constraints)) + " constraints."
         print "and " + str(self.n_variables) + " variables.\n"
 
         if time_limit != None:
@@ -215,7 +217,8 @@ class G1Solver:
 
         solution = pylp.Solution()
         self.backend.solve(solution)
-        
+        print "solution: ", solution
+
         return solution
 
     def solution_to_g1(self, 
