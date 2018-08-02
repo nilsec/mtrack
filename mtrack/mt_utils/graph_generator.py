@@ -15,12 +15,13 @@ class GraphGenerator(object):
         self.n_vertices = n_vertices
         self.min_pos = min_pos
         self.max_pos = max_pos
-
+        
         self.g1 = G1(n_vertices)
         
+        positions = []
         print "Generate vertices..."
         for v in self.g1.get_vertex_iterator():
-            if (int(v) >=1) and (self.g1.get_partner(int(v) - 1) == int(v)):
+            if (int(v) >= 1) and (self.g1.get_partner(int(v) - 1) == int(v)):
                 has_partner=True
 
                 self.g1.set_partner(v, int(v) - 1)
@@ -32,11 +33,15 @@ class GraphGenerator(object):
 
             else: 
                 pos = randint(min_pos, max_pos, 3).astype(float)
-
+                
+                while tuple(pos) in positions:
+                    pos = randint(min_pos, max_pos, 3).astype(float)
+                
                 ori = randint(min_pos, max_pos, 3).astype(float)
                 ori = ori/np.linalg.norm(ori)
 
                 self.g1.set_position(v, pos)
+                positions.append(tuple(pos))
                 self.g1.set_orientation(v, pos)
 
                 if (n_vertices - 1 > int(v) >= 1) and (self.g1.get_partner(int(v)-1) == (-1)):
