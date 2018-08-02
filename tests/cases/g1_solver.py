@@ -10,7 +10,7 @@ class SolverTestCase(SmallSquareGraphTestCase):
             self.g1,
             distance_factor=self.edge_cost_params["distance_factor"],
             orientation_factor=self.edge_cost_params["orientation_factor"],
-            start_edge_prior=self.edge_cost_params["start_edge_prior"] + 1.0,
+            start_edge_prior=self.edge_cost_params["start_edge_prior"],
             comb_angle_factor=self.edge_combination_cost_params["comb_angle_factor"],
             vertex_selection_cost=self.selection_cost,
             backend="Gurobi")
