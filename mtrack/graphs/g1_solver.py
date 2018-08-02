@@ -28,7 +28,7 @@ class G1Solver:
             self.backend = pylp.ScipBackend()
         else:
             raise NotImplementedError("Choose between Gurobi or Scip backend")
-
+        g1.reindex_edges_save()
         self.g1 = g1
 
         self.distance_factor = distance_factor
@@ -195,8 +195,8 @@ class G1Solver:
             if partner != -1:
                 if v < partner:
                     constraint = pylp.LinearConstraint()
-                    constraint.set_coefficient(self.vertex_to_binary(v), 1)
-                    constraint.set_coefficient(self.vertex_to_binary(partner), 1)
+                    constraint.set_coefficient(self.vertex_to_binary[v], 1)
+                    constraint.set_coefficient(self.vertex_to_binary[partner], 1)
                     constraint.set_relation(pylp.Relation.LessEqual)
                     constraint.set_value(1)
                     self.constraints.add(constraint)

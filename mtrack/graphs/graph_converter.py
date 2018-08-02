@@ -4,6 +4,7 @@ from mtrack.graphs.g2_graph import G2
 
 class GraphConverter:
     def __init__(self, g1):
+        g1.reindex_edges_save()
         self.g1 = g1
 
     def check_edge_partner_conflict(self, e1, e2):
