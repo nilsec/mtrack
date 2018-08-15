@@ -73,6 +73,10 @@ def generate_grid(param_dict,
 
         params_n["cluster_output_dir"] = params_n["cluster_output_dir"].format(
                                                             params_n["cfg_output_dir"])
+        
+        params_n["validated_output_path"] = params_n["validated_output_path"].format(
+                                                            params_n["cfg_output_dir"])
+ 
  
         gen_config(**params_n)
         n += 1

@@ -70,6 +70,8 @@ def read_config(path):
     cfg_dict["backend"] = config.get("Solve", "backend")
     cfg_dict["mp"] = config.getboolean("Solve", "mp")
     cfg_dict["validate_selection"] = config.getboolean("Solve", "validate_selection")
+    cfg_dict["export_validated"] = config.getboolean("Solve", "export_validated")
+    cfg_dict["validated_output_path"] = config.get("Solve", "validated_output_path")
     cfg_dict["cc_min_vertices"] = config.getint("Solve", "cc_min_vertices")
     cfg_dict["start_edge_prior"] = config.getfloat("Solve", "start_edge_prior")
     cfg_dict["selection_cost"] = config.getfloat("Solve", "selection_cost")

@@ -46,6 +46,8 @@ def gen_config(evaluate,
                roi_z,
                solve,
                validate_selection,
+               export_validated,
+               validated_output_path,
                backend,
                mp,  
                cc_min_vertices,
@@ -141,6 +143,8 @@ def gen_config(evaluate,
     config.set('Solve', 'backend', str(backend))
     config.set('Solve', 'mp', str(mp))
     config.set('Solve', 'validate_selection', str(validate_selection))
+    config.set('Solve', 'export_validated', str(export_validated))
+    config.set('Solve', 'validated_output_path', str(validated_output_path))
     config.set('Solve', 'cc_min_vertices', str(cc_min_vertices))
     config.set('Solve', 'start_edge_prior', str(start_edge_prior))
     config.set('Solve', 'selection_cost', str(selection_cost))
@@ -214,6 +218,8 @@ if __name__ == "__main__":
                backend="Scip",
                mp=True,  
                validate_selection="True",
+               export_validated=False,
+               validated_output_path="./validated.nml",
                cc_min_vertices=4,
                start_edge_prior=160.0,
                selection_cost=-70.0,

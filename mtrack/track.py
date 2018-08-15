@@ -2,6 +2,7 @@ from mtrack.cores import CoreSolver, CoreBuilder, VanillaSolver, DB
 from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker,\
                                  stack_to_chunks, ilastik_get_prob_map
 from mtrack.mt_utils import read_config, check_overlap
+from mtrack.graphs.g1_graph import G1
 from mtrack.postprocessing import skeletonize
 from solve import solve
 from evaluate import evaluate_roi
@@ -204,11 +205,21 @@ def track(config_path):
         
         if config["validate_selection"]:
             db = DB()
-            db.validate_selection(name_db=config["name_db"],
-                                  collection=config["name_collection"],
-                                  x_lim=x_lim_roi,
-                                  y_lim=y_lim_roi,
-                                  z_lim=z_lim_roi) 
+            try:
+                g1_selected = db.validate_selection(name_db=config["name_db"],
+                                                    collection=config["name_collection"],
+                                                    x_lim=x_lim_roi,
+                                                    y_lim=y_lim_roi,
+                                                    z_lim=z_lim_roi)
+            except ValueError:
+                print "WARNING, solution contains no vertices!"
+                g1_selected = G1(0)
+
+            if config["export_validated"]:
+                g1_to_nml(g1_selected, 
+                          config["validated_output_path"],
+                          knossos=True,
+                          voxel_size=config["voxel_size"])
 
 
     if config["cluster"]:
@@ -517,6 +528,12 @@ def solve_core(core,
                                   y_lim=core.y_lim_core,
                                   z_lim=core.z_lim_core,
                                   id_writer=core.id)
+
+            db.write_solved(name_db,
+                            collection,
+                            x_lim=core.x_lim_core,
+                            y_lim=core.y_lim_core,
+                            z_lim=core.z_lim_core)
         else:
             print "Skip core {}, already solved...".format(core.id)
 
