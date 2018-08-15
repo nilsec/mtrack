@@ -51,10 +51,10 @@ singularity pull docker://nilsec/mtrack
     ```
 
 1.2 [Singularity only]:
-    ```
-    singularity shell docker://nilsec/mtrack
+```
+singularity shell docker://nilsec/mtrack
 
-    ```
+```
 
 2. The container created in 1. is now ready to be used. Your home directory is mounted into the countainer such that it is now possible to work interactively inside the container as if a local installation was performed. Use the container id provided by ./start_container to access a bash shell inside the container:
     
@@ -63,10 +63,10 @@ singularity pull docker://nilsec/mtrack
     ```
 
 2.2 [Singularity only]:
-    Start mongod instance in the background
-    ```
-    mongod --fork --logpath <logpath>
-    ```
+Start mongod instance in the background
+```
+mongod --fork --logpath <logpath>
+```
 
 3. A typical workflow would require training of a microtubule RFC (it is better to train one for perpendicular appearing mt's and another for elongated ones) via Ilastik (http://ilastik.org/), tracing of a small validation set and then a grid search over the solve parameters:
 
