@@ -65,7 +65,7 @@ singularity shell docker://nilsec/mtrack
 2.2 [Singularity only]:
 Start mongod instance in the background
 ```
-mongod --fork --logpath <logpath>
+mongod --fork --logpath <logpath> --dbpath <dbsavedir>
 ```
 
 3. A typical workflow would require training of a microtubule RFC (it is better to train one for perpendicular appearing mt's and another for elongated ones) via Ilastik (http://ilastik.org/), tracing of a small validation set and then a grid search over the solve parameters:
