@@ -164,6 +164,7 @@ class DB(object):
                    "Selection has branchings"
 
         print "...No violations"
+        return g1_selected
 
         
     def write_solution(self,
@@ -225,7 +226,16 @@ class DB(object):
         print "Selected edges: ", graph.find({"selected": True, "type": "edge"}).count()
         print "Selected vertices: ", graph.find({"selected": True, "type": "vertex"}).count()
 
-        # Set all edges and vertices in solve region to solved
+
+    def write_solved(self,
+                     name_db,
+                     collection,
+                     x_lim,
+                     y_lim,
+                     z_lim):
+        
+        graph = self.get_client(name_db, collection, overwrite=False)
+
         vertices, edges = self.__get_roi(name_db,
                                          collection,
                                          x_lim,
@@ -243,6 +253,7 @@ class DB(object):
             graph.update_one({"$and": [{"id0": e["id0"]}, {"id1": e["id1"]}]},
                              {"$set": {"solved": True}},
                              upsert=False)
+ 
 
 
     def write_candidates(self,
