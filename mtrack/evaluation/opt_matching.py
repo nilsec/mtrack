@@ -163,7 +163,7 @@ class OptMatch(object):
         self.backend.initialize(self.n_tot, 
                                 pylp.VariableType.Binary)
         
-        pylp.setLogLevel()
+        #pylp.setLogLevel()
 
         print "Set costs...\n"
         # Costs
