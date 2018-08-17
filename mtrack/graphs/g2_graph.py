@@ -16,11 +16,22 @@ class G2(G):
 
         G.new_vertex_property(self, "forced", dtype="bool", value=False)
 
+        G.new_graph_property(self, "must_pick_one", dtype="python::object")
+        G.set_graph_property(self, "must_pick_one", list())
+
     def __check_id(self, u):
         assert(type(u) == int)
         assert(u < G.get_number_of_vertices(self))
         assert(u >= 0)
 
+    def add_must_pick_one(self, g2_vertex_list):
+        must_pick_one = G.get_graph_property(self, "must_pick_one")
+        must_pick_one.append(tuple(g2_vertex_list))
+        G.set_graph_property(self, "must_pick_one", must_pick_one)
+
+    def get_must_pick_one(self):
+        return G.get_graph_property(self, "must_pick_one")
+        
     def add_conflict(self, exclusive_vertices):
         """
         Add a tuple of exclusive vertices.
