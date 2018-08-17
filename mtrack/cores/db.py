@@ -37,7 +37,8 @@ class DB(object):
                      "selected": False,
 					 "type": "edge",
                      "time_selected": [],
-                     "by_selected": []}
+                     "by_selected": [],
+                     "pos": None}
 
 
     def get_db(self, name_db):
@@ -200,7 +201,7 @@ class DB(object):
             
                 graph.update_one({"$and": [{"id0": {"$in": [v0_mapped, v1_mapped]}},
                                            {"id1": {"$in": [v0_mapped, v1_mapped]}}]},
-                                 {"$set": {"selected": True, "solved": True},
+                                 {"$set": {"selected": True, "solved": True, "pos": tuple(e_pos)},
                                   "$push": {"by_selected": id_writer, 
                                             "time_selected": str(time.localtime(time.time()))}},
                                  upsert=False)
