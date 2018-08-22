@@ -8,7 +8,6 @@ from mtrack.graphs import g1_graph, graph_converter,\
 from mtrack.postprocessing import combine_knossos_solutions,\
                            combine_gt_solutions
 
-
 def solve(g1,
           start_edge_prior,
           distance_factor,
@@ -42,6 +41,7 @@ def solve(g1,
     if g1.get_number_of_edges() == 0:
         raise Warning("Graph has no edges.")
 
+
     print "Get G2 graph..."
     g_converter = graph_converter.GraphConverter(g1)
     g2, index_maps = g_converter.get_g2_graph()
@@ -63,6 +63,9 @@ def solve(g1,
     
     print "Solve ILP..."
     g2_solution = solver.solve(time_limit=time_limit)
+
+    if len(g2_solution) != solver.g2_vertices_N:
+        raise ValueError("Model infeasible")
 
     print "Get G1 solution..."
     g1_solution = g2_to_g1_solution(g2_solution, 
