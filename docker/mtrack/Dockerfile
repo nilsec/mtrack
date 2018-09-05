@@ -59,5 +59,6 @@ ADD mtrack /src/mtrack
 WORKDIR /src/mtrack
 RUN pip install -r requirements.txt
 ENV PYTHONPATH /src/mtrack:$PYTHONPATH
+ENV MUST_USE_SCIP True
 
 WORKDIR /src/mtrack

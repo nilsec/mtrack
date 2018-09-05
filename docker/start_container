@@ -84,7 +84,6 @@ docker \
   --cgroup-parent=$(cat /proc/self/cpuset) \
   --name ${CONTAINER_NAME} \
   -e HOME="$HOME" \
-  -e MUST_USE_SCIP="True" \
   -v /home:/home:shared \
   -w ${WORK_DIR} \
   ${ENVI} \
