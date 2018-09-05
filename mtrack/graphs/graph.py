@@ -300,7 +300,7 @@ class G:
         print "Generate Masks..."
         masks = []
         max_comp = max(component_vp.a)
-        for label in range(0, max_comp):
+        for label in range(0, max(max_comp,1)):
             if hist[label] < min_vertices:
                 continue
   
