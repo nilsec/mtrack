@@ -1,7 +1,6 @@
 import numpy as np
 import pylp
 import os
-
 # For usage inside docker without docker gurobi license:
 MUST_USE_SCIP = os.environ.get("MUST_USE_SCIP", False) == "True"
 
@@ -44,18 +43,20 @@ class G2Solver:
 
         self.backend.set_objective(self.objective)
 
-        j = 0
         for conflict in g2.get_conflicts():
 
             constraint = pylp.LinearConstraint()
 
+            all_solved = True
             for v in conflict:
+                if not g2.get_solved(v):
+                    all_solved=False
                 constraint.set_coefficient(v, 1)
 
-            constraint.set_relation(pylp.Relation.LessEqual)
-            constraint.set_value(1)
-            self.constraints.add(constraint)
-            j += 1 
+            if not all_solved:
+                constraint.set_relation(pylp.Relation.LessEqual)
+                constraint.set_value(1)
+                self.constraints.add(constraint)
 
         for sum_constraint in g2.get_sum_constraints():
 
@@ -69,9 +70,16 @@ class G2Solver:
             for v in vertices_2:
                 constraint.set_coefficient(v, -1)
 
-            constraint.set_relation(pylp.Relation.Equal)
-            constraint.set_value(0)
-            self.constraints.add(constraint)
+            all_solved = True
+            for v in vertices_1 + vertices_2:
+                if not g2.get_solved(v):
+                    all_solved = False
+                    break
+            
+            if not all_solved: 
+                constraint.set_relation(pylp.Relation.Equal)
+                constraint.set_value(0)
+                self.constraints.add(constraint)
 
         for must_pick_one in g2.get_must_pick_one():
             constraint = pylp.LinearConstraint()

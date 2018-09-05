@@ -2,7 +2,6 @@ import numpy as np
 
 from mtrack.solve import solve
 
-
 class CoreSolver(object):
 
     def check_forced(self, g1):
@@ -20,7 +19,6 @@ class CoreSolver(object):
     def solve_subgraph(self, 
                        subgraph,
                        index_map,
-                       distance_threshold,
                        cc_min_vertices,
                        start_edge_prior,
                        selection_cost,
@@ -37,7 +35,7 @@ class CoreSolver(object):
         ccs = subgraph.get_components(min_vertices=cc_min_vertices,
                                       output_folder=None,
                                       return_graphs=True)
-
+        
         j = 0
         solutions = []
         for cc in ccs:
@@ -56,9 +54,6 @@ class CoreSolver(object):
                                 chunk_shift=np.array([0.,0.,0.]),
                                 backend=backend)
 
-            for v in cc_solution.get_vertex_iterator():
-                assert(len(cc_solution.get_incident_edges(v)) <= 2)
- 
             solutions.append(cc_solution)
 
             j += 1

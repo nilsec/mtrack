@@ -15,6 +15,7 @@ class G2(G):
         G.set_graph_property(self, "sum_constraints", list())
 
         G.new_vertex_property(self, "forced", dtype="bool", value=False)
+        G.new_vertex_property(self, "solved", dtype="bool", value=False)
 
         G.new_graph_property(self, "must_pick_one", dtype="python::object")
         G.set_graph_property(self, "must_pick_one", list())
@@ -53,6 +54,15 @@ class G2(G):
             self.__check_id(u)
             G.set_vertex_property(self, "forced", u, True)
 
+    def add_solved(self, solved_vertices):
+        """
+        Add solved vertices - constraints operating only on solved 
+        vertices are dropped to avoid impossible situations
+        """
+        for u in solved_vertices:
+            self.__check_id(int(u))
+            G.set_vertex_property(self, "solved", u, True)
+
     def get_conflicts(self):
         return G.get_graph_property(self, "conflicts")
 
@@ -77,6 +87,9 @@ class G2(G):
 
     def get_forced(self, u):
         return G.get_vertex_property(self, "forced", u)
+
+    def get_solved(self, u):
+        return G.get_vertex_property(self, "solved", u)
 
     def set_cost(self, u, value):
         G.set_vertex_property(self, "costs", u, value)

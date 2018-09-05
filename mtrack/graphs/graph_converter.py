@@ -60,6 +60,7 @@ class GraphConverter:
         g2_vertices_N = 0
         g2_center_conflicts = []
         # Force g2 nodes marked as such to be selected
+        g2_solved = []
         g2_forced = []
         g2_edge_forced = set()
         g2_vertex_forced = set()
@@ -76,12 +77,13 @@ class GraphConverter:
             seperately. A vertex is exactly then dangling
             when none of its incident edges is forced.
             In that case we need to pick one of the g2_vertices
-            it is the center of as this is he only way we can guarantee
+            it is the center of as this is the only way we can guarantee
             it is actually picked.
             """
             if force_v:
                 incident_forced = [e for e in g1_incident_edges_v if\
                                    self.g1.get_edge_property("selected", e.source(), e.target())]
+
                 if not incident_forced:
                     g2_vertex_forced.add(v)
                     dangling_vertex = True
@@ -145,6 +147,7 @@ class GraphConverter:
                         if e1 != G1.START_EDGE and e2 != G1.START_EDGE:
                             v_all = [e1.source(), e1.target(), e2.source(), e2.target()]
                             v_all_forced = np.array([False, False, False, False])
+                            v_all_solved = np.array([False, False, False, False])
 
                             force_e1 = self.g1.get_edge_property("selected", 
                                                                  e1.source(), 
@@ -153,32 +156,49 @@ class GraphConverter:
                                                                  e2.source(), 
                                                                  e2.target())
 
+                            solve_e1 = self.g1.get_edge_property("solved",
+                                                                 e1.source(),
+                                                                 e1.target())
+
+                            solve_e2 = self.g1.get_edge_property("solved",
+                                                                 e2.source(),
+                                                                 e2.target())
+
                             k = 0
                             for vc in v_all:
-                                force_vc = self.g1.get_vertex_property("selected", vc)
-                                v_all_forced[k] = force_vc
+                                selected_vc = self.g1.get_vertex_property("selected", vc)
+                                solved_vc = self.g1.get_vertex_property("solved", vc)
+                                v_all_forced[k] = selected_vc
+                                v_all_solved[k] = solved_vc
                                 k += 1
                                  
                             if force_e1 and force_e2 and np.all(v_all_forced):
                                 g2_forced.append(g2_vertex_id)
+
+                            if solve_e1 and solve_e2 and np.all(v_all_solved):
+                                g2_solved.append(g2_vertex_id)
                                 
             g2_center_conflicts.append(v_conflicts)
 
         if g2_vertex_forced:
             g2_vertex_forced_tmp = [set(g1_vertex_center_inverse[v]) for v in g2_vertex_forced]
-            g2_vertex_forced = g2_vertex_forced_tmp
+            g2_vertex_forced = []
+            for subset in g2_vertex_forced_tmp:
+                g2_vertex_forced.append(set([v for v in subset\
+                                             if G1.START_EDGE in g2vertex_g1edges[v]]))
 
         if g2_edge_forced:
             g2_edge_forced_tmp = [set(g1edge_g2vertices[e]) for e in g2_edge_forced]
             g2_edge_forced = g2_edge_forced_tmp
 
+        
         index_maps = {"g2vertex_g1edges": g2vertex_g1edges,
                       "g1edge_g2vertices": g1edge_g2vertices,
                       "g1_vertex_center": g1_vertex_center,
                       "g1_vertex_center_inverse": g1_vertex_center_inverse}
-
+        
         return g2_vertices_N, g2_center_conflicts, g2_forced,\
-               g2_vertex_forced, g2_edge_forced, index_maps
+               g2_solved, g2_vertex_forced, g2_edge_forced, index_maps
 
     def get_partner_conflicts(self, g2, g1_vertex_center_inverse):
         """
@@ -229,7 +249,7 @@ class GraphConverter:
     def get_g2_graph(self):
         # Get Number of Nodes, Index maps and derived conflicts:
         g2_vertices_N, g2_center_conflicts, g2_forced,\
-        g2_vertex_forced, g2_edge_forced, index_maps = self.get_mapping()
+        g2_solved, g2_vertex_forced, g2_edge_forced, index_maps = self.get_mapping()
         
         # Create G2 Graph:
         g2 = G2(g2_vertices_N)
@@ -253,6 +273,7 @@ class GraphConverter:
                                   constraint["g2_vertices_r"])
 
         g2.add_forced(g2_forced)
+        g2.add_solved(g2_solved)
 
         for g2_vertex_list in g2_vertex_forced:
             g2.add_must_pick_one(g2_vertex_list)
