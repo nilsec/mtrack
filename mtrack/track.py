@@ -187,7 +187,6 @@ def track(config_path):
 
         solve_candidate_volume(name_db=config["name_db"],
                                collection=config["name_collection"],
-                               distance_threshold=config["distance_threshold"],
                                cc_min_vertices=config["cc_min_vertices"],
                                start_edge_prior=config["start_edge_prior"],
                                selection_cost=config["selection_cost"],
@@ -404,7 +403,6 @@ def write_candidate_graph(pm_chunks_par,
 
 def solve_candidate_volume(name_db,
                            collection,
-                           distance_threshold,
                            cc_min_vertices,
                            start_edge_prior,
                            selection_cost,
@@ -435,7 +433,6 @@ def solve_candidate_volume(name_db,
                     results.append(pool.apply_async(solve_core, (cores[core_id],
                                                              name_db,
                                                              collection,
-                                                             distance_threshold,
                                                              cc_min_vertices,
                                                              start_edge_prior,
                                                              selection_cost,
@@ -455,7 +452,6 @@ def solve_candidate_volume(name_db,
                     results.append(solve_core(cores[core_id],
                                                  name_db,
                                                  collection,
-                                                 distance_threshold,
                                                  cc_min_vertices,
                                                  start_edge_prior,
                                                  selection_cost,
@@ -474,7 +470,6 @@ def solve_candidate_volume(name_db,
 def solve_core(core, 
                name_db,
                collection,
-               distance_threshold,
                cc_min_vertices,
                start_edge_prior,
                selection_cost,
@@ -506,7 +501,6 @@ def solve_core(core,
 
             solutions = solver.solve_subgraph(g1,
                                               index_map,
-                                              distance_threshold=distance_threshold,
                                               cc_min_vertices=cc_min_vertices,
                                               start_edge_prior=start_edge_prior,
                                               selection_cost=selection_cost,
@@ -531,9 +525,7 @@ def solve_core(core,
 
             db.write_solved(name_db,
                             collection,
-                            x_lim=core.x_lim_core,
-                            y_lim=core.y_lim_core,
-                            z_lim=core.z_lim_core)
+                            core)
         else:
             print "Skip core {}, already solved...".format(core.id)
 
@@ -593,4 +585,4 @@ def cluster(name_db,
 
 
 if __name__ == "__main__":
-    track("/home/nilsec/Projects/l3_mtrack/paper/l3_test_run/config.ini")
+    track("/home/nilsec/Projects/l3_mtrack/paper/l3_grid_search_redone/debug/config_19_rerun.ini")
