@@ -34,7 +34,7 @@ class DanglingVertexTestCase(GraphSetUp):
         gc = graph_converter.GraphConverter(self.g1)
         
         g2_vertices_N, g2_center_conflicts, g2_forced,\
-        g2_vertex_forced, g2_edge_forced, index_maps = gc.get_mapping()
+        g2_solved, g2_vertex_forced, g2_edge_forced, index_maps = gc.get_mapping()
 
         self.assertFalse(g2_forced)
         self.assertFalse(g2_edge_forced)
@@ -84,7 +84,7 @@ class DanglingEdgeTestCase(GraphSetUp):
         gc = graph_converter.GraphConverter(self.g1)
         
         g2_vertices_N, g2_center_conflicts, g2_forced,\
-        g2_vertex_forced, g2_edge_forced, index_maps = gc.get_mapping()
+        g2_solved, g2_vertex_forced, g2_edge_forced, index_maps = gc.get_mapping()
 
         self.assertFalse(g2_forced)
         self.assertTrue(g2_edge_forced)
@@ -149,7 +149,7 @@ class ForcedTestCase(GraphSetUp):
         gc = graph_converter.GraphConverter(self.g1)
         
         g2_vertices_N, g2_center_conflicts, g2_forced,\
-        g2_vertex_forced, g2_edge_forced, index_maps = gc.get_mapping()
+        g2_solved, g2_vertex_forced, g2_edge_forced, index_maps = gc.get_mapping()
 
         self.assertTrue(g2_forced)
         self.assertFalse(g2_edge_forced)
