@@ -13,6 +13,8 @@ from functools import partial
 
 from mtrack.graphs import g1_graph
 from mtrack.preprocessing import extract_candidates, connect_graph_locally
+import mtrack.settings as settings
+settings.init()
 
 class DB(object):
     def __init__(self):
@@ -37,18 +39,17 @@ class DB(object):
                      "selected": False,
 					 "type": "edge",
                      "time_selected": [],
-                     "by_selected": [],
-                     "pos": None}
+                     "by_selected": []}
 
 
     def get_db(self, name_db):
-        client = MongoClient()
+        client = MongoClient(port=settings.port)
         db = client[name_db]
         return db
 
     def get_client(self, name_db, collection, overwrite=False):
         print "Get client..."
-        client = MongoClient(connect=False)
+        client = MongoClient(port=settings.port, connect=False)
 
         db = self.get_db(name_db)
         collections = db.collection_names()
@@ -76,7 +77,7 @@ class DB(object):
 
     def create_collection(self, name_db, collection, overwrite=False):
         print "Create new db collection {}.{}...".format(name_db, collection)
-        client = MongoClient()
+        client = MongoClient(port=settings.port)
         
         if overwrite:
             print "Overwrite {}.{}...".format(name_db, collection)
@@ -102,12 +103,12 @@ class DB(object):
                z_lim,
                query_edges=True):
 
-        vertices, edges = self.__get_roi(name_db,
-                                         collection,
-                                         x_lim,
-                                         y_lim,
-                                         z_lim,
-                                         query_edges)
+        vertices, edges = self.__get_vertex_roi(name_db,
+                                                collection,
+                                                x_lim,
+                                                y_lim,
+                                                z_lim,
+                                                query_edges)
 
         g1, index_map = self.__roi_to_g1(vertices, edges)
 
@@ -122,25 +123,35 @@ class DB(object):
 					 y_lim,
 					 z_lim):
 
-        vertices, edges = self.__get_roi(name_db,
-                                         collection,
-                                         x_lim,
-                                         y_lim,
-                                         z_lim,
-                                         query_edges=True)
+        vertices, edges = self.__get_vertex_roi(name_db,
+                                                collection,
+                                                x_lim,
+                                                y_lim,
+                                                z_lim,
+                                                query_edges=True)
 
-        selected_vertices = []
+        selected_vertices = set()
+        id_to_vertex = {}
         for v in vertices:
+            id_to_vertex[v["id"]] = v
             if v["selected"]:
                 v["id_partner"] = -1
-                selected_vertices.append(v)
+                selected_vertices.add(v["id"])
 
         selected_edges = []
         for e in edges:
             if e["selected"]:
                 selected_edges.append(e)
+                """
+                This is necessary to avoid the retrieval of selected edges
+                for which only one of the vertices is selected yet.
+                This would lead to errors downstream.
+                """
+                selected_vertices.add(e["id0"])
+                selected_vertices.add(e["id1"])
+        
 
-        g1_selected, index_map = self.__roi_to_g1(selected_vertices, 
+        g1_selected, index_map = self.__roi_to_g1([id_to_vertex[v_id] for v_id in selected_vertices], 
                                                   selected_edges)
 
         return g1_selected, index_map
@@ -191,37 +202,52 @@ class DB(object):
 
         print "Write selected..."
         for e in solution.get_edge_iterator():
+            v0_id_db = index_map[e.source()]
+            v1_id_db = index_map[e.target()]
+
+            """
+            The position of the vertex with the lower global id
+            decides about wether to write the edge or not.
+            """
+            assert(v0_id_db != v1_id_db)
+            if v0_id_db < v1_id_db:
+                deciding_vertex = e.source()
+            else:
+                deciding_vertex = e.target()
+ 
             v0_pos = np.array(solution.get_position(e.source()))
             v1_pos = np.array(solution.get_position(e.target()))
-            e_pos = (v0_pos + v1_pos)/2.
+            deciding_vertex_pos = np.array(solution.get_position(deciding_vertex))
+            assert(np.all(deciding_vertex_pos == np.array(deciding_vertex_pos, dtype=int)))
  
-            if np.all(e_pos >= min_lim) and np.all(e_pos < max_lim):
+            if np.all(deciding_vertex_pos >= min_lim) and np.all(deciding_vertex_pos < max_lim):
                 v0_mapped = index_map[e.source()]
                 v1_mapped = index_map[e.target()]
             
                 graph.update_one({"$and": [{"id0": {"$in": [v0_mapped, v1_mapped]}},
                                            {"id1": {"$in": [v0_mapped, v1_mapped]}}]},
-                                 {"$set": {"selected": True, "solved": True, "pos": tuple(e_pos)},
+                                 {"$set": {"selected": True, "solved": True},
                                   "$push": {"by_selected": id_writer, 
                                             "time_selected": str(time.localtime(time.time()))}},
                                  upsert=False)
 
                 # Edge implies vertices:
-                graph.update_one({"id": v0_mapped},
-                                 {"$inc": {"degree": 1},
-                                  "$set": {"selected": True, "solved": True},
-                                  "$push": {"by_selected": id_writer, 
-                                            "time_selected": str(time.localtime(time.time()))}},
-                                 upsert=False)
+                if np.all(v0_pos >= min_lim) and np.all(v0_pos < max_lim):
+                    graph.update_one({"id": v0_mapped},
+                                     {"$inc": {"degree": 1},
+                                      "$set": {"selected": True, "solved": True},
+                                      "$push": {"by_selected": id_writer, 
+                                                "time_selected": str(time.localtime(time.time()))}},
+                                     upsert=False)
 
-
-                graph.update_one({"id": v1_mapped},
-                                 {"$inc": {"degree": 1},
-                                  "$set": {"selected": True, "solved": True},
-                                  "$push": {"by_selected": id_writer, 
-                                            "time_selected": str(time.localtime(time.time()))}},
-                                 upsert=False)
- 
+                if np.all(v1_pos >= min_lim) and np.all(v1_pos < max_lim):
+                    graph.update_one({"id": v1_mapped},
+                                     {"$inc": {"degree": 1},
+                                      "$set": {"selected": True, "solved": True},
+                                      "$push": {"by_selected": id_writer, 
+                                                "time_selected": str(time.localtime(time.time()))}},
+                                     upsert=False)
+                
                 assert(graph.find({"degree": {"$gte": 3}}).count()==0)
 
         print "Selected edges: ", graph.find({"selected": True, "type": "edge"}).count()
@@ -231,31 +257,59 @@ class DB(object):
     def write_solved(self,
                      name_db,
                      collection,
-                     x_lim,
-                     y_lim,
-                     z_lim):
+                     core):
         
         graph = self.get_client(name_db, collection, overwrite=False)
 
-        vertices, edges = self.__get_roi(name_db,
-                                         collection,
-                                         x_lim,
-                                         y_lim,
-                                         z_lim,
-                                         query_edges=True)
+
+        """
+        The vertex roi does not capture the edges 
+        that lie on the boarders of the core.
+        """
+        vertices, edges = self.__get_vertex_roi(name_db,
+                                                collection,
+                                                core.x_lim_context,
+                                                core.y_lim_context,
+                                                core.z_lim_context,
+                                                query_edges=True)
+
+        core_min = np.array([core.x_lim_core["min"], 
+                             core.y_lim_core["min"],
+                             core.z_lim_core["min"]])
+
+        core_max = np.array([core.x_lim_core["max"],
+                             core.y_lim_core["max"],
+                             core.z_lim_core["max"]])
 
         print "Write solved..."
+        id_to_vertex_pos = {}
         for v in vertices:
-            graph.update_one({"id": v["id"]},
-                             {"$set": {"solved": True}},
-                             upsert=False)
+            v_pos = np.array([v["px"], v["py"], v["pz"]])
+            if np.all(v_pos>=core_min) and np.all(v_pos<core_max):
+                graph.update_one({"id": v["id"]},
+                                 {"$set": {"solved": True}},
+                                 upsert=False)
+
+            id_to_vertex_pos[v["id"]] = v_pos
 
         for e in edges:
-            graph.update_one({"$and": [{"id0": e["id0"]}, {"id1": e["id1"]}]},
-                             {"$set": {"solved": True}},
-                             upsert=False)
- 
+            v0_id = e["id0"]
+            v1_id = e["id1"]
+           
+            assert(v0_id != v1_id) 
+            if v0_id < v1_id:
+                deciding_vertex_id = v0_id
+            else:
+                deciding_vertex_id = v1_id
 
+            deciding_vertex_pos = id_to_vertex_pos[deciding_vertex_id]
+            if np.all(deciding_vertex_pos >= core_min) and\
+               np.all(deciding_vertex_pos < core_max):
+
+                graph.update_one({"$and": [{"id0": e["id0"]}, {"id1": e["id1"]}]},
+                                 {"$set": {"solved": True}},
+                                 upsert=False)
+     
 
     def write_candidates(self,
                          name_db,
@@ -379,45 +433,44 @@ class DB(object):
                   y_lim,
                   z_lim):
 
-        vertices, edges = self.__get_roi(name_db,
-                                         collection,
-                                         x_lim,
-                                         y_lim,
-                                         z_lim,
-                                         query_edges=True)
+        vertices, edges = self.__get_vertex_roi(name_db,
+                                                collection,
+                                                x_lim,
+                                                y_lim,
+                                                z_lim,
+                                                query_edges=True)
 
         n_solved = len([e for e in edges if e["solved"]])
         n_edges = len(edges)
 
         return (n_edges == n_solved)
 
-    def __get_roi(self,
-                  name_db,
-                  collection,
-                  x_lim,
-                  y_lim,
-                  z_lim,
-                  query_edges=True):
+    
+    def __get_vertex_roi(self,
+                         name_db,
+                         collection,
+                         x_lim,
+                         y_lim,
+                         z_lim,
+                         query_edges=True):
 
-        print "Extract subgraph..."
+        print "Get vertex ROI..."
         
         graph = self.get_client(name_db, collection, overwrite=False)
 
         print "Perform vertex query..."
 
-        vertices =  list(graph.find({   
+        vertices =  list(graph.find({"$and": [{   
                                          "pz": {"$gte": z_lim["min"],
                                                  "$lt": z_lim["max"]},
                                          "py": {"$gte": y_lim["min"],
                                                  "$lt": y_lim["max"]},
                                          "px": {"$gte": x_lim["min"],
-                                                 "$lt": x_lim["max"]}
-                                    
-                                   })
+                                                 "$lt": x_lim["max"]}}, 
+                                            {"type": "vertex"}]})
                          )
 
         vertex_ids = [v["id"] for v in vertices]
-        
         
         edges = [] 
         if query_edges:
