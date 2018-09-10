@@ -149,6 +149,8 @@ class DB(object):
                 """
                 selected_vertices.add(e["id0"])
                 selected_vertices.add(e["id1"])
+                id_to_vertex[e["id0"]]["id_partner"] = -1
+                id_to_vertex[e["id1"]]["id_partner"] = -1
         
 
         g1_selected, index_map = self.__roi_to_g1([id_to_vertex[v_id] for v_id in selected_vertices], 
