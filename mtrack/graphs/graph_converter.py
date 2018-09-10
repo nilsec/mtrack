@@ -172,7 +172,7 @@ class GraphConverter:
                                 v_all_solved[k] = solved_vc
                                 k += 1
                                  
-                            if force_e1 and force_e2 and np.all(v_all_forced):
+                            if force_e1 and force_e2:
                                 g2_forced.append(g2_vertex_id)
 
                             if solve_e1 and solve_e2 and np.all(v_all_solved):
