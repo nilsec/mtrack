@@ -4,6 +4,7 @@ from collections import deque
 import json
 import signal
 
+import multiprocessing
 from mtrack.mt_utils import gen_config, read_config,  NoDaemonPool # Need outer non-daemon pool
 from mtrack.preprocessing.create_probability_map import ilastik_get_prob_map
 from mtrack import track
@@ -86,8 +87,10 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
     grids = [os.path.join(grid_base_dir, f) for f in os.listdir(grid_base_dir) if f != "prob_maps"]
     grid_configs = [g + "/config.ini" for g in grids]
 
+    print "Start grid search with {} workers on {} cpus...".format(n_workers, multiprocessing.cpu_count())
 
-    if n_workers > 1:   
+    if n_workers > 1:
+        print "Working on MP branch..."
         sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
         pool = NoDaemonPool(n_workers)
         signal.signal(signal.SIGINT, sigint_handler)
@@ -107,6 +110,7 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
             pool.join()
 
     else:
+        print "Working on SP branch..."
         for cfg in grid_configs:
             cfg_dict = read_config(cfg)
             if not skip_condition(cfg_dict):
