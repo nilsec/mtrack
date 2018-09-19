@@ -40,6 +40,9 @@ def ilastik_get_prob_map(raw,
                                                    label,
                                                    file_extension)
 
+    else:
+        raise ValueError("raw not found")
+
     return stack_path
 
 
