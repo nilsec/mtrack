@@ -28,10 +28,9 @@ RUN echo "deb http://downloads.skewed.de/apt/xenial xenial universe" >> /etc/apt
 WORKDIR /src/pylp
 RUN git clone https://github.com/funkey/pylp.git . && \
     git checkout 08711e9988be3e2cf71f9ffbbb707f83144653e5 && \
-    git submodule update --init && \
-    python setup.py install && \
-    echo "from pylp import *" > ./pylp/__init__.py
-ENV PYTHONPATH /src/pylp:$PYTHONPATH
+    git submodule update --init
+RUN SOURCE_DIR=/src/pylp python setup.py install
+ENV PYTHONPATH /src/pylp/pylp:$PYTHONPATH
 
 # Install vigra:
 WORKDIR /src/vigra

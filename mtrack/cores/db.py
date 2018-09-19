@@ -149,6 +149,8 @@ class DB(object):
                 """
                 selected_vertices.add(e["id0"])
                 selected_vertices.add(e["id1"])
+                id_to_vertex[e["id0"]]["id_partner"] = -1
+                id_to_vertex[e["id1"]]["id_partner"] = -1
         
 
         g1_selected, index_map = self.__roi_to_g1([id_to_vertex[v_id] for v_id in selected_vertices], 
@@ -230,8 +232,10 @@ class DB(object):
                                   "$push": {"by_selected": id_writer, 
                                             "time_selected": str(time.localtime(time.time()))}},
                                  upsert=False)
-
-                # Edge implies vertices:
+                """
+                Edge implies vertex if the vertex is in the same core.
+                Otherwise we get conflicts in write/read access.
+                """
                 if np.all(v0_pos >= min_lim) and np.all(v0_pos < max_lim):
                     graph.update_one({"id": v0_mapped},
                                      {"$inc": {"degree": 1},
@@ -265,6 +269,8 @@ class DB(object):
         """
         The vertex roi does not capture the edges 
         that lie on the boarders of the core.
+        Thus we grab the whole context and check 
+        for bounds.
         """
         vertices, edges = self.__get_vertex_roi(name_db,
                                                 collection,
