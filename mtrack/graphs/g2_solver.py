@@ -14,18 +14,18 @@ class G2Solver:
 
         if backend == "Gurobi":
             print "Use Gurobi backend"
-            self.backend = pylp.GurobiBackend()
+            self.backend = pylp.create_linear_solver(pylp.Preference.Gurobi)
         elif backend == "Scip":
             print "Use Scip backend"
-            self.backend = pylp.ScipBackend()
+            self.backend = pylp.create_linear_solver(pylp.Preference.Scip)
         else:
             raise NotImplementedError("Choose between Gurobi or Scip backend")
 
         self.backend.initialize(self.g2_vertices_N, pylp.VariableType.Binary)
 
         self.objective = pylp.LinearObjective(self.g2_vertices_N)
-
-        pylp.setLogLevel()
+        
+        pylp.set_log_level(pylp.LogLevel.All)
 
         g2_vertex_index_map = g2.get_vertex_index_map()
         self.constraints = pylp.LinearConstraints()
@@ -99,14 +99,14 @@ class G2Solver:
 
         if time_limit != None:
             try:
-                self.backend.set_timelimit(time_limit)
+                print "Set time limit of {} seconds".format(time_limit)
+                self.backend.set_timeout(time_limit)
             except AttributeError:
                 print "WARNING: Unable to set time limit"
                 pass
 
         #self.backend.set_num_threads(num_threads)
-
-        solution = pylp.Solution()
-        self.backend.solve(solution)
+        solution, msg = self.backend.solve()
+        print "SOLVED with status: " + msg
 
         return solution
