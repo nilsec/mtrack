@@ -148,7 +148,7 @@ class OptMatch(object):
         self.edge_pairs, self.edge_pair_cost = self.get_edge_pairs(self.gt_rec_pairs)
 
         print "Initialize ILP...\n"
-        self.backend = pylp.GurobiBackend()
+        self.backend = pylp.create_linear_solver(pylp.Preference.Gurobi)
 
         self.n_rec_nodes = len(self.rec_chunks.values())
         self.n_gt_nodes = len(self.gt_chunks.values())
@@ -351,11 +351,11 @@ class OptMatch(object):
         print str(self.n_tot) + " variables.\n"
 
         if time_limit != None:
-            self.backend.set_timelimit(time_limit)
+            self.backend.set_timeout(time_limit)
 
-        solution = pylp.Solution()
-        self.backend.solve(solution)
-       
+        solution, msg = self.backend.solve()
+        print "SOLVED with status: " + msg
+
         non_zero = 0
         for i in range(len(solution)):
             if solution[i] > 0.5:
