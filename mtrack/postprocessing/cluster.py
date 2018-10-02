@@ -5,7 +5,10 @@ from scipy.ndimage.morphology import generate_binary_structure, binary_dilation,
 from scipy.ndimage.measurements import label
 from scipy.spatial import KDTree
 
-import skeletopyze
+try:
+    import skeletopyze
+except ImportError("Skeletopyze module not installed, clustering not available"):
+    pass
 
 import mtrack.graphs
 from mtrack.evaluation import get_lines, interpolate_nodes
