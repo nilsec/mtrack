@@ -29,6 +29,7 @@ def evaluate_roi(name_db,
                                     z_lim=z_lim)
 
     tracing_cut = cut_to_roi(tracing_file, x_lim, y_lim, z_lim)
+    g1_to_nml(tracing_cut, output_dir + "/roi_tracing.nml", knossify=True)
 
     evaluate(tracing_file=tracing_cut,
              solution_file=g1,
