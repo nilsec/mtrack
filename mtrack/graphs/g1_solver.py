@@ -22,10 +22,10 @@ class G1Solver:
 
         if backend == "Gurobi":
             print "Use Gurobi backend"
-            self.backend = pylp.GurobiBackend()
+            self.backend = pylp.create_linear_solver(pylp.Preference.Gurobi)
         elif backend == "Scip":
             print "Use Scip backend"
-            self.backend = pylp.ScipBackend()
+            self.backend = pylp.create_linear_solver(pylp.Preference.Scip)
         else:
             raise NotImplementedError("Choose between Gurobi or Scip backend")
         g1.reindex_edges_save()
@@ -210,14 +210,14 @@ class G1Solver:
 
         if time_limit != None:
             try:
-                self.backend.set_timelimit(time_limit)
+                print "Set time limit of {} seconds".format(time_limit)
+                self.backend.set_timeout(time_limit)
             except AttributeError:
                 print "WARNING: Unable to set time limit"
                 pass
 
-        solution = pylp.Solution()
-        self.backend.solve(solution)
-        print "solution: ", solution
+        solution, msg = self.backend.solve()
+        print "SOLVED with status: " + msg
 
         return solution
 

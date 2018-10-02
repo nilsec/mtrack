@@ -122,7 +122,7 @@ def g2_to_g1_solution(g2_solution,
 
     for v in g2.get_vertex_iterator():
         
-        if g2_solution[v] > 0.5:
+        if g2_solution[int(v)] > 0.5:
             g1e_in_g2v = index_maps["g2vertex_g1edges"][v]
             
             for e in g1e_in_g2v:

@@ -47,7 +47,6 @@ RUN pip install nose && \
 # Install skeletopyze
 WORKDIR /src/skeletopyze
 RUN git clone https://github.com/funkey/skeletopyze.git . && \
-    git checkout 6146901a43506bb5d50feff60d2b538e6e9f6f58 && \
     git submodule update --init && \
     python setup.py install && \
     echo "from skeletopyze import *" > ./skeletopyze/__init__.py
