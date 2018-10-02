@@ -3,7 +3,10 @@ from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker,\
                                  stack_to_chunks, ilastik_get_prob_map
 from mtrack.mt_utils import read_config, check_overlap
 from mtrack.graphs.g1_graph import G1
-from mtrack.postprocessing import skeletonize
+try:
+    from mtrack.postprocessing import skeletonize
+except:
+    pass
 from solve import solve
 from evaluate import evaluate_roi
 
@@ -585,4 +588,4 @@ def cluster(name_db,
 
 
 if __name__ == "__main__":
-    track("/home/nilsec/Projects/l3_mtrack/paper/l3_grid_search_redone/debug/config_19_rerun.ini")
+    track("/groups/funke/home/ecksteinn/Projects/microtubules/l3_mtrack/experiments/grid_search_validation_cluster/results/grid_4/config.ini")
