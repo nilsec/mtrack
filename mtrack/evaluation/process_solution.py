@@ -5,7 +5,7 @@ import mtrack.preprocessing
 import mtrack.graphs
 from mtrack.evaluation.dda3 import DDA3
 
-def get_lines(volume, output_dir, voxel_size, nml=False):
+def get_lines(volume, output_dir, scale, voxel_size, nml=False):
     if isinstance(volume, str):
         if volume.endswith(".nml"):
             gt = False
@@ -20,7 +20,7 @@ def get_lines(volume, output_dir, voxel_size, nml=False):
         assert(isinstance(volume, mtrack.graphs.G1))
         gt = True
  
-    if gt:
+    if scale:
         for v in volume.get_vertex_iterator():
             pos_scaled = np.array([volume.get_position(v)[j]/voxel_size[j] for j in range(3)])
             volume.set_position(v, pos_scaled)
