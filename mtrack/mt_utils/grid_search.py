@@ -78,6 +78,11 @@ def generate_grid(param_dict,
         params_n["validated_output_path"] = params_n["validated_output_path"].format(
                                                             params_n["cfg_output_dir"])
  
+        params_n["prob_map_chunks_perp_dir"] = params_n["prob_map_chunks_perp_dir"].format(
+                                                            params_n["cfg_output_dir"])
+ 
+        params_n["prob_map_chunks_par_dir"] = params_n["prob_map_chunks_par_dir"].format(
+                                                            params_n["cfg_output_dir"])
  
         gen_config(**params_n)
         n += 1
