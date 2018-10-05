@@ -14,7 +14,8 @@ class DDA3:
         self.end = (end * scaling).astype(float)
         self.line = [dda_round(self.start)]
         
-        self.max_direction, self.max_length = max(enumerate(abs(self.end - self.start)), key=operator.itemgetter(1))
+        self.max_direction, self.max_length = max(enumerate(abs(self.end - self.start)), 
+                                                  key=operator.itemgetter(1))
 
         try:
             self.dv = (self.end - self.start) / self.max_length
@@ -28,8 +29,4 @@ class DDA3:
             self.line.append(dda_round((step + 1) * self.dv + self.start))
 
         assert(np.all(self.line[-1] == self.end))
-        
-        for n in xrange(len(self.line) - 1):
-            assert(np.linalg.norm(self.line[n+1] - self.line[n]) <= np.sqrt(3))
-        
         return self.line

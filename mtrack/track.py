@@ -8,7 +8,6 @@ try:
 except:
     pass
 from solve import solve
-from evaluate import evaluate_roi
 
 import numpy as np
 import h5py
@@ -222,38 +221,6 @@ def track(config_path):
                           config["validated_output_path"],
                           knossos=True,
                           voxel_size=config["voxel_size"])
-
-
-    if config["cluster"]:
-       cluster(name_db=config["name_db"],
-               collection=config["name_collection"],
-               roi=roi,
-               output_dir=config["cluster_output_dir"],
-               epsilon_lines=config["epsilon_lines"],
-               epsilon_volumes=config["epsilon_volumes"],
-               min_overlap_volumes=config["min_overlap_volumes"],
-               cluster_orientation_factor=config["cluster_orientation_factor"],
-               remove_singletons=config["remove_singletons"],
-               voxel_size=config["voxel_size"],
-               use_ori=config["use_ori"])
-
-
-    if config["evaluate"]:
-        evaluate_roi(name_db=config["name_db"],
-                     collection=config["name_collection"],
-                     x_lim=x_lim_roi,
-                     y_lim=y_lim_roi,
-                     z_lim=z_lim_roi,
-                     tracing_file=config["tracing_file"],
-                     chunk_size=config["eval_chunk_size"],
-                     distance_tolerance=config["eval_distance_tolerance"],
-                     dummy_cost=config["eval_dummy_cost"],
-                     edge_selection_cost=config["eval_edge_selection_cost"],
-                     pair_cost_factor=config["eval_pair_cost_factor"],
-                     max_edges=config["max_edges"],
-                     voxel_size=config["voxel_size"],
-                     output_dir=config["eval_output_dir"],
-                     time_limit=config["eval_time_limit"])
 
 
 def chunk_prob_maps(volume_shape,

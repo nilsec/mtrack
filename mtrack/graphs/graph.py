@@ -209,6 +209,9 @@ class G:
     def set_vertex_filter(self, vertex_property):
         self.g.set_vertex_filter(vertex_property)
 
+    def set_edge_filter(self, edge_property):
+        self.g.set_edge_filter(edge_property)
+
     def set_vertex_mask(self, vertex_mask):
         vp = self.g.new_vertex_property("bool")
         vp.a = vertex_mask

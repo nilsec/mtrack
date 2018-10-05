@@ -11,6 +11,7 @@ class G1(G):
     
     def __init__(self, N, G_in=None, init_empty=False):
         G.__init__(self, N, G_in=G_in)
+        self.hash_value = None
 
         if not init_empty:
             if G_in is None:
@@ -29,6 +30,14 @@ class G1(G):
         # NOTE: Start/End dummy node and edge are implicit
         self.edge_index_map = G.get_edge_index_map(self)
 
+    def set_hash(self, value):
+        self.hash_value = value
+
+    def __hash__(self):
+        if self.hash_value is None:
+            raise TypeError("Object is not hashable.")
+        else:
+            return self.hash_value
 
     def __eq__(self, other):
         # Number of vertices:
