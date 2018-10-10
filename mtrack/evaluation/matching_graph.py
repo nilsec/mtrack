@@ -1,8 +1,10 @@
 import numpy as np
+import os
 from scipy.spatial import KDTree
 
 from mtrack.graphs import G1
 from mtrack.preprocessing import g1_to_nml
+import json
 
 class MatchingGraph(object):
     def __init__(self, 
@@ -11,6 +13,7 @@ class MatchingGraph(object):
                  distance_threshold,
                  voxel_size,
                  verbose=False, 
+                 distance_cost=True,
                  initialize_all=True):
         """
         Matching graph representation.
@@ -23,22 +26,14 @@ class MatchingGraph(object):
 
         self.verbose = verbose
 
+        self.distance_cost = distance_cost
+
         self.distance_threshold = distance_threshold
 
         self.voxel_size = voxel_size
 
         self.total_vertices = self.__get_total_vertices()
-        
-        """
-        Generate various mappings and indexing schemes: 
 
-        gt_mappings = {"ids": ids_gt, "positions": positions_gt,
-                       "id_to_mvertex": ids_gt_to_mvertex, "mvertex_to_id": mvertex_to_ids_gt}
-
-        rec_mappings = {"ids": ids_rec, "positions": positions_rec,
-                        "id_to_mvertex": ids_rec_to_mvertex, "mvertex_to_id": mvertex_to_ids_rec}
-
-        """
         if initialize_all:
             self.matching_graph, self.mappings, self.mv_to_v, self.v_to_mv = self.__initialize()
             self.__add_skeleton_edges()
@@ -46,6 +41,7 @@ class MatchingGraph(object):
 
 
         # All further initializations should happen here and not before the call to __initialize():
+        self.matched = False
 
 
     def __initialize(self):
@@ -66,7 +62,10 @@ class MatchingGraph(object):
         matching_graph.new_edge_property("is_skeleton", dtype="bool", value=False)
         matching_graph.new_edge_property("is_matching", dtype="bool", value=False)
 
+        matching_graph.new_edge_property("distance", dtype="float", value=0.0)
+
         matching_graph.new_vertex_property("is_gt", dtype="bool", value=False)
+        matching_graph.new_vertex_property("label", dtype="int", value=-1)
 
 
         v_matching = 0
@@ -86,6 +85,7 @@ class MatchingGraph(object):
                     else:
                         matching_graph.set_vertex_property("is_gt", v_matching, False)
 
+                    matching_graph.set_vertex_property("label", v_matching, graph_hash)
                     mappings[tag]["mv_ids"].append(v_matching)
 
                     # Build mappings
@@ -151,6 +151,19 @@ class MatchingGraph(object):
     def set_matching(self, e):
         self.matching_graph.set_edge_property("is_matching", None, None, True, e=e)
 
+    def set_distance(self, e):
+        pos_source = np.array(self.matching_graph.get_position(e.source()))
+        pos_target = np.array(self.matching_graph.get_position(e.target()))
+        distance = np.linalg.norm(pos_source - pos_target)
+        print "pos_source", pos_source
+        print "pos_target", pos_target
+        print "distance", distance
+        self.matching_graph.set_edge_property("distance", e.source(), e.target(), distance)
+
+    def get_distance(self, e):
+        distance = self.matching_graph.get_edge_property("distance", e.source(), e.target())
+        return distance
+
     def set_skeleton(self, e):
         self.matching_graph.set_edge_property("is_skeleton", None, None, True, e=e)
 
@@ -164,29 +177,198 @@ class MatchingGraph(object):
         else:
             raise ValueError("Edge has no type. Initialization failed.")
 
+    def __mask_vp(self, vp_name):
+        vp = self.matching_graph.get_vertex_property(vp_name)
+        self.matching_graph.set_vertex_filter(vp)
+
+    def __mask_ep(self, ep_name):
+        ep = self.matching_graph.get_edge_property(ep_name)
+        self.matching_graph.set_edge_filter(ep)
+
     def mask_skeleton_edges(self):
-        self.matching_graph.set_edge_filter(None)
-        skeleton_ep = self.matching_graph.get_edge_property("is_skeleton")
-        self.matching_graph.set_edge_filter(skeleton_ep)
+        self.__mask_ep("is_skeleton")
 
     def mask_matching_edges(self):
-        self.matching_graph.set_edge_filter(None)
-        matching_ep = self.matching_graph.get_edge_property("is_matching")
-        self.matching_graph.set_edge_filter(matching_ep)
+        self.__mask_ep("is_matching")
+
+    def mask_groundtruth(self):
+        self.__mask_vp("is_gt")
+
+    def mask_reconstruction(self):
+        self.matching_graph.set_vertex_filter(None)
+        groundtruth_vp = self.matching_graph.get_vertex_property("is_gt")
+        reconstruction_vp = self.matching_graph.new_vertex_property("is_rec", dtype="bool", value=None, vals=(not groundtruth_vp.a))
+        self.matching_graph.set_vertex_filter(reconstruction_vp)
+
+    def mask_tps(self):
+        self.__mask_vp("tp")
+
+    def mask_fns(self):
+        self.__mask_vp("fn")
+
+    def mask_fps(self):
+        self.__mask_vp("fp")
+
+    def mask_splits(self):
+        self.__mask_ep("split")
+        self.__mask_vp("split")
+
+    def mask_mergers(self):
+        self.__mask_ep("merge")
+        self.__mask_vp("merge")
+
+    def __mark_truefalse_vertices(self):
+        if not self.matched:
+            raise ValueError("Graph not matched yet. Import comatch results before analyzing.")
+
+        self.clear_vertex_masks()
+        self.clear_edge_masks()
+
+        self.matching_graph.new_vertex_property("fp", dtype="bool", value=False)
+        self.matching_graph.new_vertex_property("fn", dtype="bool", value=False)
+        self.matching_graph.new_vertex_property("tp", dtype="bool", value=False)
+        self.mask_matched_edges()
+
+        for v in self.matching_graph.get_vertex_iterator():
+            incident_edges = list(self.matching_graph.get_incident_edges(v))
+            if not incident_edges:
+                if self.is_groundtruth_mv(v):
+                    self.matching_graph.set_vertex_property("fn", v, True)
+                else:
+                    self.matching_graph.set_vertex_property("fp", v, True)
+            else:
+                self.matching_graph.set_vertex_property("tp", v, True)
+                self.matching_graph.set_vertex_property("fn", v, False)
+                self.matching_graph.set_vertex_property("fp", v, False)
+
+        self.clear_edge_masks()
+
+    def __is_vp(self, vp_name, mv):
+        return self.matching_graph.get_vertex_property(vp_name, mv)
+
+    def is_tp(self, mv):
+        return self.__is_vp("tp", mv)
+
+    def is_fp(self, mv):
+        return self.__is_vp("fp", mv)
+
+    def is_fn(self, mv):
+        return self.__is_vp("fn", mv)
+
+    def __is_ep(self, ep_name, e):
+        return self.matching_graph.get_edge_property(ep_name, e.source(), e.target())
+
+    def is_split(self, e):
+        return self.__is_ep("split", e)
+
+    def is_merge(self, e):
+        return self.__is_ep("merge", e)
+
+    def get_nbs(self, mv, subgraph):
+        if subgraph not in ["matched", "skeleton"]:
+            raise ValueError
+
+        if subgraph == "matched":
+            self.mask_matched_edges()
+        else:
+            self.mask_skeleton_edges()
+
+        incident_edges_mv = self.matching_graph.get_incident_edges(mv)
+      
+        nbs_mv = set()
+        if incident_edges_mv:
+            for e in incident_edges_mv:
+                nbs_mv.add(e.source())
+                nbs_mv.add(e.target())
+
+            nbs_mv.remove(mv)
+
+        self.clear_edge_masks()
+
+        return list(nbs_mv)
+
+    def get_label(self, mv):
+        return int(self.matching_graph.get_vertex_property("label", mv))
+
+    def get_vertex_iterator(self):
+        return self.matching_graph.get_vertex_iterator()
+
+    def get_edge_iterator(self):
+        return self.matching_graph.get_edge_iterator()
+
+    def __get_matched_label(self, matching_nbs):
+        component_ids = set()
+        if matching_nbs:
+            for mv in matching_nbs:
+                component_id = self.get_label(mv)
+                component_ids.add(component_id)
+        else:
+            component_ids.add(-1)
+
+        assert(len(set(component_ids)) == 1)
+        return list(component_ids)[0]
+
+    def get_matched_label(self, mv):
+        return self.matching_graph.get_vertex_property("matched_label", mv)
+
+    def __add_matched_labels(self):
+        self.clear_edge_masks()
+        self.clear_vertex_masks()
+
+        self.matching_graph.new_vertex_property("matched_label", dtype="int", value=-1)
+
+        for mv in self.matching_graph.get_vertex_iterator():
+            nbs = self.get_nbs(mv, "matched")
+            matched_label = self.__get_matched_label(nbs)
+            self.matching_graph.set_vertex_property("matched_label", mv, matched_label)
+
+    def __mark_splitmerge_edges(self):
+        self.clear_edge_masks()
+        self.clear_vertex_masks()
+
+        self.matching_graph.new_edge_property("split", dtype="bool", value=False)
+        self.matching_graph.new_edge_property("merge", dtype="bool", value=False)
+        self.matching_graph.new_vertex_property("split", dtype="bool", value=False)
+        self.matching_graph.new_vertex_property("merge", dtype="bool", value=False)
+
+        self.mask_skeleton_edges()
+        for e in self.matching_graph.get_edge_iterator():
+            mv0 = e.source()
+            mv1 = e.target()
+            if self.get_matched_label(mv0) != self.get_matched_label(mv1):
+                if self.is_groundtruth_mv(mv0):
+                    assert(self.is_groundtruth_mv(mv1))
+                    self.matching_graph.set_edge_property("merge", e.source(), e.target(), True)
+                    self.matching_graph.set_vertex_property("merge", e.source(), True)
+                    self.matching_graph.set_vertex_property("merge", e.target(), True)
+                else:
+                    self.matching_graph.set_edge_property("split", e.source(), e.target(), True)
+                    self.matching_graph.set_vertex_property("split", e.source(), True)
+                    self.matching_graph.set_vertex_property("split", e.target(), True)
+
+        self.clear_edge_masks()
 
     def clear_edge_masks(self):
         self.matching_graph.set_edge_filter(None)
+
+    def clear_vertex_masks(self):
+        self.matching_graph.set_vertex_filter(None)
 
     def export_to_comatch(self):
         nodes_gt = []
         nodes_rec = []
         edges_gt_rec = []
+        edge_costs = []
+        labels_gt = {}
+        labels_rec = {}
 
         for v in self.matching_graph.get_vertex_iterator():
             if self.is_groundtruth_mv(v):
                 nodes_gt.append(int(v))
+                labels_gt[int(v)] = self.get_label(v)
             else:
                 nodes_rec.append(int(v))
+                labels_rec[int(v)] = self.get_label(v)
 
         self.mask_matching_edges()
         for e in self.matching_graph.get_edge_iterator():
@@ -197,8 +379,134 @@ class MatchingGraph(object):
                 edge_gt_rec = [int(e.target()), int(e.source())]
 
             edges_gt_rec.append(tuple(edge_gt_rec))
+            if self.distance_cost:
+                edge_costs.append(self.get_distance(e))
 
-        return nodes_gt, nodes_rec, edges_gt_rec
+
+        self.clear_edge_masks()
+
+        return nodes_gt, nodes_rec, edges_gt_rec, labels_gt, labels_rec, edge_costs
+
+    def import_matches(self, matches):
+        self.clear_edge_masks()
+        self.clear_vertex_masks()
+
+        matched = self.matching_graph.new_edge_property("matched", dtype="bool", value=False)
+
+        for match in matches:
+            self.matching_graph.set_edge_property("matched", match[0], match[1], True)
+
+        self.matched = True
+        self.__mark_truefalse_vertices()
+        self.__add_matched_labels()
+        self.__mark_splitmerge_edges()
+
+    def mask_matched_edges(self):
+        self.__mask_ep("matched")
+
+    def export_tps(self, path):
+        self.clear_edge_masks()
+        self.clear_vertex_masks()
+
+        self.mask_tps()
+        self.mask_skeleton_edges()
+        self.to_nml(path)
+
+    def export_fps(self, path):
+        self.clear_edge_masks()
+        self.clear_vertex_masks()
+
+        self.mask_fps()
+        self.mask_skeleton_edges()
+        self.to_nml(path)
+
+    def export_fns(self, path):
+        self.clear_edge_masks()
+        self.clear_vertex_masks()
+        
+        self.mask_fns()
+        self.mask_skeleton_edges()
+        self.to_nml(path)
+
+    def export_splits(self, path):
+        self.clear_edge_masks()
+        self.clear_vertex_masks()
+
+        self.mask_splits()
+        self.to_nml(path)
+
+    def export_mergers(self, path):
+        self.clear_edge_masks()
+        self.clear_vertex_masks()
+
+        self.mask_mergers()
+        self.to_nml(path)
+
+    def export_matching(self, path):
+        self.clear_edge_masks()
+        self.clear_vertex_masks()
+
+        self.mask_matched_edges()
+        self.to_nml(path)
+
+    def export_all(self, directory):
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        
+        self.export_tps(directory + "/tps.nml")
+        self.export_fps(directory + "/fps.nml")
+        self.export_fns(directory + "/fns.nml")
+        self.export_splits(directory + "/splits.nml")
+        self.export_mergers(directory + "/mergers.nml")
+        self.export_matching(directory + "/matching.nml")
+        self.clear_vertex_masks()
+        self.clear_edge_masks()
+        self.to_nml(directory + "/input.nml")
+
+        with open(directory + "/stats.nml", "w+") as f:
+            json.dump(self.evaluate(), f)
+
+    def evaluate(self):
+        """
+        Gathers error statistics on voxel level.
+        tps, fps and fns are the number of matched/unmatched
+        voxels while merges and splits are the number of 
+        edges that connect to vertices with a different
+        matching id.
+        """
+
+        stats = {"vertices": None,
+                 "edges": None,
+                 "tps": None,
+                 "fps": None,
+                 "fns": None,
+                 "merges": None,
+                 "splits": None}
+
+        self.clear_edge_masks()
+        self.clear_vertex_masks()
+        stats["vertices"] = self.get_number_of_vertices()
+
+        self.mask_skeleton_edges()
+        stats["edges"] = self.get_number_of_edges()
+        
+        self.mask_tps()
+        stats["tps"] = self.get_number_of_vertices()
+
+        self.mask_fps()
+        stats["fps"] = self.get_number_of_vertices()
+
+        self.mask_fns()
+        stats["fns"] = self.get_number_of_vertices()
+
+        self.mask_mergers()
+        stats["merges"] = self.get_number_of_edges()
+
+        self.mask_splits()
+        stats["splits"] = self.get_number_of_edges()
+
+        return stats
+        
 
     def to_nml(self, path):
         g1_to_nml(self.matching_graph, path, voxel_size=self.voxel_size, knossify=True)
@@ -261,3 +569,5 @@ class MatchingGraph(object):
                 edge = self.add_edge(mv_id_source, mv_id_target)
                 # Set matching edge property:
                 self.set_matching(edge)
+                # Add distance:
+                self.set_distance(edge)
