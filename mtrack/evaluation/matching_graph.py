@@ -6,6 +6,7 @@ from mtrack.graphs import G1
 from mtrack.preprocessing import g1_to_nml
 import json
 
+
 class MatchingGraph(object):
     def __init__(self, 
                  groundtruth_skeletons, 
@@ -33,6 +34,8 @@ class MatchingGraph(object):
         self.voxel_size = voxel_size
 
         self.total_vertices = self.__get_total_vertices()
+
+        self.dummy_vertex = -1
 
         if initialize_all:
             self.matching_graph, self.mappings, self.mv_to_v, self.v_to_mv = self.__initialize()
@@ -155,9 +158,6 @@ class MatchingGraph(object):
         pos_source = np.array(self.matching_graph.get_position(e.source()))
         pos_target = np.array(self.matching_graph.get_position(e.target()))
         distance = np.linalg.norm(pos_source - pos_target)
-        print "pos_source", pos_source
-        print "pos_target", pos_target
-        print "distance", distance
         self.matching_graph.set_edge_property("distance", e.source(), e.target(), distance)
 
     def get_distance(self, e):
@@ -265,13 +265,15 @@ class MatchingGraph(object):
         return self.__is_ep("merge", e)
 
     def get_nbs(self, mv, subgraph):
-        if subgraph not in ["matched", "skeleton"]:
+        if subgraph not in ["matched", "skeleton", "matching"]:
             raise ValueError
 
         if subgraph == "matched":
             self.mask_matched_edges()
-        else:
+        elif subgraph == "skeleton":
             self.mask_skeleton_edges()
+        else:
+            self.mask_matching_edges()
 
         incident_edges_mv = self.matching_graph.get_incident_edges(mv)
       
@@ -288,7 +290,10 @@ class MatchingGraph(object):
         return list(nbs_mv)
 
     def get_label(self, mv):
-        return int(self.matching_graph.get_vertex_property("label", mv))
+        if mv == self.dummy_vertex:
+            return -1
+        else:
+            return int(self.matching_graph.get_vertex_property("label", mv))
 
     def get_vertex_iterator(self):
         return self.matching_graph.get_vertex_iterator()
@@ -305,11 +310,80 @@ class MatchingGraph(object):
         else:
             component_ids.add(-1)
 
-        assert(len(set(component_ids)) == 1)
+        #assert(len(set(component_ids)) == 1)
         return list(component_ids)[0]
 
     def get_matched_label(self, mv):
         return self.matching_graph.get_vertex_property("matched_label", mv)
+
+    def get_edge_conflicts(self):
+        edge_conflicts = []
+        for v in self.get_vertex_iterator():
+            nbs = self.get_nbs(v, "matching")
+            if self.is_groundtruth_mv(v):
+                incident_edges = [[e.source(), e.target()] for e in self.matching_graph.get_incident_edges(v)]
+            else:
+                incident_edges = [[e.target(), e.source()] for e in self.matching_graph.get_incident_edges(v)]
+
+            for i in range(len(nbs)):
+                for j in range(i + 1, len(nbs)):
+                    v_i = nbs[i]
+                    v_j = nbs[j]
+                    if self.get_label(v_i) != self.get_label(v_j):
+                        edge_conflict = []
+                        edge_conflict.extend([e for e in incident_edges if v_i in e or v_j in e])
+                        edge_conflicts.append(edge_conflict)
+
+        return edge_conflicts
+
+    def get_edge_pairs(self):
+        edge_pairs = set()
+        for v0 in self.get_vertex_iterator():
+            is_gt = self.is_groundtruth_mv(v0)
+            v0_nbs_skeleton = self.get_nbs(v0, "skeleton")
+            v0_nbs_matching = self.get_nbs(v0, "matching")
+            for v1 in v0_nbs_skeleton:
+                v1_nbs_matching = self.get_nbs(v1, "matching")
+                
+                for v0_nb in list(v0_nbs_matching) + [self.dummy_vertex]:
+                    # Order vertices by gt vs rec, gt first
+                    v0_nb_label = self.get_label(v0_nb)
+                    if is_gt:
+                        edge_0 = (int(v0), int(v0_nb))
+                    else:
+                        edge_0 = (int(v0_nb), int(v0))
+
+                    for v1_nb in list(v1_nbs_matching) + [self.dummy_vertex]:
+                        # We only look at labels of the neighbours
+                        # as v0 and v1 have same label.
+                        v1_nb_label = self.get_label(v1_nb)
+
+                        if is_gt:
+                            edge_1 = (int(v1), int(v1_nb))
+                        else:
+                            edge_1 = (int(v1_nb), int(v1))
+
+                        # Is there an id switch?
+                        switch = int(v0_nb_label != v1_nb_label)
+
+                        # Order edges by gt id if possible
+                        # if both are dummy order by rec
+                        # consistent ordering assures no duplicates
+                        # in the edge pairs
+                        if edge_0[0] == edge_1[0] == (-1):
+                            id0 = edge_0[1]
+                            id1 = edge_1[1]
+                        else:
+                            id0 = edge_0[0]
+                            id1 = edge_1[0]
+                            
+                        if id0 < id1:
+                            edge_pairs.add(tuple([edge_0, edge_1, switch]))
+                        else:
+                            edge_pairs.add(tuple([edge_1, edge_0, switch]))
+
+        return edge_pairs
+
 
     def __add_matched_labels(self):
         self.clear_edge_masks()
@@ -385,7 +459,10 @@ class MatchingGraph(object):
 
         self.clear_edge_masks()
 
-        return nodes_gt, nodes_rec, edges_gt_rec, labels_gt, labels_rec, edge_costs
+        edge_conflicts = self.get_edge_conflicts()
+        edge_pairs = self.get_edge_pairs()
+
+        return nodes_gt, nodes_rec, edges_gt_rec, labels_gt, labels_rec, edge_costs, edge_conflicts, edge_pairs
 
     def import_matches(self, matches):
         self.clear_edge_masks()
