@@ -5,7 +5,7 @@ from mtrack.graphs import G1
 
 
 class VoxelSkeleton(object):
-    def __init__(self, g1_cc, voxel_size, verbose=False):
+    def __init__(self, g1_cc, voxel_size, subsample=1, verbose=False):
         """
         Interpolate a g1 graph connected component
         in voxel space and generate a graph on a voxel 
@@ -14,8 +14,12 @@ class VoxelSkeleton(object):
         self.g1_cc = g1_cc
         self.scaling = voxel_size
         self.verbose = verbose
-        self.points_unique, self.edge_to_line = self.__generate(scaling=voxel_size)
+        self.subsample = subsample
+        self.points_unique, self.edge_to_line = self.__generate(scaling=voxel_size,
+                                                                subsample=subsample)
         self.voxel_skeleton = self.__to_graph(self.points_unique, self.edge_to_line)
+        if subsample > 1:
+            self.voxel_skeleton = self.__subsample(subsample)
 
     def get_graph(self):
         return self.voxel_skeleton
@@ -45,7 +49,9 @@ class VoxelSkeleton(object):
 
             dda = DDA3(start, end, self.scaling)
             line = dda.draw()
-                
+
+            if subsample>1:
+                line = line[0::subsample]
             points.extend(line)
             edge_to_line[e] = line
 
@@ -93,3 +99,52 @@ class VoxelSkeleton(object):
             g1_interpolated.add_edge(start_vertex, end_vertex)
 
         return g1_interpolated
+
+    def __subsample(self, subsample, path):
+        """
+        Requires the graph to be a path.
+        """
+
+        # Identify start/end vertex:
+        subsample_mask = path.new_vertex_property("subsample", 
+                                                  "bool",
+                                                  value=False)
+        start_end = []
+        for v in path.get_vertex_iterator():
+            if len(path.get_incident_edges(v)) == 1:
+                start_end.append(v)
+
+        # Walk across neighbours:
+        v0 = start_end[0]
+        n = 0
+
+        visited = set([v0])
+        selected = [v0]
+        while not int(v0) == int(start_end[1]):
+            # Add every subsample
+            if n % subsample == 0:
+                subsample_mask[v0] = True
+                selected.append(v0)
+            else:
+                subsample_mask[v0] = False
+
+            visisted.add(v0)
+
+            in_edges = path.get_incident_edges(v0)
+
+            nb_vertices = set([in_edges[0].source(),
+                               in_edges[0].target(),
+                               in_edges[1].source(),
+                               in_edges[1].target()])
+
+            nb_vertices.difference(visited)
+            assert(len(nb_vertices) == 1)
+            v0 = nb_vertices[0]
+            
+        subsample_mask[start_end[1]] = True
+
+        path.set_vertex_filter(subsample_mask)
+        for i in range(len(selected) - 1):
+            path.add_edge(selected[i], selected[i+1])
+
+        return path
