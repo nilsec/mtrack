@@ -18,6 +18,10 @@ class MatchingGraph(object):
                  initialize_all=True):
         """
         Matching graph representation.
+
+        groundtruth_skeletons: list of groundtruth voxel skeletons in voxel coordinates.
+        reconstructed_skeletons: list of reconstructed voxel_skeletons in voxel_coordinates.
+        distance_threshold: should correspond to physical positions if voxel_size != [1,1,1].
         """
         self.skeletons = {"gt": groundtruth_skeletons, 
                           "rec": reconstructed_skeletons}
@@ -412,13 +416,13 @@ class MatchingGraph(object):
             if self.get_matched_label(mv0) != self.get_matched_label(mv1):
                 if self.is_groundtruth_mv(mv0):
                     assert(self.is_groundtruth_mv(mv1))
-                    self.matching_graph.set_edge_property("merge", e.source(), e.target(), True)
-                    self.matching_graph.set_vertex_property("merge", e.source(), True)
-                    self.matching_graph.set_vertex_property("merge", e.target(), True)
-                else:
                     self.matching_graph.set_edge_property("split", e.source(), e.target(), True)
                     self.matching_graph.set_vertex_property("split", e.source(), True)
                     self.matching_graph.set_vertex_property("split", e.target(), True)
+                else:
+                    self.matching_graph.set_edge_property("merge", e.source(), e.target(), True)
+                    self.matching_graph.set_vertex_property("merge", e.source(), True)
+                    self.matching_graph.set_vertex_property("merge", e.target(), True)
 
         self.clear_edge_masks()
 
