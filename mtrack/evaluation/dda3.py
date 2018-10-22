@@ -20,8 +20,6 @@ class DDA3:
         self.max_direction, self.max_length = max(enumerate(abs(self.end - self.start)), 
                                                   key=operator.itemgetter(1))
 
-        #pdb.set_trace()
-
         try:
             self.dv = (self.end - self.start) / self.max_length
         except RuntimeWarning:
@@ -37,7 +35,5 @@ class DDA3:
             if not np.all(step_point_rescaled == self.line[-1]):
                 self.line.append(step_point_rescaled)
 
-        #print self.line
-        #print self.end
         assert(np.all(self.line[-1] == dda_round(self.end/self.scaling)))
         return self.line
