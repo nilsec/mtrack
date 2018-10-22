@@ -24,6 +24,12 @@ class G:
 
     def get_number_of_vertices(self):
         return self.g.num_vertices()
+    
+    def purge_vertices(self):
+        self.g.purge_vertices()
+
+    def purge_edges(self):
+        self.g.purge_edges()
 
     def get_vertex(self, u):
         return self.g.vertex(u, use_index=True, add_missing=False)
