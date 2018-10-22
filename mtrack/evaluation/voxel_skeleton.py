@@ -2,8 +2,7 @@ import numpy as np
 
 from mtrack.evaluation.dda3 import DDA3
 from mtrack.graphs import G1
-import pdb
-
+from mtrack.preprocessing import g1_to_nml
 
 class VoxelSkeleton(object):
     def __init__(self, g1_cc, voxel_size, subsample=1, verbose=False):
@@ -56,8 +55,7 @@ class VoxelSkeleton(object):
             points.extend(line)
             edge_to_line[e] = line
 
-        points_unique = np.unique(points, axis=0) 
-        return points_unique, edge_to_line
+        return points, edge_to_line
 
 
     def __to_graph(self, points_unique, edge_to_line):
@@ -69,7 +67,9 @@ class VoxelSkeleton(object):
         if self.verbose:
             print("Initialize interpolation graph...")
         
-        g1_interpolated = G1(len(points_unique))
+        # Remove doubly counted vertices found at start/end of each edge
+        double_vertices = len(edge_to_line) - 1 
+        g1_interpolated = G1(len(points_unique) - double_vertices)
 
         """
         Initialize original cc vertices
@@ -154,5 +154,5 @@ class VoxelSkeleton(object):
         path.set_vertex_filter(subsample_mask)
         for i in range(len(selected) - 1):
             path.add_edge(selected[i], selected[i+1])
-
+        
         return path
