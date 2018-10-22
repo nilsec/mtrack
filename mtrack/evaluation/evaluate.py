@@ -1,28 +1,90 @@
 import numpy as np
+import os
 
 from comatch import match_components
-from mtrack.preprocessing import nml_to_g1
+from mtrack.preprocessing import nml_to_g1, g1_to_nml
 from mtrack.evaluation.voxel_skeleton import VoxelSkeleton
 from mtrack.evaluation.matching_graph import MatchingGraph
+from mtrack.graphs import G1
+
+
+def evaluate(tracing, 
+             reconstruction, 
+             voxel_size, 
+             distance_threshold, 
+             subsample, 
+             use_distance_costs=True, 
+             max_edges=1,
+             export_to=None,
+             x_lim_rec=None,
+             y_lim_rec=None,
+             z_lim_rec=None):
+    """
+    tracing and reconstruction can be provided in either .nml file
+    or g1 graph. In both cases voxel scaling is required and any knossos offset has
+    to be corrected prior to this.
+
+    Limits need to provided in voxel units.
+
+    distance_threshold should be given in physical coordinates.
+    """
+
+    inputs = [tracing, reconstruction]
+    inputs_g1 = []
+
+    # Convert inputs to g1 graphs
+    for item in inputs:
+        if isinstance(item, str):
+            if (not item.endswith(".nml")) or (not os.path.isfile(item)):
+                print item, item.endswith(".nml"), os.path.isfile(item)
+                raise ValueError("Provide inputs as path to knossos nml file or as a g1 graph directly")
+            else:
+                inputs_g1.append(nml_to_g1(item, output_file=None))
+        elif isinstance(tracing, G1):
+            inputs_g1.append(item)
+        else:
+            raise ValueError("Input not recognized. Provide nml file or g1 graph")
+
+
+    tracing_g1 = inputs_g1[0]
+    reconstruction_g1 = inputs_g1[1]
+
+    # Cut tracing to roi
+    if x_lim_rec is not None:
+        if (y_lim_rec is None) or (z_lim_rec is None):
+            raise ValueError("Provide all limits or none.")
+        else:
+            tracing_g1 = cut_to_roi(tracing_g1, x_lim_rec, y_lim_rec, 
+                                    z_lim_rec, export_to=export_to)
+
+    matching_graph = build_matching_graph(tracing_g1, reconstruction_g1, 
+                                          voxel_size, distance_threshold, 
+                                          subsample)
+
+    matching_graph, topological_errors, node_errors = evaluate_matching_graph(matching_graph, 
+                                                                              use_distance_costs, 
+                                                                              max_edges, export_to)
+
+    return matching_graph, topological_errors, node_errors
 
 
 def build_matching_graph(tracing_g1, reconstruction_g1, voxel_size, distance_threshold, subsample):
     """
     tracing: g1 graph in voxel space.
 
-    reconstruction: g1 graph in voxel space.
+    reconstruction: g1 graph in voxel space. 
 
     voxel_size: size of one voxel, 3d.
 
     distance_threshold: maximal distance above which two vertices can be matched to each other
 
-    subsample: Reduces the number of points to match in a microtubule by that factor. I.e every subsample voxel 
+    subsample: Reduces the number of points to match in a path by that factor. I.e every subsample voxel 
                is retained. If the number exceeds the number of voxels in a track only the start and end 
                voxel are retained.
     """
 
     # Get individual microtubule paths:
-    tracing_mts = tracing_g1.get_components(min_vertices=1, 
+    tracing_mts = tracing_g1.get_components(min_vertices=2, 
                                             output_folder=None,
                                             return_graphs=True)
 
@@ -95,3 +157,28 @@ def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1
         matching_graph.export_all(export_to)
 
     return matching_graph, topological_errors, node_errors
+
+
+def cut_to_roi(g1, x_lim, y_lim, z_lim, export_to=None):
+    """
+    Limits need to be provided in voxel coordinates.
+    The database limits are given in physical coordinates so this has
+    to be converted before.
+    """
+    min_roi = np.array([x_lim["min"], y_lim["min"], z_lim["min"]])
+    max_roi = np.array([x_lim["max"], y_lim["max"], z_lim["max"]])
+	
+    in_roi_vp = g1.new_vertex_property("in_roi", "bool", False)
+    for v in g1.get_vertex_iterator():
+	position = g1.get_position(v)
+	if np.all(position>=min_roi) and np.all(position<=max_roi):
+	    in_roi_vp[v] = True
+	else:
+	    in_roi_vp[v] = False
+    
+    g1.set_vertex_filter(in_roi_vp)
+    g1.purge_vertices()
+    if export_to is not None:
+        g1_to_nml(g1, export_to + "/cut_to_roi.nml", knossify=True)
+
+    return g1
