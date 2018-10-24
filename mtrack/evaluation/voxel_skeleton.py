@@ -153,6 +153,9 @@ class VoxelSkeleton(object):
 
         path.set_vertex_filter(subsample_mask)
         for i in range(len(selected) - 1):
-            path.add_edge(selected[i], selected[i+1])
+            try:
+                path.add_edge(selected[i], selected[i+1])
+            except AssertionError:
+                pass
         
         return path
