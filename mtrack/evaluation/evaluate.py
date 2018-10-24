@@ -172,7 +172,7 @@ def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1
     if export_to is not None:
         matching_graph.export_all(export_to)
         with open(export_to + "/object_stats.txt", "w+") as f:
-            json.dump(topoligical_errors, f)
+            json.dump(topological_errors, f)
 
 
     return matching_graph, topological_errors, node_errors
