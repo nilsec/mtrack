@@ -64,15 +64,15 @@ def evaluate(tracing,
             reconstruction_g1 = cut_to_roi(reconstruction_g1, x_lim, y_lim, z_lim, 
                                            export_to=export_to + "/reconstruction_cut.nml")
 
-    matching_graph = build_matching_graph(tracing_g1, reconstruction_g1, 
-                                          voxel_size, distance_threshold, 
-                                          subsample)
+    matching_graph, n_gts, n_recs = build_matching_graph(tracing_g1, reconstruction_g1, 
+                                                         voxel_size, distance_threshold, 
+                                                         subsample)
 
     matching_graph, topological_errors, node_errors = evaluate_matching_graph(matching_graph, 
                                                                               use_distance_costs, 
                                                                               max_edges, export_to,
                                                                               optimality_gap, absolute,
-                                                                              time_limit)
+                                                                              time_limit, n_gts, n_recs)
 
     return matching_graph, topological_errors, node_errors
 
@@ -124,10 +124,10 @@ def build_matching_graph(tracing_g1, reconstruction_g1, voxel_size, distance_thr
                                    distance_cost=True,
                                    initialize_all=True)
 
-    return matching_graph
+    return matching_graph, len(tracing_mts), len(reconstruction_mts)
 
 
-def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1, export_to=None, optimality_gap=0.0, absolute=True, time_limit=None):
+def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1, export_to=None, optimality_gap=0.0, absolute=True, time_limit=None, n_gts=-1, n_recs=-1):
     if max_edges>1:
         edge_conflicts = True
     else:
@@ -166,7 +166,7 @@ def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1
                                                                                                  time_limit=time_limit)
 
     matching_graph.import_matches(node_matches)
-    topological_errors = {"splits": num_splits, "merges": num_merges, "fps": num_fps, "fns": num_fns}
+    topological_errors = {"n_gt": n_gts, "n_rec": n_recs, "splits": num_splits, "merges": num_merges, "fps": num_fps, "fns": num_fns}
     node_errors = matching_graph.evaluate()
 
     if export_to is not None:
