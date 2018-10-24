@@ -17,6 +17,8 @@ class MatchingGraph(object):
                  distance_cost=True,
                  initialize_all=True):
         """
+        TODO: Clean up export/mask methods - too much code duplication now.
+
         Matching graph representation.
 
         groundtruth_skeletons: list of groundtruth voxel skeletons in voxel coordinates.
@@ -504,7 +506,7 @@ class MatchingGraph(object):
     def mask_matched_edges(self):
         self.__mask_ep("matched")
 
-    def export_tps_rec(self, path):
+    def mask_tps_rec(self):
         self.clear_edge_masks()
         self.clear_vertex_masks()
 
@@ -515,9 +517,12 @@ class MatchingGraph(object):
         self.matching_graph.set_vertex_filter(tp_rec_vp)
 
         self.mask_skeleton_edges()
+ 
+    def export_tps_rec(self, path):
+        self.mask_tps_rec()
         self.to_nml(path)
 
-    def export_tps_gt(self, path):
+    def mask_tps_gt(self):
         self.clear_edge_masks()
         self.clear_vertex_masks()
        
@@ -528,7 +533,9 @@ class MatchingGraph(object):
         self.matching_graph.set_vertex_filter(tp_gt_vp)
 
         self.mask_skeleton_edges()
- 
+
+    def export_tps_gt(self, path):
+        self.mask_tps_gt()
         self.to_nml(path)
 
     def export_fps(self, path):
@@ -614,7 +621,8 @@ class MatchingGraph(object):
 
         stats = {"vertices": None,
                  "edges": None,
-                 "tps": None,
+                 "tps_rec": None,
+                 "tps_gt": None,
                  "fps": None,
                  "fns": None,
                  "merges": None,
@@ -627,8 +635,11 @@ class MatchingGraph(object):
         self.mask_skeleton_edges()
         stats["edges"] = self.get_number_of_edges()
         
-        self.mask_tps()
-        stats["tps"] = self.get_number_of_vertices()
+        self.mask_tps_rec()
+        stats["tps_rec"] = self.get_number_of_vertices()
+
+        self.mask_tps_gt()
+        stats["tps_gt"] = self.get_number_of_vertices()
 
         self.mask_fps()
         stats["fps"] = self.get_number_of_vertices()
