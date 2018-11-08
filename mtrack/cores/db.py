@@ -56,7 +56,7 @@ class DB(object):
         
         if collection in collections:
             if overwrite:
-                print "Warning, overwrite collection!"
+                print "Warning, overwrite collection {}...".format(collection)
                 self.create_collection(name_db=name_db, 
                                        collection=collection, 
                                        overwrite=True)
@@ -64,9 +64,10 @@ class DB(object):
                 # Check that collection is empty after overwrite:
                 assert(db[collection].find({}).count() == 0)
 
-            print "Collection already exists, request {}.{}...".format(name_db, collection)
+            else:
+                print "Collection already exists, request {}.{}...".format(name_db, collection)
         else:
-            print "Database empty, create...".format(name_db, collection)
+            print "Collection does not exist, create..."
             self.create_collection(name_db=name_db, 
                                    collection=collection, 
                                    overwrite=False)
@@ -78,12 +79,12 @@ class DB(object):
     def create_collection(self, name_db, collection, overwrite=False):
         print "Create new db collection {}.{}...".format(name_db, collection)
         client = MongoClient(port=settings.port)
+        db = self.get_db(name_db)
         
         if overwrite:
             print "Overwrite {}.{}...".format(name_db, collection)
-            client.drop_database(name_db)
+            db.drop_collection(collection)
 
-        db = client[name_db]
         graph = db[collection]
 
         print "Generate indices..."
