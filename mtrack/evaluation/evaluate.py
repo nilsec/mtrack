@@ -21,7 +21,6 @@ def evaluate(tracing,
              y_lim=None,
              z_lim=None,
              optimality_gap=0.0,
-             absolute=True,
              time_limit=None):
     """
     tracing and reconstruction can be provided in either .nml file
@@ -71,7 +70,7 @@ def evaluate(tracing,
     matching_graph, topological_errors, node_errors = evaluate_matching_graph(matching_graph, 
                                                                               use_distance_costs, 
                                                                               max_edges, export_to,
-                                                                              optimality_gap, absolute,
+                                                                              optimality_gap,
                                                                               time_limit, n_gts, n_recs)
 
     return matching_graph, topological_errors, node_errors
@@ -127,7 +126,7 @@ def build_matching_graph(tracing_g1, reconstruction_g1, voxel_size, distance_thr
     return matching_graph, len(tracing_mts), len(reconstruction_mts)
 
 
-def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1, export_to=None, optimality_gap=0.0, absolute=True, time_limit=None, n_gts=-1, n_recs=-1):
+def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1, export_to=None, optimality_gap=0.0, time_limit=None, n_gts=-1, n_recs=-1):
     if max_edges>1:
         edge_conflicts = True
     else:
@@ -146,7 +145,7 @@ def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1
                                                                                                  edges_gt_rec, labels_gt, labels_rec, 
                                                                                                  edge_conflicts=edge_conflicts,
                                                                                                  max_edges=max_edges, edge_costs=edge_costs,
-                                                                                                 optimality_gap=optimality_gap, absolute=absolute,
+                                                                                                 optimality_gap=optimality_gap,
                                                                                                  time_limit=time_limit)
     except TypeError:
         # Comatch
@@ -162,7 +161,6 @@ def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1
                                                                                                  allow_many_to_many=(max_edges>1), edge_costs=edge_costs,
                                                                                                  no_match_costs=no_match_cost, 
                                                                                                  optimality_gap=optimality_gap,
-                                                                                                 absolute=absolute,
                                                                                                  time_limit=time_limit)
 
     matching_graph.import_matches(node_matches)
