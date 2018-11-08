@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import json
+import logging
 
 from mtrack.graphs import g1_graph, graph_converter,\
                    cost_converter, g2_solver
@@ -42,11 +43,11 @@ def solve(g1,
         raise Warning("Graph has no edges.")
 
 
-    print "Get G2 graph..."
+    logging.info("Get G2 graph...")
     g_converter = graph_converter.GraphConverter(g1)
     g2, index_maps = g_converter.get_g2_graph()
 
-    print "Get G2 costs..."
+    logging.info("Get G2 costs...")
     c_converter = cost_converter.CostConverter(g1,
                                                vertex_cost_params,
                                                edge_cost_params,
@@ -54,20 +55,20 @@ def solve(g1,
                                                selection_cost)
     g2_cost = c_converter.get_g2_cost(g2, index_maps)
 
-    print "Set G2 costs..."
+    logging.info("Set G2 costs...")
     for v in g2.get_vertex_iterator():
         g2.set_cost(v, g2_cost[v])
 
-    print "Create ILP..."
+    logging.info("Create ILP...")
     solver = g2_solver.G2Solver(g2, backend=backend)
     
-    print "Solve ILP..."
+    logging.info("Solve ILP...")
     g2_solution = solver.solve(time_limit=time_limit)
 
     if len(g2_solution) != solver.g2_vertices_N:
         raise ValueError("Model infeasible")
 
-    print "Get G1 solution..."
+    logging.info("Get G1 solution...")
     g1_solution = g2_to_g1_solution(g2_solution, 
                                     g1, 
                                     g2, 
@@ -78,7 +79,7 @@ def solve(g1,
     if output_dir is not None:
         assert(voxel_size is not None)
 
-        print "Save solution..."
+        logging.info("Save solution...")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             

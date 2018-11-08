@@ -17,6 +17,7 @@ import sys
 import signal
 import traceback
 import functools
+import shutil
 
 
 def track(config_path):
@@ -40,6 +41,9 @@ def track(config_path):
         raise ValueError("The context size needs to be at least " +\
                          "twice as large as the distance threshold in all dimensions")
 
+    # Init logger:
+    logging.info("Start tracking")
+
     # Generate core geometry: 
     builder = CoreBuilder(volume_size=roi_volume_size,
                           core_size=config["core_size"] * config["voxel_size"],
@@ -55,7 +59,7 @@ def track(config_path):
     Extract probability map via Ilastik classifier from specified input dir and ilastik project.
     """
     if config["extract_perp"]:
-        print "Extract perp prob map from {}...".format(config["raw"])
+        logging.info("Extract perp prob map from {}...".format(config["raw"]))
         perp_stack_h5 = ilastik_get_prob_map(raw=config["raw"],
                                              output_dir=config["pm_output_dir_perp"],
                                              ilastik_source_dir=config["ilastik_source_dir"],
@@ -67,7 +71,7 @@ def track(config_path):
         config["perp_stack_h5"] = perp_stack_h5
 
     if config["extract_par"]: 
-        print "Extract par prob map from {}...".format(config["raw"])
+        logging.info("Extract par prob map from {}...".format(config["raw"]))
         par_stack_h5 = ilastik_get_prob_map(raw=config["raw"],
                                             output_dir=config["pm_output_dir_par"],
                                             ilastik_source_dir=config["ilastik_source_dir"],
@@ -175,6 +179,11 @@ def track(config_path):
                                   overwrite=True,
                                   mp=config["mp"])
 
+            
+            # Clean up chunks
+            shutil.rmtree(config["prob_map_chunks_perp_dir"])
+            shutil.rmtree(config["prob_map_chunks_par_dir"])
+
 
         """
         Solve the ROI and write to specified database. The result
@@ -213,7 +222,7 @@ def track(config_path):
                                                     y_lim=y_lim_roi,
                                                     z_lim=z_lim_roi)
             except ValueError:
-                print "WARNING, solution contains no vertices!"
+                logging.warning("WARNING, solution contains no vertices!")
                 g1_selected = G1(0)
 
             if config["export_validated"]:
@@ -287,7 +296,7 @@ def write_candidate_graph(pm_chunks_par,
                           mp=False):
 
 
-    print "Extract pm chunks..."
+    logging.info("Extract pm chunks...")
     db = DB()
     n_chunk = 0
     id_offset = 1
@@ -296,7 +305,7 @@ def write_candidate_graph(pm_chunks_par,
     graph = db.get_client(name_db, collection, overwrite=overwrite)
 
     for pm_perp, pm_par in zip(pm_chunks_perp, pm_chunks_par):
-        print "Extract chunk {}/{}...".format(n_chunk, len(pm_chunks_par))
+        logging.info("Extract chunk {}/{}...".format(n_chunk, len(pm_chunks_par)))
 
         prob_map_stack = DirectionType(pm_perp, pm_par)
 
@@ -319,7 +328,6 @@ def write_candidate_graph(pm_chunks_par,
                                             collection=collection,
                                             overwrite=False)
 
-        print id_offset_tmp, graph.find({"selected": {"$exists": True}}).count()
         assert(graph.find({"selected": {"$exists": True}}).count() == id_offset_tmp)
 
         id_offset = id_offset_tmp + 1
@@ -332,15 +340,15 @@ def write_candidate_graph(pm_chunks_par,
 
     bound_connect_candidates_alias = functools.partial(connect_candidates_alias, db)
 
-    print "Connect candidates..."
+    logging.info("Connect candidates...")
     try:
         for cf_core_ids in cf_lists:
-            print "Connecting ", cf_core_ids
+            logging.info("Connecting {}".format(cf_core_ids))
                         
             results = []
             if mp:
                 for core_id in cf_core_ids:
-                    print "Add context {} to pool (mp: {})".format(core_id, mp)
+                    logging.info("Add context {} to pool (mp: {})".format(core_id, mp))
                     core = cores[core_id]
                     results.append(pool.apply_async(bound_connect_candidates_alias, 
                                                     (name_db,
@@ -394,12 +402,12 @@ def solve_candidate_volume(name_db,
 
     try:
         for cf_core_ids in cf_lists:
-            print "Working on ", cf_core_ids
+            logging.info("Working on {}".format(cf_core_ids))
                         
             results = []
             if mp:
                 for core_id in cf_core_ids:
-                    print "Add core {} to pool (mp: {})".format(core_id, mp)
+                    logging.info("Add core {} to pool (mp: {})".format(core_id, mp))
                     results.append(pool.apply_async(solve_core, (cores[core_id],
                                                              name_db,
                                                              collection,
@@ -451,8 +459,8 @@ def solve_core(core,
                backend):
 
     try:
-        print "Core id {}".format(core.id)
-        print "Process core {}...".format(core.id)
+        logging.info("Core id {}".format(core.id))
+        logging.info("Process core {}...".format(core.id))
         db = DB()
         solver = CoreSolver()
         
@@ -497,7 +505,7 @@ def solve_core(core,
                             collection,
                             core)
         else:
-            print "Skip core {}, already solved...".format(core.id)
+            logging.info("Skip core {}, already solved...".format(core.id))
 
         return core.id
     except:
