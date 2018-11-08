@@ -4,39 +4,39 @@ import json
 
 
 class EvaluationParser(object):
-    def __init__(self, dir_eval):
-        # Get pathes:
-        self.dir_evaluation = dir_eval
-
-        self.path_chunk_evaluation = os.path.join(self.dir_evaluation,
-                                                  "chunk_evaluation.json")
-
-        self.path_line_evaluation = os.path.join(self.dir_evaluation,
-                                                 "line_evaluation.json")
+    def __init__(self, node_stats_path):
+        self.node_stats_path = node_stats_path
 
         # Load data:
-        self.evaluation_chunk = json.load(open(self.path_chunk_evaluation, "r"))
-        self.evaluation_line = json.load(open(self.path_line_evaluation, "r"))
+        self.node_stats = json.load(open(self.node_stats_path, "r"))
 
-        f_beta = lambda tp, fn, fp, beta:\
-            ((1 + float(beta)**2) * float(tp))/((1+beta**2) * tp + beta**2 * fn + fp)
 
-        self.f_score_c = {"f_1": f_beta(self.evaluation_chunk["tp"], 
-                                        self.evaluation_chunk["fn"], 
-                                        self.evaluation_chunk["fp"], 1.0),
-                          "f_2": f_beta(self.evaluation_chunk["tp"], 
-                                        self.evaluation_chunk["fn"], 
-                                        self.evaluation_chunk["fp"], 2.0),
-                          "f_05": f_beta(self.evaluation_chunk["tp"], 
-                                         self.evaluation_chunk["fn"], 
-                                         self.evaluation_chunk["fp"], 0.5)}
+        # Splits are defined on rec tracks. Whenever two gt trajectories
+        # are matched to one gt we split one gt track. Similarly 
+        # False positives are defined on rec tracks thus we define:
+        # FP = False Positives + Splits
+        # Similarly: FN = False Negatives + Merges
 
-        self.f_score_l = {"f_1": f_beta(self.evaluation_line["tp"], 
-                                        self.evaluation_line["fn"], 
-                                        self.evaluation_line["fp"], 1.0),
-                          "f_2": f_beta(self.evaluation_line["tp"], 
-                                        self.evaluation_line["fn"], 
-                                        self.evaluation_line["fp"], 2.0),
-                          "f_05": f_beta(self.evaluation_line["tp"], 
-                                         self.evaluation_line["fn"], 
-                                         self.evaluation_line["fp"], 0.5)} 
+        self.tps = self.node_stats["tps_gt"]
+        self.fps = self.node_stats["fps"]
+        self.fns = self.node_stats["fns"]
+        self.merges = self.node_stats["merges"]
+        self.splits = self.node_stats["splits"]
+
+        self.precision = float(self.tps)/(self.fps + self.tps)
+        self.recall = float(self.tps)/(self.fns + self.tps)
+
+        self.split_precision = float(self.tps)/(self.fps + self.splits + self.tps)
+        self.merge_recall = float(self.tps)/(self.fns + self.merges + self.tps)
+
+    def get_precision(self):
+        return self.precision
+
+    def get_recall(self):
+        return self.recall
+
+    def get_split_precision(self):
+        return self.split_precision
+
+    def get_merge_recall(self):
+        return self.merge_recall
