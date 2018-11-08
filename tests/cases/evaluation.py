@@ -4,11 +4,12 @@ import numpy as np
 from mtrack.graphs import G1
 from mtrack.evaluation.matching_graph import MatchingGraph
 from mtrack.evaluation.voxel_skeleton import VoxelSkeleton
-from mtrack.evaluation.evaluate import build_matching_graph, evaluate_matching_graph
+from mtrack.evaluation.evaluate import build_matching_graph, evaluate_matching_graph, evaluate
 from comatch import match_components
 import json
+import pylp
 
-test_data_dir = "./data"
+test_data_dir = "/groups/funke/home/ecksteinn/Projects/microtubules/mtrack/tests/cases/data"
 
 class SingleTrajectorySetUpWithScaling(unittest.TestCase):
     def setUp(self):
@@ -82,6 +83,7 @@ class SingleTrajectorySetUpNoScaling(unittest.TestCase):
         self.groundtruth_skeletons = [self.vs_gt]
         self.reconstructed_skeletons = [self.vs_rec]
 
+"""
 class EvaluateMatchingGraphTestCaseScaling(SingleTrajectorySetUpWithScaling):
     def runTest(self):
         mg = build_matching_graph(self.gt, self.rec, self.voxel_size, distance_threshold=self.distance_threshold, subsample=5)
@@ -93,6 +95,34 @@ class EvaluateMatchingGraphTestCase(SingleTrajectorySetUpNoScaling):
         mg = build_matching_graph(self.gt, self.rec, self.voxel_size, distance_threshold=self.distance_threshold, subsample=5)
         mg, terr, nerr= evaluate_matching_graph(mg, export_to=test_data_dir + "/evaluate_test")
         print "No scaling:", terr, nerr
+"""
+
+class WrapperTestCase(unittest.TestCase):
+    def runTest(self):
+        tracing = test_data_dir + "/wrapper_test/master_300_329_v1.nml"
+        reconstruction = test_data_dir + "/wrapper_test/validated.nml"
+        x_lim = {"min": 12 + 100, "max": 1012 - 100}
+        y_lim = {"min": 12 + 100, "max": 1012 - 100}
+        z_lim = {"min": 300,"max": 330}
+
+        pylp.set_log_level(pylp.LogLevel.Debug)
+
+        matching_graph, topological_errors, node_errors = evaluate(tracing, 
+                                                                   reconstruction, 
+                                                                   voxel_size=[5.,5.,50.],
+                                                                   distance_threshold=150,
+                                                                   subsample=10,
+                                                                   export_to=test_data_dir + "/wrapper_test/results_quadmatch",
+                                                                   x_lim=x_lim,
+                                                                   y_lim=y_lim,
+                                                                   z_lim=z_lim,
+                                                                   optimality_gap=0,
+                                                                   use_distance_costs=False,
+                                                                   absolute=True,
+                                                                   time_limit=120)
+
+        print "topological errors: ", topological_errors
+        print "node errors: ", node_errors
 
 if __name__ == "__main__":
     unittest.main()
