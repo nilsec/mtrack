@@ -25,7 +25,7 @@ class G2Solver:
 
         self.objective = pylp.LinearObjective(self.g2_vertices_N)
         
-        pylp.set_log_level(pylp.LogLevel.All)
+        pylp.set_log_level(pylp.LogLevel.Debug)
 
         g2_vertex_index_map = g2.get_vertex_index_map()
         self.constraints = pylp.LinearConstraints()
