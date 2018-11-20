@@ -10,6 +10,7 @@ from pymongo import MongoClient, IndexModel, ASCENDING
 from scipy.spatial import KDTree
 import itertools
 from functools import partial
+import logging
 
 from mtrack.graphs import g1_graph
 from mtrack.preprocessing import extract_candidates, connect_graph_locally
@@ -48,7 +49,7 @@ class DB(object):
         return db
 
     def get_client(self, name_db, collection, overwrite=False):
-        print "Get client..."
+        logging.info("Get client...")
         client = MongoClient(port=settings.port, connect=False)
 
         db = self.get_db(name_db)
@@ -56,7 +57,7 @@ class DB(object):
         
         if collection in collections:
             if overwrite:
-                print "Warning, overwrite collection {}...".format(collection)
+                logging.info("Warning, overwrite collection {}...".format(collection))
                 self.create_collection(name_db=name_db, 
                                        collection=collection, 
                                        overwrite=True)
@@ -65,9 +66,9 @@ class DB(object):
                 assert(db[collection].find({}).count() == 0)
 
             else:
-                print "Collection already exists, request {}.{}...".format(name_db, collection)
+                logging.info("Collection already exists, request {}.{}...".format(name_db, collection))
         else:
-            print "Collection does not exist, create..."
+            logging.info("Collection does not exist, create...")
             self.create_collection(name_db=name_db, 
                                    collection=collection, 
                                    overwrite=False)
@@ -77,17 +78,17 @@ class DB(object):
         return graph
 
     def create_collection(self, name_db, collection, overwrite=False):
-        print "Create new db collection {}.{}...".format(name_db, collection)
+        logging.info("Create new db collection {}.{}...".format(name_db, collection))
         client = MongoClient(port=settings.port)
         db = self.get_db(name_db)
         
         if overwrite:
-            print "Overwrite {}.{}...".format(name_db, collection)
+            logging.info("Overwrite {}.{}...".format(name_db, collection))
             db.drop_collection(collection)
 
         graph = db[collection]
 
-        print "Generate indices..."
+        logging.info("Generate indices...")
         graph.create_index([("pz", ASCENDING), ("py", ASCENDING), ("px", ASCENDING)], 
                            name="pos", 
                            sparse=True)
@@ -167,7 +168,7 @@ class DB(object):
                            y_lim,
                            z_lim):
 
-        print "Validate Selection..."
+        logging.info("Validate Selection...")
         g1_selected, index_map = self.get_selected(name_db,
                                                    collection,
                                                    x_lim,
@@ -178,7 +179,7 @@ class DB(object):
             assert(len(g1_selected.get_incident_edges(v)) <= 2),\
                    "Selection has branchings"
 
-        print "...No violations"
+        logging.info("...No violations")
         return g1_selected
 
         
@@ -194,16 +195,16 @@ class DB(object):
         
         graph = self.get_client(name_db, collection, overwrite=False)
 
-        print "Write solution..."
+        logging.info("Write solution...")
         if x_lim is not None and y_lim is not None and z_lim is not None:
             min_lim = np.array([x_lim["min"], y_lim["min"], z_lim["min"]])
             max_lim = np.array([x_lim["max"], y_lim["max"], z_lim["max"]])
         else:
-            print "WARNING: No write ROI provided, write full graph"
+            logging.warning("WARNING: No write ROI provided, write full graph")
             min_lim = np.array([])
             max_lim = np.array([])
 
-        print "Write selected..."
+        logging.info("Write selected...")
         for e in solution.get_edge_iterator():
             v0_id_db = index_map[e.source()]
             v1_id_db = index_map[e.target()]
@@ -255,8 +256,8 @@ class DB(object):
                 
                 assert(graph.find({"degree": {"$gte": 3}}).count()==0)
 
-        print "Selected edges: ", graph.find({"selected": True, "type": "edge"}).count()
-        print "Selected vertices: ", graph.find({"selected": True, "type": "vertex"}).count()
+        logging.info("Selected edges: {}".format(graph.find({"selected": True, "type": "edge"}).count()))
+        logging.info("Selected vertices: {}".format(graph.find({"selected": True, "type": "vertex"}).count()))
 
 
     def write_solved(self,
@@ -288,7 +289,7 @@ class DB(object):
                              core.y_lim_core["max"],
                              core.z_lim_core["max"]])
 
-        print "Write solved..."
+        logging.info("Write solved...")
         id_to_vertex_pos = {}
         for v in vertices:
             v_pos = np.array([v["px"], v["py"], v["pz"]])
@@ -343,7 +344,7 @@ class DB(object):
                                             offset_pos=offset_chunk,
                                             identifier_0=id_offset)
 
-        print "Write candidate vertices..."
+        logging.info("Write candidate vertices...")
         for candidate in candidates:
             pos_phys = np.array([round(candidate.position[j]) * voxel_size[j] for j in range(3)])
             assert(np.all(np.array(pos_phys, dtype=int) == pos_phys))
@@ -377,7 +378,7 @@ class DB(object):
                          name_db,
                          collection):
 
-        print "Reset {}.{}...".format(name_db, collection)
+        logging.info("Reset {}.{}...".format(name_db, collection))
         graph = self.get_client(name_db, collection)
 
         graph.update_many({}, 
@@ -461,11 +462,11 @@ class DB(object):
                          z_lim,
                          query_edges=True):
 
-        print "Get vertex ROI..."
+        logging.info("Get vertex ROI...")
         
         graph = self.get_client(name_db, collection, overwrite=False)
 
-        print "Perform vertex query..."
+        logging.info("Perform vertex query...")
 
         vertices =  list(graph.find({"$and": [{   
                                          "pz": {"$gte": z_lim["min"],
@@ -481,14 +482,14 @@ class DB(object):
         
         edges = [] 
         if query_edges:
-            print "Perform edge query..."
+            logging.info("Perform edge query...")
             edges = list(graph.find({"$and": [{"id0": {"$in": vertex_ids}},
                                               {"id1": {"$in": vertex_ids}}]}))
         
         if not vertices:
-            print "Warning, requested region holds no vertices!"
+            logging.warning("Warning, requested region holds no vertices!")
         if not edges:
-            print "Warning, requested region holds no edges!"
+            logging.warning("Warning, requested region holds no edges!")
 
         return vertices, edges
 
