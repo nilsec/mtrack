@@ -52,28 +52,32 @@ def evaluate(tracing,
     tracing_g1 = inputs_g1[0]
     reconstruction_g1 = inputs_g1[1]
 
-    # Cut tracing and rec to roi
-    if x_lim is not None:
-        if (y_lim is None) or (z_lim is None):
-            raise ValueError("Provide all limits or none.")
-        else:
-            tracing_g1 = cut_to_roi(tracing_g1, x_lim, y_lim, z_lim, 
-                                    export_to=export_to + "/tracing_cut.nml")
+    if reconstruction_g1.get_number_of_vertices() > 0:
+        # Cut tracing and rec to roi
+        if x_lim is not None:
+            if (y_lim is None) or (z_lim is None):
+                raise ValueError("Provide all limits or none.")
+            else:
+                tracing_g1 = cut_to_roi(tracing_g1, x_lim, y_lim, z_lim, 
+                                        export_to=export_to + "/tracing_cut.nml")
 
-            reconstruction_g1 = cut_to_roi(reconstruction_g1, x_lim, y_lim, z_lim, 
-                                           export_to=export_to + "/reconstruction_cut.nml")
+                reconstruction_g1 = cut_to_roi(reconstruction_g1, x_lim, y_lim, z_lim, 
+                                               export_to=export_to + "/reconstruction_cut.nml")
 
-    matching_graph, n_gts, n_recs = build_matching_graph(tracing_g1, reconstruction_g1, 
-                                                         voxel_size, distance_threshold, 
-                                                         subsample)
+        matching_graph, n_gts, n_recs = build_matching_graph(tracing_g1, reconstruction_g1, 
+                                                             voxel_size, distance_threshold, 
+                                                             subsample)
 
-    matching_graph, topological_errors, node_errors = evaluate_matching_graph(matching_graph, 
-                                                                              use_distance_costs, 
-                                                                              max_edges, export_to,
-                                                                              optimality_gap,
-                                                                              time_limit, n_gts, n_recs)
+        matching_graph, topological_errors, node_errors = evaluate_matching_graph(matching_graph, 
+                                                                                  use_distance_costs, 
+                                                                                  max_edges, export_to,
+                                                                                  optimality_gap,
+                                                                                  time_limit, n_gts, n_recs)
 
-    return matching_graph, topological_errors, node_errors
+        return matching_graph, topological_errors, node_errors
+
+    else:
+        return None, None, None
 
 
 def build_matching_graph(tracing_g1, reconstruction_g1, voxel_size, distance_threshold, subsample):
