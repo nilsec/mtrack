@@ -95,6 +95,7 @@ def generate_grid(param_dict,
 def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
     grids = [os.path.join(grid_base_dir, f) for f in os.listdir(grid_base_dir) if f != "prob_maps"]
     grid_configs = [g + "/config.ini" for g in grids]
+    grid_config_dicts = [read_config(cfg) for cfg in grid_configs]
 
     n_skipped = 0
     for cfg in grid_configs:
@@ -105,7 +106,6 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
             n_skipped += 1
             
     print "Skipped {} runs".format(n_skipped)
-
     print "Start grid search with {} workers on {} cpus...".format(n_workers, multiprocessing.cpu_count())
     print "Grid size: {}".format(len(grids))
     start = time.time()
@@ -119,7 +119,7 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
         n_skipped = 0
         try:
             results = []
-            for cfg in grid_configs:
+            for cfg in grid_config_dicts:
                 results.append(pool.apply_async(track, (cfg,)))
 
             i = 1
@@ -127,7 +127,7 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
                 result.get(60*60*24*14)
                 elapsed = time.time() - start
                 avg_time = elapsed/i
-
+               
                 print "STATUS: Finished {}/{} in {} min. Average time per run: {} min".format(i, len(grid_configs), int(elapsed/60.), int(avg_time/60.))
                 print "Total runs including skip runs done {}/{}".format(i + n_skipped, len(grids))
                 print "Expected time till termination: {} min".format(int((avg_time * (len(grid_configs) - i))/60.))
@@ -142,6 +142,6 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
         for cfg in grid_configs:
             cfg_dict = read_config(cfg)
             if not skip_condition(cfg_dict):
-                track(cfg)
+                track(cfg_dict)
             else:
                 print "Skip {}...".format(os.path.dirname(cfg))
