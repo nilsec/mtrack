@@ -20,8 +20,7 @@ import functools
 import shutil
 
 
-def track(config_path):
-    config = read_config(config_path)
+def track(config):
     roi = [config["roi_x"], config["roi_y"], config["roi_z"]]
 
     roi_volume_size = np.array([r[1] - r[0] for r in roi]) * config["voxel_size"]
