@@ -13,7 +13,7 @@ from functools import partial
 import logging
 
 from mtrack.graphs import g1_graph
-from mtrack.preprocessing import extract_candidates, connect_graph_locally
+from mtrack.preprocessing import connect_graph_locally
 import mtrack.settings as settings
 settings.init()
 
@@ -321,28 +321,13 @@ class DB(object):
 
     def write_candidates(self,
                          name_db,
-                         prob_map_stack_chunk,
-                         offset_chunk,
-                         gs,
-                         ps,
-                         voxel_size,
-                         id_offset,
                          collection,
-                         overwrite=False,
-                         candidates=None):
+                         candidates,
+                         voxel_size,
+                         overwrite=False):
 
 
         graph = self.get_client(name_db, collection, overwrite=overwrite)
-
-        if candidates is None:
-            candidates = extract_candidates(prob_map_stack_chunk,
-                                            gs,
-                                            ps,
-                                            voxel_size,
-                                            bounding_box=None,
-                                            bs_output_dir=None,
-                                            offset_pos=offset_chunk,
-                                            identifier_0=id_offset)
 
         logging.info("Write candidate vertices...")
         for candidate in candidates:
