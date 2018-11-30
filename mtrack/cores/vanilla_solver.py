@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-from mtrack.preprocessing import extract_candidates, candidates_to_g1,\
+from mtrack.preprocessing import extract_candidates_double, candidates_to_g1,\
                                  connect_graph_locally, g1_to_nml
 from mtrack.solve import solve
 
@@ -16,14 +16,14 @@ class VanillaSolver(object):
                        voxel_size,
                        id_offset):
 
-        candidates = extract_candidates(prob_map_stack_chunk,
-                                        gs,
-                                        ps,
-                                        voxel_size,
-                                        bounding_box=None,
-                                        bs_output_dir=None,
-                                        offset_pos=offset_chunk,
-                                        identifier_0=id_offset)
+        candidates = extract_candidates_double(prob_map_stack_chunk,
+                                               gs,
+                                               ps,
+                                               voxel_size,
+                                               bounding_box=None,
+                                               bs_output_dir=None,
+                                               offset_pos=offset_chunk,
+                                               identifier_0=id_offset)
 
         return candidates
 

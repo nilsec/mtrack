@@ -184,16 +184,16 @@ def get_binary_stack(prob_map_stack_file,
     return combined_binary_image_stack
 
 
-def extract_candidates(prob_map_stack_file, 
-                       gaussian_sigma, 
-                       point_threshold, 
-                       voxel_size,
-                       length_correction=0.0, 
-                       verbose=False, 
-                       bounding_box=None,
-                       bs_output_dir=None,
-                       offset_pos=None,
-                       identifier_0=0):
+def extract_candidates_double(prob_map_stack_file, 
+                              gaussian_sigma, 
+                              point_threshold, 
+                              voxel_size,
+                              length_correction=0.0, 
+                              verbose=False, 
+                              bounding_box=None,
+                              bs_output_dir=None,
+                              offset_pos=None,
+                              identifier_0=0):
 
     if verbose:
         print "\nExtract Candidates\n"
@@ -250,6 +250,55 @@ def extract_candidates(prob_map_stack_file,
     if offset_pos is not None:
         for candidate in candidates:
                 candidate.position = tuple(np.array(candidate.position) +\
+                                       np.array(offset_pos))
+
+    return candidates
+
+def extract_candidates_single(prob_map, 
+			      point_threshold, 
+			      voxel_size, 
+			      binary_closing=True,
+			      offset_pos=None,
+			      identifier_0=0):
+
+    f = h5py.File(prob_map)
+    prob_map = f['exported_data'].value
+    f.close()
+
+    # Generate hard mask
+    hard_mask = (prob_map > point_threshold)
+
+    # Perform binary closing to close small holes
+    #s_closing = np.ones((1,3,3))
+    #closed_hard_mask = ndimage.binary_closing(hard_mask, s_closing).astype(int)
+    #print prob_map
+    print np.shape(prob_map)
+    # Extract connected components slice wise as candidates:
+    candidates = []
+    for z in range(np.shape(hard_mask)[0]):
+        z_slice = hard_mask[z,:,:]
+        s_closing = np.ones((3,3))
+        z_slice = ndimage.binary_closing(z_slice, s_closing).astype(int)
+
+        s_label = ndimage.generate_binary_structure(2,2)
+        cc, n_features = ndimage.label(np.array(z_slice, dtype=np.uint32),
+                                       structure=s_label)
+
+        candidate_list, max_identifier =\
+                angle_estimate.get_candidates(cc=cc,
+                                              slice_number=z,
+                                              voxel_x=voxel_size[0],
+                                              voxel_y=voxel_size[1],
+                                              voxel_z=voxel_size[2],
+                                              length_correction=0.0,
+                                              identifier_0=identifier_0)
+
+        identifier_0 = max_identifier
+        candidates += candidate_list
+
+    if offset_pos is not None:
+        for candidate in candidates:
+            candidate.position = tuple(np.array(candidate.position) +\
                                        np.array(offset_pos))
 
     return candidates

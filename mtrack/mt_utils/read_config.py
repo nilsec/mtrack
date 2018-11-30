@@ -35,10 +35,13 @@ def read_config(path):
         cfg_dict["label"] = config.getint("Ilastik", "label")
 
         # Data
+        cfg_dict["candidate_extraction_mode"] = config.get("Data", "candidate_extraction_mode")
+        cfg_dict["prob_map_chunks_single_dir"] = config.get("Data", "prob_map_chunks_single_dir")
         cfg_dict["prob_map_chunks_perp_dir"] = config.get("Data", "prob_map_chunks_perp_dir")
         cfg_dict["prob_map_chunks_par_dir"] = config.get("Data", "prob_map_chunks_par_dir")
         cfg_dict["perp_stack_h5"] = config.get("Data", "perp_stack_h5")
         cfg_dict["par_stack_h5"] = config.get("Data", "par_stack_h5")
+        cfg_dict["single_stack_h5"] = config.get("Data", "single_stack_h5")
         cfg_dict["name_db"] = config.get("Data", "name_db")
         cfg_dict["name_collection"] = config.get("Data", "name_collection")
         cfg_dict["extract_candidates"] = config.getboolean("Data", "extract_candidates")
@@ -49,6 +52,7 @@ def read_config(path):
         cfg_dict["gaussian_sigma_par"] = config.getfloat("Preprocessing", "gaussian_sigma_par")
         cfg_dict["point_threshold_perp"] = config.getfloat("Preprocessing", "point_threshold_perp")
         cfg_dict["point_threshold_par"] = config.getfloat("Preprocessing", "point_threshold_par")
+        cfg_dict["point_threshold_single"] = config.getfloat("Preprocessing", "point_threshold_single")
         cfg_dict["distance_threshold"] = config.getint("Preprocessing", "distance_threshold")
         
         # Chunks

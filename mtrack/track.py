@@ -1,6 +1,7 @@
 from mtrack.cores import CoreSolver, CoreBuilder, VanillaSolver, DB
 from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker,\
-                                 stack_to_chunks, ilastik_get_prob_map
+                                 stack_to_chunks, ilastik_get_prob_map,\
+                                 extract_candidates_double, extract_candidates_single
 from mtrack.mt_utils import read_config, check_overlap
 from mtrack.graphs.g1_graph import G1
 try:
@@ -89,32 +90,55 @@ def track(config):
             otherwise it is assumed the given db collection holds
             already extracted candidates.
             """
+            if config["candidate_extraction_mode"] == "double":
 
-            if config["prob_map_chunks_perp_dir"] == "None":
-                """
-                Check if chunking of the probability maps needs to
-                be performed, otherwise the chunk dir specified is used.
-                """
+                if config["prob_map_chunks_perp_dir"] == "None":
+                    """
+                    Check if chunking of the probability maps needs to
+                    be performed, otherwise the chunk dir specified is used.
+                    """
 
-                dir_perp, dir_par = chunk_prob_maps(volume_shape=config["volume_shape"],
-                                                    max_chunk_shape=config["max_chunk_shape"],
-                                                    voxel_size=config["voxel_size"],
-                                                    perp_stack_h5=config["perp_stack_h5"],
-                                                    par_stack_h5=config["par_stack_h5"],
-                                                    output_dir=config["chunk_output_dir"])
+                    dir_perp = chunk_prob_map(volume_shape=config["volume_shape"],
+                                              max_chunk_shape=config["max_chunk_shape"],
+                                              voxel_size=config["voxel_size"],
+                                              prob_map_h5=config["perp_stack_h5"],
+                                              output_dir=os.path.join(config["chunk_output_dir"], "perp"))
 
-                """
-                Update the config with the new output dirs for 
-                perp and par chunks respectively.
-                """
-                config["prob_map_chunks_perp_dir"] = dir_perp
-                config["prob_map_chunks_par_dir"] = dir_par
+                    dir_par = chunk_prob_map(volume_shape=config["volume_shape"],
+                                              max_chunk_shape=config["max_chunk_shape"],
+                                              voxel_size=config["voxel_size"],
+                                              prob_map_h5=config["perp_stack_h5"],
+                                              output_dir=os.path.join(config["chunk_output_dir"], "par"))
 
-            chunks_perp = [os.path.join(config["prob_map_chunks_perp_dir"], f)\
-                           for f in os.listdir(config["prob_map_chunks_perp_dir"]) if f.endswith(".h5")]
+                    """
+                    Update the config with the new output dirs for 
+                    perp and par chunks respectively.
+                    """
+                    config["prob_map_chunks_perp_dir"] = dir_perp
+                    config["prob_map_chunks_par_dir"] = dir_par
 
-            chunks_par = [os.path.join(config["prob_map_chunks_par_dir"], f)\
-                          for f in os.listdir(config["prob_map_chunks_par_dir"]) if f.endswith(".h5")]
+                    chunks_perp = [os.path.join(config["prob_map_chunks_perp_dir"], f)\
+                                   for f in os.listdir(config["prob_map_chunks_perp_dir"]) if f.endswith(".h5")]
+
+                    chunks_par = [os.path.join(config["prob_map_chunks_par_dir"], f)\
+                                  for f in os.listdir(config["prob_map_chunks_par_dir"]) if f.endswith(".h5")]
+
+            elif config["candidate_extraction_mode"] == "single":
+                if config["prob_map_chunks_single_dir"] == "None":
+
+                    dir_single = chunk_prob_map(volume_shape=config["volume_shape"],
+                                                max_chunk_shape=config["max_chunk_shape"],
+                                                voxel_size=config["voxel_size"],
+                                                prob_map_h5=config["single_stack_h5"],
+                                                output_dir=os.path.join(config["chunk_output_dir"], "single"))
+
+                    config["prob_map_chunks_single_dir"] = dir_single
+
+                    chunks_single = [os.path.join(config["prob_map_chunks_single_dir"], f)\
+                                     for f in os.listdir(config["prob_map_chunks_single_dir"]) if f.endswith(".h5")]
+
+            else:
+                raise ValueError("Provide candidate extraction mode as 'single' or 'double' mode")
 
             """
             Extract id, and volume information from chunks
@@ -124,53 +148,82 @@ def track(config):
             chunk_ids = {}
             roi_chunks = []
 
-            for f_chunk_perp, f_chunk_par in zip(chunks_perp, chunks_par):
-                if not os.path.isfile(f_chunk_perp):
-                    raise ValueError("{} is not a file".format(f_chunk_perp))
+            if config["candidate_extraction_mode"] == "double":
+                for f_chunk_perp, f_chunk_par in zip(chunks_perp, chunks_par):
+                    if not os.path.isfile(f_chunk_perp):
+                        raise ValueError("{} is not a file".format(f_chunk_perp))
 
-                f = h5py.File(f_chunk_perp, "r")
-                attrs_perp = f["exported_data"].attrs.items()
-                f.close()
+                    f = h5py.File(f_chunk_perp, "r")
+                    attrs_perp = f["exported_data"].attrs.items()
+                    f.close()
 
-                if not os.path.isfile(f_chunk_par):
-                    raise ValueError("{} is not a file".format(f_chunk_par))
+                    if not os.path.isfile(f_chunk_par):
+                        raise ValueError("{} is not a file".format(f_chunk_par))
 
-                f = h5py.File(f_chunk_par, "r")
-                attrs_par = f["exported_data"].attrs.items()
-                f.close()
-                
-                assert(attrs_perp[0][1] == attrs_par[0][1])
-     
-                """
-                We want to process those chunks where all chunk
-                limits overlap with the ROI
-                """
-                chunk_limit = attrs_perp[1][1]
-                chunk_id = attrs_perp[0][1]
+                    f = h5py.File(f_chunk_par, "r")
+                    attrs_par = f["exported_data"].attrs.items()
+                    f.close()
+                    
+                    assert(attrs_perp[0][1] == attrs_par[0][1])
+         
+                    """
+                    We want to process those chunks where all chunk
+                    limits overlap with the ROI
+                    """
+                    chunk_limit = attrs_perp[1][1]
+                    chunk_id = attrs_perp[0][1]
 
-                chunk_limits[(f_chunk_perp, f_chunk_par)] = chunk_limit 
-                chunk_ids[(f_chunk_perp, f_chunk_par)] = chunk_id
+                    chunk_limits[(f_chunk_perp, f_chunk_par)] = chunk_limit 
+                    chunk_ids[(f_chunk_perp, f_chunk_par)] = chunk_id
 
-                full_ovlp = np.array([False, False, False])
-                for i in range(3):
-                    full_ovlp[i] = check_overlap(chunk_limit[i], roi[i])
+                    full_ovlp = np.array([False, False, False])
+                    for i in range(3):
+                        full_ovlp[i] = check_overlap(chunk_limit[i], roi[i])
 
-                if np.all(full_ovlp):
-                    roi_chunks.append((f_chunk_perp, f_chunk_par))
+                    if np.all(full_ovlp):
+                        roi_chunks.append((f_chunk_perp, f_chunk_par))
+            else:
+                for f_chunk in chunks_single:
+                    if not os.path.isfile(f_chunk):
+                        raise ValueError("{} is not a file".format(f_chunk))
+
+                    f = h5py.File(f_chunk, "r")
+                    attrs = f["exported_data"].attrs.items()
+                    f.close()
+
+                    chunk_limit = attrs[1][1]
+                    chunk_id = attrs[0][1]
+
+                    chunk_limits[f_chunk] = chunk_limit 
+                    chunk_ids[f_chunk] = chunk_id
+
+                    full_ovlp = np.array([False, False, False])
+                    for i in range(3):
+                        full_ovlp[i] = check_overlap(chunk_limit[i], roi[i])
+
+                    if np.all(full_ovlp):
+                        roi_chunks.append(f_chunk)
 
             """
             Extract candidates from all ROI chunks and write to specified
             database.
             """
 
-            write_candidate_graph(pm_chunks_par=[pm[1] for pm in roi_chunks],
-                                  pm_chunks_perp=[pm[0] for pm in roi_chunks],
+            if config["candidate_extraction_mode"] == "double":
+                pm_chunks = [[pm[1] for pm in roi_chunks], [pm[0] for pm in roi_chunks]]
+                ps = DirectionType(config["point_threshold_perp"], config["point_threshold_par"])
+                gs = DirectionType(config["gaussian_sigma_perp"], config["gaussian_sigma_par"])
+            else:
+                pm_chunks = roi_chunks
+                ps = config["point_threshold_single"]
+                gs = None
+
+            write_candidate_graph(pm_chunks=pm_chunks,
+                                  mode=config["candidate_extraction_mode"],
                                   name_db=config["name_db"],
                                   collection=config["name_collection"],
-                                  gs=DirectionType(config["gaussian_sigma_perp"], 
-                                               config["gaussian_sigma_par"]),
-                                  ps=DirectionType(config["point_threshold_perp"],
-                                               config["point_threshold_par"]),
+                                  gs=gs,
+                                  ps=ps,
                                   distance_threshold=config["distance_threshold"],
                                   voxel_size=config["voxel_size"],
                                   cores=cores,
@@ -180,9 +233,11 @@ def track(config):
 
             
             # Clean up chunks
-            shutil.rmtree(config["prob_map_chunks_perp_dir"])
-            shutil.rmtree(config["prob_map_chunks_par_dir"])
-
+            if config["candidate_extraction_mode"] == "double":
+                shutil.rmtree(config["prob_map_chunks_perp_dir"])
+                shutil.rmtree(config["prob_map_chunks_par_dir"])
+            else:
+                shutil.rmtree(config["prob_map_chunks_single_dir"])
 
         """
         Solve the ROI and write to specified database. The result
@@ -230,6 +285,26 @@ def track(config):
                           knossos=True,
                           voxel_size=config["voxel_size"])
 
+def chunk_prob_map(volume_shape,
+                   max_chunk_shape,
+                   voxel_size,
+                   prob_map_h5,
+                   output_dir):
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    chunker = Chunker(volume_shape,
+                      max_chunk_shape,
+                      voxel_size)
+
+    chunks = chunker.chunk()
+
+    stack_to_chunks(input_stack=prob_map_h5,
+                    output_dir=output_dir,
+                    chunks=chunks)
+
+    return output_dir
 
 def chunk_prob_maps(volume_shape,
                     max_chunk_shape,
@@ -281,8 +356,8 @@ def connect_candidates_alias(db,
                           z_lim,
                           distance_threshold)
 
-def write_candidate_graph(pm_chunks_par,
-                          pm_chunks_perp,
+def write_candidate_graph(pm_chunks,
+                          mode,
                           name_db,
                           collection,
                           gs,
@@ -293,6 +368,28 @@ def write_candidate_graph(pm_chunks_par,
                           cf_lists,
                           overwrite=False,
                           mp=False):
+    """
+    This function has two modes:
+    
+    double: If double is selected pm_chunks
+            is expected to contain two lists
+            with pm_chunks[0] == perpendicular_chunks
+            and  pm_chunks[1] == parallel_chunks.
+            This is the option that should be selected
+            for a pipeline utilising two seperate
+            classifiers for perpendicular and
+            parallel microtubules respectively.
+            If ilastik is used this is the preferred
+            option.
+
+    single: If single is selected pm_chunks
+            should contain a single list with 
+            the probability map of the combined 
+            predictions.
+    """
+
+    if not mode in ["single", "double"]:
+        raise ValueError("Choose between 'single' or 'double' mode")
 
 
     logging.info("Extract pm chunks...")
@@ -303,34 +400,76 @@ def write_candidate_graph(pm_chunks_par,
     # Overwrite if necesseray:
     graph = db.get_client(name_db, collection, overwrite=overwrite)
 
-    for pm_perp, pm_par in zip(pm_chunks_perp, pm_chunks_par):
-        logging.info("Extract chunk {}/{}...".format(n_chunk, len(pm_chunks_par)))
 
-        prob_map_stack = DirectionType(pm_perp, pm_par)
+    if mode == "double":
+        pm_chunks_perp = pm_chunks[0]
+        pm_chunks_par = pm_chunks[1]
 
-        f = h5py.File(pm_perp, "r")
-        attrs = f["exported_data"].attrs.items()
-        f.close()
+        for pm_perp, pm_par in zip(pm_chunks_perp, pm_chunks_par):
+            logging.info("Extract chunk {}/{}...".format(n_chunk, len(pm_chunks_par)))
 
-        chunk_limits = attrs[1][1]
-        offset_chunk = [chunk_limits[0][0], 
-                        chunk_limits[1][0], 
-                        chunk_limits[2][0]]
+            prob_map_stack = DirectionType(pm_perp, pm_par)
 
-        id_offset_tmp = db.write_candidates(name_db,
-                                            prob_map_stack,
-                                            offset_chunk,
-                                            gs,
-                                            ps,
-                                            voxel_size,
-                                            id_offset=id_offset,
-                                            collection=collection,
-                                            overwrite=False)
+            f = h5py.File(pm_perp, "r")
+            attrs = f["exported_data"].attrs.items()
+            f.close()
 
-        assert(graph.find({"selected": {"$exists": True}}).count() == id_offset_tmp)
+            chunk_limits = attrs[1][1]
+            offset_chunk = [chunk_limits[0][0], 
+                            chunk_limits[1][0], 
+                            chunk_limits[2][0]]
 
-        id_offset = id_offset_tmp + 1
-        n_chunk += 1
+            candidates = extract_candidates_double(prob_map_stack,
+                                                   gs,
+                                                   ps,
+                                                   voxel_size,
+                                                   bounding_box=None,
+                                                   bs_output_dir=None,
+                                                   offset_pos=offset_chunk,
+                                                   identifier_0=id_offset)
+
+            id_offset_tmp = db.write_candidates(name_db,
+                                                collection,
+                                                candidates,
+                                                voxel_size,
+                                                overwrite=False)
+
+
+            assert(graph.find({"selected": {"$exists": True}}).count() == id_offset_tmp)
+
+            id_offset = id_offset_tmp + 1
+            n_chunk += 1
+
+    else:
+        for chunk in pm_chunks:
+            logging.info("Extract chunk {}/{}...".format(n_chunk, len(pm_chunks)))
+
+            f = h5py.File(chunk, "r")
+            attrs = f["exported_data"].attrs.items()
+            f.close()
+
+            chunk_limits = attrs[1][1]
+            offset_chunk = [chunk_limits[0][0], 
+                            chunk_limits[1][0], 
+                            chunk_limits[2][0]]
+
+            candidates = extract_candidates_single(chunk,
+                                                   ps,
+                                                   voxel_size,
+                                                   binary_closing=True,
+                                                   offset_pos=offset_chunk,
+                                                   identifier_0=id_offset)
+
+            id_offset_tmp = db.write_candidates(name_db,
+                                                collection,
+                                                candidates,
+                                                voxel_size,
+                                                overwrite=False)
+        
+            assert(graph.find({"selected": {"$exists": True}}).count() == id_offset_tmp)
+
+            id_offset = id_offset_tmp + 1
+            n_chunk += 1
 
     # Don't forward SIGINT to child processes
     sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -562,4 +701,5 @@ def cluster(name_db,
 
 
 if __name__ == "__main__":
-    track("/groups/funke/home/ecksteinn/Projects/microtubules/l3_mtrack/experiments/grid_search_validation_cluster/results/grid_4/config.ini")
+    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/test_single/config_test_single.ini")
+    track(cfg_dict)

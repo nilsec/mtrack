@@ -22,8 +22,11 @@ def gen_config(evaluate,
                file_extension,
                h5_dset,
                label,
+               candidate_extraction_mode,
+               prob_map_chunks_single_dir,
                prob_map_chunks_perp_dir,
                prob_map_chunks_par_dir,
+               single_stack_h5,
                perp_stack_h5,
                par_stack_h5,
                name_db,
@@ -32,6 +35,7 @@ def gen_config(evaluate,
                reset,
                gaussian_sigma_perp,
                gaussian_sigma_par,
+               point_threshold_single,
                point_threshold_perp,
                point_threshold_par,
                distance_threshold,
@@ -96,8 +100,11 @@ def gen_config(evaluate,
  
 
     config.add_section('Data')
+    config.set('Data', 'candidate_extraction_mode', str(candidate_extraction_mode))
+    config.set('Data', 'prob_map_chunks_single_dir', str(prob_map_chunks_single_dir))
     config.set('Data', 'prob_map_chunks_perp_dir', str(prob_map_chunks_perp_dir))
     config.set('Data', 'prob_map_chunks_par_dir', str(prob_map_chunks_par_dir))
+    config.set('Data', 'single_stack_h5', str(single_stack_h5))
     config.set('Data', 'perp_stack_h5', str(perp_stack_h5))
     config.set('Data', 'par_stack_h5', str(par_stack_h5))
     config.set('Data', 'name_db', str(name_db))
@@ -108,6 +115,7 @@ def gen_config(evaluate,
     config.add_section('Preprocessing')
     config.set('Preprocessing', 'gaussian_sigma_perp', str(gaussian_sigma_perp))
     config.set('Preprocessing', 'gaussian_sigma_par', str(gaussian_sigma_par))
+    config.set('Preprocessing', 'point_threshold_single', str(point_threshold_single))
     config.set('Preprocessing', 'point_threshold_perp', str(point_threshold_perp))
     config.set('Preprocessing', 'point_threshold_par', str(point_threshold_par))
     config.set('Preprocessing', 'distance_threshold', str(distance_threshold))
@@ -192,8 +200,11 @@ if __name__ == "__main__":
                file_extension=None,
                h5_dset=None,
                label=0,
+               candidate_extraction_mode="double",
+               prob_map_chunks_single_dir=None,
                prob_map_chunks_perp_dir="/media/nilsec/d0/gt_mt_data/probability_maps/validation/perpendicular/stack",
                prob_map_chunks_par_dir="/media/nilsec/d0/gt_mt_data/probability_maps/validation/parallel/stack",
+               single_stack_h5=None,
                perp_stack_h5="stack_corrected.h5",
                par_stack_h5="stack_corrected.h5",
                name_db="l3_val_test",
@@ -202,6 +213,7 @@ if __name__ == "__main__":
                reset=False,
                gaussian_sigma_perp=0.5,
                gaussian_sigma_par=0.5,
+               point_threshold_single=None,
                point_threshold_perp=0.6,
                point_threshold_par=0.6,
                distance_threshold=175,
