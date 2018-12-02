@@ -23,21 +23,22 @@ import shutil
 
 def track(config):
     roi = [config["roi_x"], config["roi_y"], config["roi_z"]]
+    volume_offset = config["volume_offset"] * config["voxel_size"]
 
     roi_volume_size = np.array([r[1] - r[0] for r in roi]) * config["voxel_size"]
     roi_offset = np.array([r[0] for r in roi]) * config["voxel_size"]
 
-    x_lim_roi = {"min": roi_offset[0],
-                 "max": roi_offset[0] + roi_volume_size[0]}
+    x_lim_roi = {"min": roi_offset[0] + volume_offset[0],
+                 "max": roi_offset[0] + roi_volume_size[0] + volume_offset[0]}
 
-    y_lim_roi = {"min": roi_offset[1],
-                 "max": roi_offset[1] + roi_volume_size[1]}
+    y_lim_roi = {"min": roi_offset[1] + volume_offset[1],
+                 "max": roi_offset[1] + roi_volume_size[1] + volume_offset[1]}
 
-    z_lim_roi = {"min": roi_offset[2],
-                 "max": roi_offset[2] + roi_volume_size[2]}
+    z_lim_roi = {"min": roi_offset[2] + volume_offset[2],
+                 "max": roi_offset[2] + roi_volume_size[2] + volume_offset[2]}
 
 
-    if np.any(config["context_size"] * config["voxel_size"] < 2*config["distance_threshold"]):
+    if np.any(config["context_size"] * config["voxel_size"] < 2 * config["distance_threshold"]):
         raise ValueError("The context size needs to be at least " +\
                          "twice as large as the distance threshold in all dimensions")
 
@@ -48,42 +49,14 @@ def track(config):
     builder = CoreBuilder(volume_size=roi_volume_size,
                           core_size=config["core_size"] * config["voxel_size"],
                           context_size=config["context_size"] * config["voxel_size"],
-                          offset=roi_offset)
+                          offset=roi_offset + volume_offset)
     
     cores = builder.generate_cores()
     
     # Get conflict free core lists
     cf_lists = builder.gen_cfs()
 
-    """
-    Extract probability map via Ilastik classifier from specified input dir and ilastik project.
-    """
-    if config["extract_perp"]:
-        logging.info("Extract perp prob map from {}...".format(config["raw"]))
-        perp_stack_h5 = ilastik_get_prob_map(raw=config["raw"],
-                                             output_dir=config["pm_output_dir_perp"],
-                                             ilastik_source_dir=config["ilastik_source_dir"],
-                                             ilastik_project=config["ilastik_project_perp"],
-                                             file_extension=config["file_extension"],
-                                             h5_dset=config["h5_dset"],
-                                             label=config["label"])
-
-        config["perp_stack_h5"] = perp_stack_h5
-
-    if config["extract_par"]: 
-        logging.info("Extract par prob map from {}...".format(config["raw"]))
-        par_stack_h5 = ilastik_get_prob_map(raw=config["raw"],
-                                            output_dir=config["pm_output_dir_par"],
-                                            ilastik_source_dir=config["ilastik_source_dir"],
-                                            ilastik_project=config["ilastik_project_par"],
-                                            file_extension=config["file_extension"],
-                                            h5_dset=config["h5_dset"],
-                                            label=config["label"])
-        
-        config["par_stack_h5"] = par_stack_h5
-
     if config["solve"]:
-
         if config["extract_candidates"]:
             """
             Check if candidate extraction needs to be performed
@@ -100,14 +73,16 @@ def track(config):
 
                     dir_perp = chunk_prob_map(volume_shape=config["volume_shape"],
                                               max_chunk_shape=config["max_chunk_shape"],
+                                              volume_offset=config["volume_offset"],
                                               voxel_size=config["voxel_size"],
                                               prob_map_h5=config["perp_stack_h5"],
                                               output_dir=os.path.join(config["chunk_output_dir"], "perp"))
 
                     dir_par = chunk_prob_map(volume_shape=config["volume_shape"],
                                               max_chunk_shape=config["max_chunk_shape"],
+                                              volume_offset=config["volume_offset"],
                                               voxel_size=config["voxel_size"],
-                                              prob_map_h5=config["perp_stack_h5"],
+                                              prob_map_h5=config["par_stack_h5"],
                                               output_dir=os.path.join(config["chunk_output_dir"], "par"))
 
                     """
@@ -125,9 +100,9 @@ def track(config):
 
             elif config["candidate_extraction_mode"] == "single":
                 if config["prob_map_chunks_single_dir"] == "None":
-
                     dir_single = chunk_prob_map(volume_shape=config["volume_shape"],
                                                 max_chunk_shape=config["max_chunk_shape"],
+                                                volume_offset=config["volume_offset"],
                                                 voxel_size=config["voxel_size"],
                                                 prob_map_h5=config["single_stack_h5"],
                                                 output_dir=os.path.join(config["chunk_output_dir"], "single"))
@@ -216,7 +191,7 @@ def track(config):
             else:
                 pm_chunks = roi_chunks
                 ps = config["point_threshold_single"]
-                gs = None
+                gs = config["gaussian_sigma_single"]
 
             write_candidate_graph(pm_chunks=pm_chunks,
                                   mode=config["candidate_extraction_mode"],
@@ -228,6 +203,7 @@ def track(config):
                                   voxel_size=config["voxel_size"],
                                   cores=cores,
                                   cf_lists=cf_lists,
+                                  volume_offset=config["volume_offset"],
                                   overwrite=True,
                                   mp=config["mp"])
 
@@ -287,6 +263,7 @@ def track(config):
 
 def chunk_prob_map(volume_shape,
                    max_chunk_shape,
+                   volume_offset,
                    voxel_size,
                    prob_map_h5,
                    output_dir):
@@ -305,37 +282,6 @@ def chunk_prob_map(volume_shape,
                     chunks=chunks)
 
     return output_dir
-
-def chunk_prob_maps(volume_shape,
-                    max_chunk_shape,
-                    voxel_size,
-                    perp_stack_h5,
-                    par_stack_h5,
-                    output_dir):
-
-    dir_perp = os.path.join(output_dir, "perp")
-    dir_par = os.path.join(output_dir, "par") 
-
-    if not os.path.exists(dir_par):
-        os.makedirs(dir_par)
-
-    if not os.path.exists(dir_perp):
-        os.makedirs(dir_perp)
-    
-    chunker = Chunker(volume_shape,
-                      max_chunk_shape,
-                      voxel_size)
-
-    chunks = chunker.chunk()
-    
-    stack_to_chunks(input_stack=perp_stack_h5,
-                    output_dir=dir_perp,
-                    chunks=chunks)
-    stack_to_chunks(input_stack=par_stack_h5,
-                    output_dir=dir_par,
-                    chunks=chunks)
-
-    return dir_perp, dir_par
 
 def connect_candidates_alias(db, 
                              name_db,
@@ -366,6 +312,7 @@ def write_candidate_graph(pm_chunks,
                           voxel_size,
                           cores,
                           cf_lists,
+                          volume_offset,
                           overwrite=False,
                           mp=False):
     """
@@ -425,7 +372,7 @@ def write_candidate_graph(pm_chunks,
                                                    voxel_size,
                                                    bounding_box=None,
                                                    bs_output_dir=None,
-                                                   offset_pos=offset_chunk,
+                                                   offset_pos=offset_chunk + volume_offset,
                                                    identifier_0=id_offset)
 
             id_offset_tmp = db.write_candidates(name_db,
@@ -454,10 +401,11 @@ def write_candidate_graph(pm_chunks,
                             chunk_limits[2][0]]
 
             candidates = extract_candidates_single(chunk,
+                                                   gs,
                                                    ps,
                                                    voxel_size,
                                                    binary_closing=True,
-                                                   offset_pos=offset_chunk,
+                                                   offset_pos=offset_chunk + volume_offset,
                                                    identifier_0=id_offset)
 
             id_offset_tmp = db.write_candidates(name_db,

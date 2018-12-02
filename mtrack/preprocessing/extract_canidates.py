@@ -255,6 +255,7 @@ def extract_candidates_double(prob_map_stack_file,
     return candidates
 
 def extract_candidates_single(prob_map, 
+                              gaussian_sigma,
 			      point_threshold, 
 			      voxel_size, 
 			      binary_closing=True,
@@ -265,15 +266,13 @@ def extract_candidates_single(prob_map,
     prob_map = f['exported_data'].value
     f.close()
 
+    # Smooth if sigma provided:
+    if gaussian_sigma is not None:
+        prob_map = gaussian(prob_map, gaussian_sigma)
+ 
     # Generate hard mask
     hard_mask = (prob_map > point_threshold)
 
-    # Perform binary closing to close small holes
-    #s_closing = np.ones((1,3,3))
-    #closed_hard_mask = ndimage.binary_closing(hard_mask, s_closing).astype(int)
-    #print prob_map
-    print np.shape(prob_map)
-    # Extract connected components slice wise as candidates:
     candidates = []
     for z in range(np.shape(hard_mask)[0]):
         z_slice = hard_mask[z,:,:]
