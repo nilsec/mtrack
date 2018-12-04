@@ -193,7 +193,8 @@ def extract_candidates_double(prob_map_stack_file,
                               bounding_box=None,
                               bs_output_dir=None,
                               offset_pos=None,
-                              identifier_0=0):
+                              identifier_0=0,
+                              hard_mask_path=None):
 
     if verbose:
         print "\nExtract Candidates\n"
@@ -208,6 +209,13 @@ def extract_candidates_double(prob_map_stack_file,
                                           verbose=verbose, 
                                           bounding_box=bounding_box,
                                           output_directory=bs_output_dir)
+
+    if hard_mask_path is not None:
+        if not os.path.exists(os.path.dirname(hard_mask_path)):
+            os.makedirs(os.path.dirname(hard_mask_path))
+        f = h5py.File(hard_mask_path, "w")
+        f.create_dataset(name="hard_mask", data=binary_image_stack)
+        f.close()
 
     if bounding_box is not None:
         slices, x_lim, y_lim = process_bounding_box(bounding_box)
@@ -260,7 +268,8 @@ def extract_candidates_single(prob_map,
 			      voxel_size, 
 			      binary_closing=True,
 			      offset_pos=None,
-			      identifier_0=0):
+			      identifier_0=0,
+                              hard_mask_path=None):
 
     f = h5py.File(prob_map)
     prob_map = f['exported_data'].value
@@ -272,6 +281,13 @@ def extract_candidates_single(prob_map,
  
     # Generate hard mask
     hard_mask = (prob_map > point_threshold)
+
+    if hard_mask_path is not None:
+        if not os.path.exists(os.path.dirname(hard_mask_path)):
+            os.makedirs(os.path.dirname(hard_mask_path))
+        f = h5py.File(hard_mask_path, "w")
+        f.create_dataset(name="hard_mask", data=hard_mask)
+        f.close()
 
     candidates = []
     for z in range(np.shape(hard_mask)[0]):
