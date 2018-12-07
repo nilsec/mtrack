@@ -185,7 +185,7 @@ def track(config):
             """
 
             if config["candidate_extraction_mode"] == "double":
-                pm_chunks = [[pm[1] for pm in roi_chunks], [pm[0] for pm in roi_chunks]]
+                pm_chunks = [[pm[0] for pm in roi_chunks], [pm[1] for pm in roi_chunks]]
                 ps = DirectionType(config["point_threshold_perp"], config["point_threshold_par"])
                 gs = DirectionType(config["gaussian_sigma_perp"], config["gaussian_sigma_par"])
             else:
@@ -649,5 +649,8 @@ def cluster(name_db,
 
 
 if __name__ == "__main__":
-    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/test_single/config_test_single.ini")
+    #cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/test_runs/run_7/b+_full/config.ini")
+    #track(cfg_dict)
+
+    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/test_runs/run_7/b+_full_debug_vertex_conflict/config.ini")
     track(cfg_dict)
