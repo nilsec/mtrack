@@ -177,6 +177,29 @@ class GraphConverter:
 
                             if solve_e1 and solve_e2 and np.all(v_all_solved):
                                 g2_solved.append(g2_vertex_id)
+
+                        elif e1 != G1.START_EDGE and e2 == G1.START_EDGE:
+                            solve_e1 = self.g1.get_edge_property("solved", 
+                                                                 e1.source(),
+                                                                 e1.target())
+
+                            v_e1_solved = [self.g1.get_vertex_property("solved", e1.source()), 
+                                           self.g1.get_vertex_property("solved", e1.target())]
+
+                            if solve_e1 and np.all(v_e1_solved):
+                                g2_solved.append(g2_vertex_id)
+                            
+                        elif e1 == G1.START_EDGE and e2 != G1.START_EDGE:
+                            solve_e2 = self.g1.get_edge_property("solved", 
+                                                                 e2.source(),
+                                                                 e2.target())
+
+                            v_e2_solved = [self.g1.get_vertex_property("solved", e2.source()), 
+                                           self.g1.get_vertex_property("solved", e2.target())]
+
+                            if solve_e2 and np.all(v_e2_solved):
+                                g2_solved.append(g2_vertex_id)
+
                                 
             g2_center_conflicts.append(v_conflicts)
 
@@ -281,19 +304,16 @@ class GraphConverter:
         for g2_vertex_list in g2_edge_forced:
             g2.add_must_pick_one(g2_vertex_list)
 
-        """
-        Check for infeasibility due to force/conflict clashes:
-        All elements in cc in g2_center_conflicts are exclusive
-        thus each cc list can have at most one g2 vertex in it 
-        that is forced. If multiple are present we get an infeasible
-        model. Similar for partner conflicts.
-        """
+
+        # Check if two exlusive nodes are forced:
         forced_center_conflicts = [len(set(cc) & set(g2_forced)) for cc in g2_center_conflicts]
         if forced_center_conflicts:
-            assert(max(forced_center_conflicts) <= 1) 
+            if max(forced_center_conflicts) > 1:
+                raise ValueError("Force conflict clash in center conflicts")
 
         forced_partner_conflicts = [len(set(pc) & set(g2_forced)) for pc in g2_partner_conflicts]
         if forced_partner_conflicts:
-            assert(max(forced_partner_conflicts) <= 1)
+            if max(forced_partner_conflicts) > 1:
+                raise ValueError("Force conflict clash in partner conflicts")
 
         return g2, index_maps
