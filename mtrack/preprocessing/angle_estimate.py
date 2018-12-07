@@ -5,6 +5,7 @@ import random
 from scipy import ndimage
 import matplotlib.pyplot as plt
 import pickle
+assert(skimage.__version__ == '0.14.0')
 
 diam_out = 24 # Outer diameter of microtubule in nm.
 
