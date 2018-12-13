@@ -11,6 +11,7 @@ from scipy.spatial import KDTree
 import itertools
 from functools import partial
 import logging
+from mtrack.evaluation import DDA3
 
 from mtrack.graphs import g1_graph
 from mtrack.preprocessing import connect_graph_locally
@@ -36,9 +37,10 @@ class DB(object):
 
         self.edge = {"id0": None,
                      "id1": None,
+                     "cost": None,
                      "solved": False,
                      "selected": False,
-					 "type": "edge",
+		     "type": "edge",
                      "time_selected": [],
                      "by_selected": []}
 
@@ -97,6 +99,72 @@ class DB(object):
                            name="vedge_id", 
                            sparse=True)
 
+    def add_edge_cost(self,
+                      name_db,
+                      collection,
+                      voxel_size,
+                      volume_offset,
+                      prob_map_file):
+
+        logging.info("Add edge cost...")
+
+        graph = self.get_client(name_db, collection, overwrite=False)
+
+        voxel_size = np.array(voxel_size)
+        f = h5py.File(prob_map_file, "r")
+        prob_map = np.array(f["exported_data"])
+        attrs = f["exported_data"].attrs.items()
+        f.close()
+
+        shape = np.shape(prob_map)
+        chunk_limits = attrs[1][1]
+        offset_chunk = [chunk_limits[0][0],
+                        chunk_limits[1][0],
+                        chunk_limits[2][0]]
+
+        offset_chunk += np.array(volume_offset)
+        offset_chunk *= np.array(voxel_size, dtype=int)
+        size_chunk = np.array([shape[2], shape[1], shape[0]]) * voxel_size
+        x_lim = {"min": offset_chunk[0], "max": offset_chunk[0] + size_chunk[0]}
+        y_lim = {"min": offset_chunk[1], "max": offset_chunk[1] + size_chunk[1]}
+        z_lim = {"min": offset_chunk[2], "max": offset_chunk[2] + size_chunk[2]}
+
+        g1, index_map = self.get_g1(name_db,
+                                    collection,
+                                    x_lim,
+                                    y_lim,
+                                    z_lim)
+
+        n_edges = g1.get_number_of_edges()
+        i = 1
+        edge_to_cost = {}
+
+        logging.info("Overlay edges with prob map...")
+        for e in g1.get_edge_iterator():
+            start = np.array(g1.get_position(e.source())/voxel_size, dtype=int)
+            end = np.array(g1.get_position(e.target())/voxel_size, dtype=int)
+            dda3 = DDA3(start, end, scaling=voxel_size)
+            line = dda3.draw()
+
+            cost = 0.0
+            for p in line:
+                p -= (offset_chunk/voxel_size).astype(int)
+                cost += (1. - prob_map[p[2], p[1], p[0]])
+            cost /= len(line)
+
+            v0_mapped = index_map[int(e.source())]
+            v1_mapped = index_map[int(e.target())]
+
+            graph.update_one({"$and": [{"id0": {"$in": [v0_mapped, v1_mapped]}},
+                                       {"id1": {"$in": [v0_mapped, v1_mapped]}}]},
+                             {"$set": {"cost": cost}},
+                             upsert=False)
+
+            if i % 100 == 0:
+                logging.info(float(i)/n_edges * 100, "% done")
+                logging.info("cost_write:", cost)
+            i += 1
+
     def get_g1(self,
                name_db,
                collection,
@@ -119,11 +187,11 @@ class DB(object):
 
 
     def get_selected(self,
-					 name_db,
-					 collection,
-					 x_lim,
-					 y_lim,
-					 z_lim):
+                     name_db,
+                     collection,
+                     x_lim,
+                     y_lim,
+                     z_lim):
 
         vertices, edges = self.__get_vertex_roi(name_db,
                                                 collection,
@@ -523,6 +591,9 @@ class DB(object):
             v0 = index_map[np.uint64(e["id0"])]
             v1 = index_map[np.uint64(e["id1"])]
             e_g1 = g1.add_edge(v0, v1)
+           
+            if e["cost"] is not None:
+                g1.set_edge_cost(e_g1, float(e["cost"]))
         
             if e["selected"]:
                 g1.select_edge(e_g1)
