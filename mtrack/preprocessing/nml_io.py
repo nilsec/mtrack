@@ -101,9 +101,10 @@ def g1_to_nml(g1,
             target_id += 1
 
         edge_elem = doc.createElement("edge")
-        
+       
         build_attributes(edge_elem, [["source", source_id],
-                                     ["target", target_id]
+                                     ["target", target_id],
+                                     ["edge_cost", g1.get_edge_property("edge_cost", e=e)]
                                     ])
 
         edges_elem.appendChild(edge_elem)
@@ -134,11 +135,12 @@ def build_attributes(xml_elem, attributes):
     return xml_elem
 
 
-def from_nml(filename):
+def from_nml(filename, edge_attribute=None):
     doc = minidom.parse(filename)
     annotation_elems = doc.getElementsByTagName("thing")
     node_dic = {}
     edge_list = []
+    edge_attributes = []
     for annotation_elem in annotation_elems:
         node_elems = annotation_elem.getElementsByTagName("node")
         for node_elem in node_elems:
@@ -152,11 +154,24 @@ def from_nml(filename):
                 node_dic[node_attribute.id] = node_attribute
 
         edge_elems = annotation_elem.getElementsByTagName("edge")
-        for edge_elem in edge_elems:
-            (source_ID, target_ID) = parse_attributes(edge_elem, [["source", int], ["target", int]])
-            edge_list.append([source_ID, target_ID])
+        if edge_attribute is None:
+            for edge_elem in edge_elems:
+                (source_ID, target_ID) = parse_attributes(edge_elem, [["source", int], ["target", int]])
+                edge_list.append([source_ID, target_ID])
+        else:
+            for edge_elem in edge_elems:
+                (source_ID, target_ID, edge_attr) = parse_attributes(edge_elem, [["source", int], 
+                                                                                 ["target", int],
+                                                                                 [edge_attribute[0],
+                                                                                  edge_attribute[1]]])
+                edge_list.append([source_ID, target_ID])
+                edge_attributes.append(edge_attr)
 
-    return node_dic, edge_list
+    if edge_attribute is None:
+        return node_dic, edge_list
+    else:
+        return node_dic, edge_list, edge_attributes
+
 
 def from_node_elem_to_node(node_elem):
     [x, y, z, ID, radius, orientation, partner, identifier] =\
@@ -206,9 +221,13 @@ def parse_attributes(xml_elem, parse_input):
 
 
 def nml_to_g1(nml,
-              output_file):
+              output_file,
+              edge_attribute=None):
 
-    node_dic, edge_list = from_nml(nml)
+    if edge_attribute is None:
+        node_dic, edge_list = from_nml(nml)
+    else:
+        node_dic, edge_list, edge_attributes = from_nml(nml, edge_attribute)
 
     g1 = mtrack.graphs.G1(len(node_dic.keys()))
     index_map = {v: v_new for v_new, v in enumerate(node_dic.keys())}
@@ -225,8 +244,13 @@ def nml_to_g1(nml,
     
     edge_index_map = np.vectorize(index_map.get)
 
+    i = 0
     for edge in edge_list:
         g1.add_edge(*edge_index_map(edge))
+        if edge_attribute is not None:
+            u,v = edge_index_map(edge)
+            g1.set_edge_property(edge_attribute[0], u, v, edge_attributes[i])
+        i += 1
 
     if output_file is not None:
         g1.save(output_file)
