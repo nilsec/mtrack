@@ -163,8 +163,10 @@ class G:
             e = self.get_edge(u, v)
         self.g.edge_properties[name][e] = value
     
-    def get_edge_property(self, name, u=None, v=None):
-        if (u is not None) and (v is not None):
+    def get_edge_property(self, name, u=None, v=None, e=None):
+        if e is not None:
+            return self.g.edge_properties[name][e]
+        elif (u is not None) and (v is not None):
             e = self.get_edge(u, v)
             return self.g.edge_properties[name][e]
         elif (u is None) and (v is None):
