@@ -2,6 +2,7 @@ from mtrack.cores import DB, CoreBuilder
 from mtrack.preprocessing import g1_to_nml
 import os
 import numpy as np
+import pdb
 
 def retrieve(name_db,
              collection,
@@ -9,30 +10,44 @@ def retrieve(name_db,
              y_lim,
              z_lim,
              voxel_size,
-             output_path):
+             output_path,
+             selected_only=True):
 
     db = DB()
-    g1_selected, index_map = db.get_selected(name_db,
-                                             collection,
-                                             x_lim=x_lim,
-                                             y_lim=y_lim,
-                                             z_lim=z_lim)
+    if selected_only:
+        g1, index_map = db.get_selected(name_db,
+                                        collection,
+                                        x_lim=x_lim,
+                                        y_lim=y_lim,
+                                        z_lim=z_lim)
 
-    print "Validate solution..."
-    for v in g1_selected.get_vertex_iterator():
-        assert(len(g1_selected.get_incident_edges(v)) <= 2), "Retrieved graph has branchings"
-    print "...No violations"
+        print "Validate solution..."
+        for v in g1.get_vertex_iterator():
+            assert(len(g1.get_incident_edges(v)) <= 2), "Retrieved graph has branchings"
+        print "...No violations"
 
-    g1_to_nml(g1_selected, 
+    else:
+        g1, index_map = db.get_g1(name_db,
+                                  collection,
+                                  x_lim=x_lim,
+                                  y_lim=y_lim,
+                                  z_lim=z_lim)
+
+        pdb.set_trace()
+
+
+
+    g1_to_nml(g1, 
               output_path,
               knossos=True,
               voxel_size=voxel_size)
 
 if __name__ == "__main__":
-    retrieve("cremi_grid_search_run_rfc_0",
-             "run_75",
-             {"min": 0, "max": 1400 * 4},
-             {"min": 0, "max": 1400 * 4},
-             {"min": 0,"max": 130*40},
+    retrieve("test_costs",
+             "v0",
+             {"min": 100, "max": 1300 * 4},
+             {"min": 100, "max": 1300 * 4},
+             {"min": 90,"max": 120*40},
              [4.,4.,40.],
-             "./rfc_75.nml")
+             "./test_costs_validation.nml",
+             selected_only=False)
