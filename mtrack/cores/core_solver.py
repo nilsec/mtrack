@@ -22,7 +22,6 @@ class CoreSolver(object):
                        cc_min_vertices,
                        start_edge_prior,
                        selection_cost,
-                       distance_factor,
                        orientation_factor,
                        comb_angle_factor,
                        core_id,
@@ -44,7 +43,6 @@ class CoreSolver(object):
 
             cc_solution = solve(cc,
                                 start_edge_prior,
-                                distance_factor,
                                 orientation_factor,
                                 comb_angle_factor,
                                 selection_cost,
