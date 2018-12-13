@@ -23,6 +23,7 @@ class G1(G):
                 G.new_vertex_property(self, "solved", dtype="bool", value=False)
                 G.new_edge_property(self, "selected", dtype="bool", value=False)
                 G.new_edge_property(self, "solved", dtype="bool", value=False)
+                G.new_edge_property(self, "edge_cost", dtype="double", value=0.0)
         
                 for v in G.get_vertex_iterator(self):
                     self.set_partner(v, -1) 
@@ -138,6 +139,12 @@ class G1(G):
 
     def solve_edge(self, e):
         G.set_edge_property(self, "solved", None, None, True, e)
+
+    def set_edge_cost(self, e, edge_cost):
+        G.set_edge_property(self, "edge_cost", None, None, edge_cost, e)
+
+    def get_edge_cost(self, e):
+        return G.get_edge_property(self, "edge_cost", e=e)
         
     def set_orientation(self, u, value):
         assert(type(value) == np.ndarray)
@@ -149,6 +156,7 @@ class G1(G):
     def get_orientation(self, u):
         orientations = G.get_vertex_property(self, "orientation")
         return orientations[u]
+
 
     def get_orientation_array(self):
         return G.get_vertex_property(self, "orientation").get_2d_array([0,1,2])
@@ -254,44 +262,9 @@ class G1(G):
         self.g.edge_properties["solved"] = new_solved_edges
                 
                 
-    def get_edge_cost(self, distance_factor, orientation_factor, start_edge_prior):
-        edge_array = G.get_edge_array(self)
-        vertex_array = G.get_vertex_array(self)
-        index_map = dict(itertools.izip(vertex_array, range(vertex_array.shape[0])))
-        index_map_inv = dict(itertools.izip(range(vertex_array.shape[0]), vertex_array))
- 
-        
-        edge_array[:, 0] = np.array([index_map[j] for j in edge_array[:,0]])
-        edge_array[:, 1] = np.array([index_map[j] for j in edge_array[:,1]])
-
-        pos_array = self.get_position_array()
-        orientation_array = self.get_orientation_array()
-
-        vectors = (pos_array[:, edge_array[:, 0]] - pos_array[:, edge_array[:, 1]]).T
-
-        d = np.sum(np.abs(vectors)**2, axis=-1)**(1./2.)
-        d_cost = distance_factor * d
-
-        u_v = vectors/np.clip(d[:,None], a_min=10**(-8), a_max=None)
-        
-        o_0 = (orientation_array[:, edge_array[:, 0]]).T
-        o_1 = (orientation_array[:, edge_array[:, 1]]).T
-        o = np.vstack((o_0, o_1))
-        o_norm = np.sum(np.abs(o)**2, axis=-1)**(1./2.)
-        u_o = o/o_norm[:, None] 
-
-        angles = np.arccos(np.clip(inner1d(np.vstack((u_v, u_v)), u_o), -1.0, 1.0))
-        angles[angles >= np.pi/2.] = np.pi - angles[angles >= np.pi/2.]
-        o_cost = angles[:angles.shape[0]/2] + angles[angles.shape[0]/2:] * orientation_factor
-        
-        tot_cost = d_cost + o_cost
-       
-        edge_cost_tot = {G.get_edge(self, index_map_inv[edge_array[i,0]],\
-                                          index_map_inv[edge_array[i, 1]]):\
-                         tot_cost[i] for i in range(tot_cost.shape[0])}
-
+    def get_edge_costs(self, orientation_factor, start_edge_prior):
+        edge_cost_tot = {e: self.get_edge_cost(e) * orientation_factor for e in G.get_vertex_iterator(self)}
         edge_cost_tot[self.START_EDGE] = 2.0 * start_edge_prior
-
         return edge_cost_tot
 
 
