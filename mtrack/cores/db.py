@@ -161,8 +161,8 @@ class DB(object):
                              upsert=False)
 
             if i % 100 == 0:
-                logging.info(float(i)/n_edges * 100, "% done")
-                logging.info("cost_write:", cost)
+                logging.info(str(float(i)/n_edges * 100) +  "% done")
+                logging.info("cost_write: " + str(cost))
             i += 1
 
     def get_g1(self,
