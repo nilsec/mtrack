@@ -19,7 +19,7 @@ setup(
             ],
     install_requires = [
         'numpy',
-        'scipy',
+        'scipy>=0.18.0',
         'h5py',
         'scikit-image',
         'pymongo',
