@@ -36,9 +36,8 @@ class SmallSquareGraphTestCase(unittest.TestCase):
         self.g2, self.index_maps = self.graph_converter.get_g2_graph()
 
         self.vertex_cost_params = {}
-        self.edge_cost_params = {"distance_factor": 1.0, 
-                            "orientation_factor": 10.0,
-                            "start_edge_prior": 0.0}
+        self.edge_cost_params = {"orientation_factor": 10.0,
+                                 "start_edge_prior": 0.0}
         self.edge_combination_cost_params = {"comb_angle_factor": 1.0}
 
         self.selection_cost = -100.0
