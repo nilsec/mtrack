@@ -5,6 +5,7 @@ import itertools
 
 from mtrack.graphs.graph import G
 from mtrack.graphs.start_edge import StartEdge 
+from mtrack.mt_utils.spline_interpolation import get_energy_from_ordered_points
 
 class G1(G):
     START_EDGE = StartEdge()
@@ -263,7 +264,7 @@ class G1(G):
                 
                 
     def get_edge_costs(self, orientation_factor, start_edge_prior):
-        edge_cost_tot = {e: self.get_edge_cost(e) * orientation_factor for e in G.get_vertex_iterator(self)}
+        edge_cost_tot = {e: self.get_edge_cost(e) * orientation_factor for e in G.get_edge_iterator(self)}
         edge_cost_tot[self.START_EDGE] = 2.0 * start_edge_prior
         return edge_cost_tot
 
@@ -285,6 +286,7 @@ class G1(G):
         edges = []
         cost = []
         prior_cost = {}
+        edge_combination_cost = {}
         """
         Problem: The indices are derived from the vertices in the graph.
         The graphs are filtered versions of a bigger graph where the
@@ -342,12 +344,22 @@ class G1(G):
                         middle_vertex = int(v)
                         middle_indices.extend([middle_vertex, middle_vertex])
 
-                        end_vertices = set([int(e1.source()), 
-                                            int(e1.target()), 
-                                            int(e2.source()), 
-                                            int(e2.target())])
+                        end_vertices = [int(e1.source()), 
+                                        int(e1.target()), 
+                                        int(e2.source()), 
+                                        int(e2.target())]
 
                         end_vertices.remove(middle_vertex)
+                        end_vertices.remove(middle_vertex)
+
+                        ordered_points = [None, None, None]
+                        ordered_points[0] = np.array(self.get_position(end_vertices[0]))
+                        ordered_points[2] = np.array(self.get_position(end_vertices[1]))
+                        ordered_points[1] = np.array(self.get_position(middle_vertex))
+
+                        energy = get_energy_from_ordered_points(ordered_points, n_samples=100)
+                        edge_combination_cost[(e1, e2)] = energy * comb_angle_factor
+
                         end_indices.extend(list(end_vertices))
                         edges.append((e1, e2))
                         edges_to_middle[(e1, e2)] = int(v)
@@ -355,19 +367,6 @@ class G1(G):
                         (e1, e2) -> end_indices, middle_indices
                         """
 
-        if middle_indices:
-            pos_array = self.get_position_array()
-            end_indices = np.array([index_map[v] for v in end_indices])
-            middle_indices = np.array([index_map[v] for v in middle_indices])
-
-            v = (pos_array[:, end_indices] - pos_array[:, middle_indices]).T
-            norm = np.sum(np.abs(v)**2, axis=-1)**(1./2.)
-            u = v/np.clip(norm[:,None], a_min=10**(-8), a_max=None)
-            angles = np.arccos(np.clip(inner1d(u[::2], u[1::2]), -1.0, 1.0))
-            angles = np.pi - angles
-            cost = cost + list((angles * comb_angle_factor)**2)
-
-        edge_combination_cost = dict(itertools.izip(edges, cost))
         edge_combination_cost.update(prior_cost)
 
         if return_edges_to_middle:
