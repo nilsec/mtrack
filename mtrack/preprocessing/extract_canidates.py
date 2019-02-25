@@ -15,7 +15,6 @@ import nml_io
 import pickle
 from scipy.spatial import KDTree
 import matplotlib.pyplot as plt
-import pdb
 
 diam_out = 24 # Outer diameter of microtubule in nm
 
@@ -274,6 +273,10 @@ def extract_candidates_single(prob_map,
     f = h5py.File(prob_map)
     prob_map = f['exported_data'].value
     f.close()
+
+
+    # Normalize to 0-1:
+    prob_map = prob_map/np.max(np.abs(prob_map))
 
     # Smooth if sigma provided:
     if gaussian_sigma is not None:
