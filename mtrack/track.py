@@ -19,6 +19,7 @@ import signal
 import traceback
 import functools
 import shutil
+import pdb
 
 
 def track(config):
@@ -28,14 +29,14 @@ def track(config):
     roi_volume_size = np.array([r[1] - r[0] for r in roi]) * config["voxel_size"]
     roi_offset = np.array([r[0] for r in roi]) * config["voxel_size"]
 
-    x_lim_roi = {"min": roi_offset[0] + volume_offset[0],
-                 "max": roi_offset[0] + roi_volume_size[0] + volume_offset[0]}
+    x_lim_roi = {"min": roi_offset[0],
+                 "max": roi_offset[0] + roi_volume_size[0]}
 
-    y_lim_roi = {"min": roi_offset[1] + volume_offset[1],
-                 "max": roi_offset[1] + roi_volume_size[1] + volume_offset[1]}
+    y_lim_roi = {"min": roi_offset[1],
+                 "max": roi_offset[1] + roi_volume_size[1]}
 
-    z_lim_roi = {"min": roi_offset[2] + volume_offset[2],
-                 "max": roi_offset[2] + roi_volume_size[2] + volume_offset[2]}
+    z_lim_roi = {"min": roi_offset[2],
+                 "max": roi_offset[2] + roi_volume_size[2]}
 
 
     if np.any(config["context_size"] * config["voxel_size"] < 2 * config["distance_threshold"]):
@@ -49,7 +50,7 @@ def track(config):
     builder = CoreBuilder(volume_size=roi_volume_size,
                           core_size=config["core_size"] * config["voxel_size"],
                           context_size=config["context_size"] * config["voxel_size"],
-                          offset=roi_offset + volume_offset)
+                          offset=roi_offset)
     
     cores = builder.generate_cores()
     
@@ -219,45 +220,45 @@ def track(config):
         is written out depending on the options in the Output section
         of the config file.
         """
-        if config["reset"]:
-            db = DB()
-            db.reset_collection(config["name_db"], 
-                                config["name_collection"])
+    if config["reset"]:
+        db = DB()
+        db.reset_collection(config["name_db"], 
+                            config["name_collection"])
 
-        if config["solve"]:
-            solve_candidate_volume(name_db=config["name_db"],
-                                   collection=config["name_collection"],
-                                   cc_min_vertices=config["cc_min_vertices"],
-                                   start_edge_prior=config["start_edge_prior"],
-                                   selection_cost=config["selection_cost"],
-                                   orientation_factor=config["orientation_factor"],
-                                   comb_angle_factor=config["comb_angle_factor"],
-                                   time_limit=config["time_limit_per_cc"],
-                                   cores=cores,
-                                   cf_lists=cf_lists,
-                                   voxel_size=config["voxel_size"],
-                                   offset=np.array(roi_offset),
-                                   mp=config["mp"],
-                                   backend=config["backend"])
+    if config["solve"]:
+        solve_candidate_volume(name_db=config["name_db"],
+                               collection=config["name_collection"],
+                               cc_min_vertices=config["cc_min_vertices"],
+                               start_edge_prior=config["start_edge_prior"],
+                               selection_cost=config["selection_cost"],
+                               orientation_factor=config["orientation_factor"],
+                               comb_angle_factor=config["comb_angle_factor"],
+                               time_limit=config["time_limit_per_cc"],
+                               cores=cores,
+                               cf_lists=cf_lists,
+                               voxel_size=config["voxel_size"],
+                               offset=np.array(roi_offset),
+                               mp=config["mp"],
+                               backend=config["backend"])
 
-        
-        if config["validate_selection"]:
-            db = DB()
-            try:
-                g1_selected = db.validate_selection(name_db=config["name_db"],
-                                                    collection=config["name_collection"],
-                                                    x_lim=x_lim_roi,
-                                                    y_lim=y_lim_roi,
-                                                    z_lim=z_lim_roi)
-            except ValueError:
-                logging.warning("WARNING, solution contains no vertices!")
-                g1_selected = G1(0)
+    
+    if config["validate_selection"]:
+        db = DB()
+        try:
+            g1_selected = db.validate_selection(name_db=config["name_db"],
+                                                collection=config["name_collection"],
+                                                x_lim=x_lim_roi,
+                                                y_lim=y_lim_roi,
+                                                z_lim=z_lim_roi)
+        except ValueError:
+            logging.warning("WARNING, solution contains no vertices!")
+            g1_selected = G1(0)
 
-            if config["export_validated"]:
-                g1_to_nml(g1_selected, 
-                          config["validated_output_path"],
-                          knossos=True,
-                          voxel_size=config["voxel_size"])
+        if config["export_validated"]:
+            g1_to_nml(g1_selected, 
+                      config["validated_output_path"],
+                      knossos=True,
+                      voxel_size=config["voxel_size"])
 
 def chunk_prob_map(volume_shape,
                    max_chunk_shape,
@@ -271,13 +272,15 @@ def chunk_prob_map(volume_shape,
 
     chunker = Chunker(volume_shape,
                       max_chunk_shape,
-                      voxel_size)
+                      voxel_size,
+                      offset=volume_offset)
 
     chunks = chunker.chunk()
 
     stack_to_chunks(input_stack=prob_map_h5,
                     output_dir=output_dir,
-                    chunks=chunks)
+                    chunks=chunks,
+                    volume_offset=volume_offset)
 
     return output_dir
 
@@ -364,7 +367,7 @@ def write_candidate_graph(pm_chunks,
                             chunk_limits[1][0], 
                             chunk_limits[2][0]]
 
-
+            print offset_chunk
 
             candidates = extract_candidates_double(prob_map_stack,
                                                    gs,
@@ -372,7 +375,7 @@ def write_candidate_graph(pm_chunks,
                                                    voxel_size,
                                                    bounding_box=None,
                                                    bs_output_dir=None,
-                                                   offset_pos=offset_chunk + volume_offset,
+                                                   offset_pos=offset_chunk,
                                                    identifier_0=id_offset)
 
             id_offset_tmp = db.write_candidates(name_db,
@@ -405,7 +408,7 @@ def write_candidate_graph(pm_chunks,
                                                    ps,
                                                    voxel_size,
                                                    binary_closing=True,
-                                                   offset_pos=offset_chunk + volume_offset,
+                                                   offset_pos=offset_chunk,
                                                    identifier_0=id_offset)
 
             id_offset_tmp = db.write_candidates(name_db,
@@ -662,6 +665,5 @@ def cluster(name_db,
 if __name__ == "__main__":
     #cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/test_runs/run_7/b+_full/config.ini")
     #track(cfg_dict)
-
-    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/test_costs/test_config.ini")
+    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/grid_search_lsd/run_7/energy_cost_4b/grid_0/config.ini")
     track(cfg_dict)
