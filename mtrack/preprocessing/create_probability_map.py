@@ -46,7 +46,7 @@ def ilastik_get_prob_map(raw,
     return stack_path
 
 
-def stack_to_chunks(input_stack, output_dir, chunks):
+def stack_to_chunks(input_stack, output_dir, chunks, volume_offset=np.array([0,0,0])):
     """
     Chunk probability map h5 stack according to a list
     of chunk objects. See mtrack/preprocessing/chunker.py
@@ -60,12 +60,12 @@ def stack_to_chunks(input_stack, output_dir, chunks):
     f0 = h5py.File(input_stack)
     data = f0["exported_data"]
     assert(len(data.shape) == 3)
- 
+
     for chunk in chunks:
         limits = chunk.limits
-        chunk_data = np.array(data[limits[2][0]:limits[2][1], 
-                                   limits[1][0]:limits[1][1], 
-                                   limits[0][0]:limits[0][1]])
+        chunk_data = np.array(data[limits[2][0] - volume_offset[2]:limits[2][1] - volume_offset[2], 
+                                   limits[1][0] - volume_offset[1]:limits[1][1] - volume_offset[1], 
+                                   limits[0][0] - volume_offset[0]:limits[0][1] - volume_offset[0]])
  
         f = h5py.File(output_dir + "/chunk_{}.h5".format(chunk.id), 'w')
         f.create_dataset("exported_data", data=chunk_data)
