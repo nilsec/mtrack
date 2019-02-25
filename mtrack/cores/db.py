@@ -122,7 +122,7 @@ class DB(object):
                         chunk_limits[1][0],
                         chunk_limits[2][0]]
 
-        offset_chunk += np.array(volume_offset)
+        #offset_chunk += np.array(volume_offset)
         offset_chunk *= np.array(voxel_size, dtype=int)
         size_chunk = np.array([shape[2], shape[1], shape[0]]) * voxel_size
         x_lim = {"min": offset_chunk[0], "max": offset_chunk[0] + size_chunk[0]}
@@ -591,9 +591,12 @@ class DB(object):
             v0 = index_map[np.uint64(e["id0"])]
             v1 = index_map[np.uint64(e["id1"])]
             e_g1 = g1.add_edge(v0, v1)
-           
-            if e["cost"] is not None:
-                g1.set_edge_cost(e_g1, float(e["cost"]))
+          
+            try:
+                if e["cost"] is not None:
+                    g1.set_edge_cost(e_g1, float(e["cost"]))
+            except KeyError:
+                pass
         
             if e["selected"]:
                 g1.select_edge(e_g1)
