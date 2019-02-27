@@ -14,7 +14,10 @@ from mtrack.graphs import g1_graph
 import nml_io
 import pickle
 from scipy.spatial import KDTree
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    pass
 
 diam_out = 24 # Outer diameter of microtubule in nm
 

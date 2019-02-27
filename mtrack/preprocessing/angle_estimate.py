@@ -3,7 +3,10 @@ import h5py
 import skimage.measure
 import random
 from scipy import ndimage
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    pass
 import pickle
 assert(skimage.__version__ == '0.14.0')
 
