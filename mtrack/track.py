@@ -38,6 +38,8 @@ def track(config):
     z_lim_roi = {"min": roi_offset[2],
                  "max": roi_offset[2] + roi_volume_size[2]}
 
+    db_credentials = config["db_credentials"]
+
 
     if np.any(config["context_size"] * config["voxel_size"] < 2 * config["distance_threshold"]):
         raise ValueError("The context size needs to be at least " +\
@@ -197,6 +199,7 @@ def track(config):
                               mode=config["candidate_extraction_mode"],
                               name_db=config["name_db"],
                               collection=config["name_collection"],
+                              db_credentials=config["db_credentials"],
                               gs=gs,
                               ps=ps,
                               distance_threshold=config["distance_threshold"],
@@ -221,13 +224,14 @@ def track(config):
         of the config file.
         """
     if config["reset"]:
-        db = DB()
+        db = DB(config["db_credentials"])
         db.reset_collection(config["name_db"], 
                             config["name_collection"])
 
     if config["solve"]:
         solve_candidate_volume(name_db=config["name_db"],
                                collection=config["name_collection"],
+                               db_credentials=config["db_credentials"],
                                cc_min_vertices=config["cc_min_vertices"],
                                start_edge_prior=config["start_edge_prior"],
                                selection_cost=config["selection_cost"],
@@ -243,7 +247,7 @@ def track(config):
 
     
     if config["validate_selection"]:
-        db = DB()
+        db = DB(config["db_credentials"])
         try:
             g1_selected = db.validate_selection(name_db=config["name_db"],
                                                 collection=config["name_collection"],
@@ -307,6 +311,7 @@ def write_candidate_graph(pm_chunks,
                           mode,
                           name_db,
                           collection,
+                          db_credentials,
                           gs,
                           ps,
                           distance_threshold,
@@ -341,12 +346,12 @@ def write_candidate_graph(pm_chunks,
 
 
     logging.info("Extract pm chunks...")
-    db = DB()
+    db = DB(db_credentials)
     n_chunk = 0
     id_offset = 1
     
     # Overwrite if necesseray:
-    graph = db.get_client(name_db, collection, overwrite=overwrite)
+    graph = db.get_collection(name_db, collection, overwrite=overwrite)
 
 
     if mode == "double":
@@ -486,6 +491,7 @@ def write_candidate_graph(pm_chunks,
 
 def solve_candidate_volume(name_db,
                            collection,
+                           db_credentials,
                            cc_min_vertices,
                            start_edge_prior,
                            selection_cost,
@@ -515,6 +521,7 @@ def solve_candidate_volume(name_db,
                     results.append(pool.apply_async(solve_core, (cores[core_id],
                                                              name_db,
                                                              collection,
+                                                             db_credentials,
                                                              cc_min_vertices,
                                                              start_edge_prior,
                                                              selection_cost,
@@ -533,6 +540,7 @@ def solve_candidate_volume(name_db,
                     results.append(solve_core(cores[core_id],
                                                  name_db,
                                                  collection,
+                                                 db_credentials,
                                                  cc_min_vertices,
                                                  start_edge_prior,
                                                  selection_cost,
@@ -550,6 +558,7 @@ def solve_candidate_volume(name_db,
 def solve_core(core, 
                name_db,
                collection,
+               db_credentials,
                cc_min_vertices,
                start_edge_prior,
                selection_cost,
@@ -562,7 +571,7 @@ def solve_core(core,
     try:
         logging.info("Core id {}".format(core.id))
         logging.info("Process core {}...".format(core.id))
-        db = DB()
+        db = DB(db_credentials)
         solver = CoreSolver()
         
         solved = db.is_solved(name_db,
@@ -614,6 +623,7 @@ def solve_core(core,
 
 def cluster(name_db,
             collection,
+            db_credentials,
             roi,
             output_dir,
             epsilon_lines,
@@ -624,7 +634,7 @@ def cluster(name_db,
             voxel_size,
             use_ori=True):
 
-    db = DB()
+    db = DB(db_credentials)
 
     x_lim_roi = {"min": roi[0][0] * voxel_size[0],
                  "max": roi[0][1] * voxel_size[0]}

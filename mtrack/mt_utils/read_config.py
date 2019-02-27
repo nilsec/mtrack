@@ -17,6 +17,7 @@ def read_config(path):
         cfg_dict["name_collection"] = config.get("Data", "name_collection")
         cfg_dict["extract_candidates"] = config.getboolean("Data", "extract_candidates")
         cfg_dict["reset"] = config.getboolean("Data", "reset")
+        cfg_dict["db_credentials"] = config.get("Data", "db_credentials")
 
         # Preprocessing
         cfg_dict["gaussian_sigma_single"] = config.getfloat("Preprocessing", "gaussian_sigma_single")

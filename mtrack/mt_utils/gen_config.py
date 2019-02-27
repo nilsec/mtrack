@@ -12,6 +12,7 @@ def gen_config(candidate_extraction_mode,
                name_collection,
                extract_candidates,
                reset,
+               db_credentials,
                gaussian_sigma_single,
                gaussian_sigma_perp,
                gaussian_sigma_par,
@@ -55,6 +56,7 @@ def gen_config(candidate_extraction_mode,
     config.set('Data', 'name_collection', str(name_collection))
     config.set('Data', 'extract_candidates', str(extract_candidates))
     config.set('Data', 'reset', str(reset))
+    config.set('Data', 'db_credentials', str(db_credentials))
 
     config.add_section('Preprocessing')
     config.set('Preprocessing', 'gaussian_sigma_single', str(gaussian_sigma_single))
@@ -131,6 +133,7 @@ if __name__ == "__main__":
                name_collection="collection_name",
                extract_candidates=True,
                reset=False,
+               db_credentials="path_to_db_credentials.ini",
                gaussian_sigma_single=0.5,
                gaussian_sigma_perp=0.5,
                gaussian_sigma_par=0.5,

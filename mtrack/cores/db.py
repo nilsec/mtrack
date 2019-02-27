@@ -15,11 +15,11 @@ from mtrack.evaluation import DDA3
 
 from mtrack.graphs import g1_graph
 from mtrack.preprocessing import connect_graph_locally
-import mtrack.settings as settings
-settings.init()
+import ConfigParser
+
 
 class DB(object):
-    def __init__(self):
+    def __init__(self, credentials):
         self.vertex = {"px": None,
                        "py": None,
                        "pz": None,
@@ -44,15 +44,32 @@ class DB(object):
                      "time_selected": [],
                      "by_selected": []}
 
+        with open(credentials) as fp:
+            config = ConfigParser.ConfigParser()
+            config.readfp(fp)
+            self.credentials = {}
+            self.credentials["user"] = config.get("Credentials", "user")
+            self.credentials["password"] = config.get("Credentials", "password")
+            self.credentials["host"] = config.get("Credentials", "host")
+            self.credentials["port"] = config.get("Credentials", "port")
+
+        self.auth_string = 'mongodb://{}:{}@{}:{}'.format(self.credentials["user"],
+                                                          self.credentials["password"],
+                                                          self.credentials["host"],
+                                                          self.credentials["port"])
+
+    def get_client(self):
+        client = MongoClient(self.auth_string, connect=False)
+        return client
 
     def get_db(self, name_db):
-        client = MongoClient(port=settings.port)
+        client = self.get_client()
         db = client[name_db]
         return db
 
-    def get_client(self, name_db, collection, overwrite=False):
+    def get_collection(self, name_db, collection, overwrite=False):
         logging.info("Get client...")
-        client = MongoClient(port=settings.port, connect=False)
+        client = self.get_client()
 
         db = self.get_db(name_db)
         collections = db.collection_names()
@@ -81,7 +98,7 @@ class DB(object):
 
     def create_collection(self, name_db, collection, overwrite=False):
         logging.info("Create new db collection {}.{}...".format(name_db, collection))
-        client = MongoClient(port=settings.port)
+        client = self.get_client()
         db = self.get_db(name_db)
         
         if overwrite:
@@ -108,7 +125,7 @@ class DB(object):
 
         logging.info("Add edge cost...")
 
-        graph = self.get_client(name_db, collection, overwrite=False)
+        graph = self.get_collection(name_db, collection, overwrite=False)
 
         voxel_size = np.array(voxel_size)
         f = h5py.File(prob_map_file, "r")
@@ -261,7 +278,7 @@ class DB(object):
                        z_lim=None,
                        id_writer=-1):
         
-        graph = self.get_client(name_db, collection, overwrite=False)
+        graph = self.get_collection(name_db, collection, overwrite=False)
 
         logging.info("Write solution...")
         if x_lim is not None and y_lim is not None and z_lim is not None:
@@ -333,7 +350,7 @@ class DB(object):
                      collection,
                      core):
         
-        graph = self.get_client(name_db, collection, overwrite=False)
+        graph = self.get_collection(name_db, collection, overwrite=False)
 
 
         """
@@ -395,7 +412,7 @@ class DB(object):
                          overwrite=False):
 
 
-        graph = self.get_client(name_db, collection, overwrite=overwrite)
+        graph = self.get_collection(name_db, collection, overwrite=overwrite)
 
         logging.info("Write candidate vertices...")
         for candidate in candidates:
@@ -432,7 +449,7 @@ class DB(object):
                          collection):
 
         logging.info("Reset {}.{}...".format(name_db, collection))
-        graph = self.get_client(name_db, collection)
+        graph = self.get_collection(name_db, collection)
 
         graph.update_many({}, 
                           {"$set": {"selected": False, 
@@ -466,8 +483,8 @@ class DB(object):
         g1_connected = connect_graph_locally(g1_candidates,
                                              distance_threshold)
 
-        graph = self.get_client(name_db,
-                                collection)
+        graph = self.get_collection(name_db,
+                                    collection)
 
         for e in g1_connected.get_edge_iterator():
             v0 = index_map[e.source()]
@@ -517,7 +534,7 @@ class DB(object):
 
         logging.info("Get vertex ROI...")
         
-        graph = self.get_client(name_db, collection, overwrite=False)
+        graph = self.get_collection(name_db, collection, overwrite=False)
 
         logging.info("Perform vertex query...")
 
