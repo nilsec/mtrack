@@ -41,6 +41,8 @@ def get_derivatives(cubic_spline, up_to_order=3):
 
 def get_energy(cs_d0, cs_d1, cs_d2, cs_d3, t, plot=False):
     """
+    See Frenet-Serret Formulas on wiki
+
     Calculates the energy of a given cubic spline by
     integrating torsion and curvature along
     the line.
@@ -57,7 +59,7 @@ def get_energy(cs_d0, cs_d1, cs_d2, cs_d3, t, plot=False):
              the curvature as a function of t
              the torsion as a function of t
     """
-    epsilon = 10**(-6)
+    epsilon = 10**(-8)
 
     d0_t = np.array(cs_d0(t))
     d1_t = np.array(cs_d1(t))
@@ -134,4 +136,4 @@ def test_line(n=100):
     plt.show()
 
 if __name__ == "__main__":
-    test_helix()
+    test_line()
