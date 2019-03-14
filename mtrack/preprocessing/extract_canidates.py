@@ -324,16 +324,6 @@ def extract_candidates_single(prob_map,
 
     return candidates
 
-def extract_maxima_candidates(maxima):
-    f = h5py.File(maxima, "r")
-    maxima = np.array(f["maxima"])
-    f.close()
-
-    candidate_positions = np.nonzero(maxima).T
-    candidates = [angle_estimate.MTCandidate(candidate_positions[i], np.array([1.,0.,0.]), i, partner_identifier=-1) for i in range(len(candidate_positions))]
-    return candidates
-
-
 def candidates_to_g1(candidates, voxel_size):
     g1 = g1_graph.G1(len(candidates))
     
