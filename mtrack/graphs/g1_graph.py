@@ -358,7 +358,7 @@ class G1(G):
                         ordered_points[2] = np.array(self.get_position(end_vertices[1]))
                         ordered_points[1] = np.array(self.get_position(middle_vertex))
 
-                        energy = get_energy_from_ordered_points(ordered_points, n_samples=100)
+                        energy = get_energy_from_ordered_points(ordered_points, n_samples=1000)
                         edge_combination_cost[(e1, e2)] = (energy * comb_angle_factor)**2
 
 
