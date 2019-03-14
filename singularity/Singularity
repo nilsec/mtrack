@@ -80,8 +80,11 @@ python setup.py install
 pip install -r requirements.txt
 
 %environment
-export GRB_LICENSE_FILE=/misc/local/gurobi-8.0.1/gurobi.lic
-export GUROBI_ROOT_DIR=/opt/gurobi810/linux64
+export GUROBI_HOME=/misc/local/gurobi-8.0.1
+export PATH=${GUROBI_HOME}/bin
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${GUROBI_HOME}/lib
+export GRB_LICENSE_FILE=${GUROBI_HOME}/gurobi.lic
+#export GUROBI_ROOT_DIR=/opt/gurobi810/linux64
 export PYTHONPATH=${PYLP_ROOT}:$PYTHONPATH
 export PYTHONPATH=/src/mtrack:$PYTHONPATH
 export PATH=/miniconda/bin:$PATH
