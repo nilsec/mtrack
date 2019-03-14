@@ -43,11 +43,11 @@ def retrieve(name_db,
               voxel_size=voxel_size)
 
 if __name__ == "__main__":
-    retrieve("test_costs",
-             "v0",
-             {"min": 100, "max": 1300 * 4},
-             {"min": 100, "max": 1300 * 4},
-             {"min": 90,"max": 120*40},
+    retrieve("b+_full",
+             "trial_0",
+             {"min": 0, "max": 1200 * 4},
+             {"min": 0, "max": 1200 * 4},
+             {"min": 0,"max": 120*40},
              [4.,4.,40.],
-             "./test_costs_validation.nml",
+             "./b+_candidates.nml",
              selected_only=False)
