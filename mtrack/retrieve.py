@@ -6,6 +6,7 @@ import pdb
 
 def retrieve(name_db,
              collection,
+             db_credentials,
              x_lim,
              y_lim,
              z_lim,
@@ -13,7 +14,7 @@ def retrieve(name_db,
              output_path,
              selected_only=True):
 
-    db = DB()
+    db = DB(db_credentials)
     if selected_only:
         g1, index_map = db.get_selected(name_db,
                                         collection,
@@ -43,11 +44,12 @@ def retrieve(name_db,
               voxel_size=voxel_size)
 
 if __name__ == "__main__":
-    retrieve("b+_full",
-             "trial_0",
+    retrieve("max_pooling_0",
+             "v0",
+             "../mongo.ini",
              {"min": 0, "max": 1200 * 4},
              {"min": 0, "max": 1200 * 4},
              {"min": 0,"max": 120*40},
              [4.,4.,40.],
-             "./b+_candidates.nml",
+             "./b+_candidates_mp.nml",
              selected_only=False)

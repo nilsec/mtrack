@@ -13,7 +13,6 @@ setup(
         'mtrack.graphs',
         'mtrack.cores',
         'mtrack.preprocessing',
-        'mtrack.postprocessing',
         'mtrack.evaluation',
         'mtrack.mt_utils'
             ],

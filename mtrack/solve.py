@@ -6,9 +6,6 @@ import logging
 from mtrack.graphs import g1_graph, graph_converter,\
                    cost_converter, g2_solver
 
-from mtrack.postprocessing import combine_knossos_solutions,\
-                           combine_gt_solutions
-
 def solve(g1,
           start_edge_prior,
           orientation_factor,

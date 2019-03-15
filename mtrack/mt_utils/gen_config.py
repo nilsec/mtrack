@@ -1,24 +1,15 @@
 import ConfigParser
 import os
 
-def gen_config(candidate_extraction_mode,
-               prob_map_chunks_single_dir,
-               prob_map_chunks_perp_dir,
-               prob_map_chunks_par_dir,
-               single_stack_h5,
-               perp_stack_h5,
-               par_stack_h5,
+def gen_config(maxima,
+               maxima_dset,
+               prob_map,
+               prob_map_dset,
                name_db,
                name_collection,
                extract_candidates,
                reset,
                db_credentials,
-               gaussian_sigma_single,
-               gaussian_sigma_perp,
-               gaussian_sigma_par,
-               point_threshold_single,
-               point_threshold_perp,
-               point_threshold_par,
                distance_threshold,
                volume_shape,
                volume_offset,
@@ -48,10 +39,10 @@ def gen_config(candidate_extraction_mode,
     config = ConfigParser.ConfigParser()
 
     config.add_section('Data')
-    config.set('Data', 'single_stack_h5', str(single_stack_h5))
-    config.set('Data', 'perp_stack_h5', str(perp_stack_h5))
-    config.set('Data', 'par_stack_h5', str(par_stack_h5))
-    config.set('Data', 'candidate_extraction_mode', str(candidate_extraction_mode))
+    config.set('Data', 'maxima', str(maxima))
+    config.set('Data', 'maxima_dset', str(maxima_dset))
+    config.set('Data', 'prob_map', str(prob_map))
+    config.set('Data', 'prob_map_dset', str(prob_map_dset))
     config.set('Data', 'name_db', str(name_db))
     config.set('Data', 'name_collection', str(name_collection))
     config.set('Data', 'extract_candidates', str(extract_candidates))
@@ -59,12 +50,6 @@ def gen_config(candidate_extraction_mode,
     config.set('Data', 'db_credentials', str(db_credentials))
 
     config.add_section('Preprocessing')
-    config.set('Preprocessing', 'gaussian_sigma_single', str(gaussian_sigma_single))
-    config.set('Preprocessing', 'gaussian_sigma_perp', str(gaussian_sigma_perp))
-    config.set('Preprocessing', 'gaussian_sigma_par', str(gaussian_sigma_par))
-    config.set('Preprocessing', 'point_threshold_single', str(point_threshold_single))
-    config.set('Preprocessing', 'point_threshold_perp', str(point_threshold_perp))
-    config.set('Preprocessing', 'point_threshold_par', str(point_threshold_par))
     config.set('Preprocessing', 'distance_threshold', str(distance_threshold))
 
     config.add_section('Chunks')
@@ -77,11 +62,7 @@ def gen_config(candidate_extraction_mode,
     config.set('Chunks', 'max_chunk_shape', str(max_chunk_shape[0]) + ", " +\
                                             str(max_chunk_shape[1]) + ", " +\
                                             str(max_chunk_shape[2]))
-
     config.set('Chunks', 'chunk_output_dir', str(chunk_output_dir))
-    config.set('Chunks', 'prob_map_chunks_single_dir', str(prob_map_chunks_single_dir))
-    config.set('Chunks', 'prob_map_chunks_perp_dir', str(prob_map_chunks_perp_dir))
-    config.set('Chunks', 'prob_map_chunks_par_dir', str(prob_map_chunks_par_dir))
 
     config.add_section('Cores')
     config.set('Cores', 'core_size', str(core_size[0]) + ", " +\
@@ -122,24 +103,15 @@ def gen_config(candidate_extraction_mode,
 
 
 if __name__ == "__main__":
-    gen_config(candidate_extraction_mode="single/double",
-               prob_map_chunks_single_dir=None,
-               prob_map_chunks_perp_dir=None,
-               prob_map_chunks_par_dir=None,
-               single_stack_h5=None,
-               perp_stack_h5=None,
-               par_stack_h5=None,
+    gen_config(maxima=None,
+               maxima_dset=None,
+               prob_map=None,
+               prob_map_dset=None,
                name_db="db_name",
                name_collection="collection_name",
                extract_candidates=True,
                reset=False,
                db_credentials="path_to_db_credentials.ini",
-               gaussian_sigma_single=0.5,
-               gaussian_sigma_perp=0.5,
-               gaussian_sigma_par=0.5,
-               point_threshold_single=0.5,
-               point_threshold_perp=0.6,
-               point_threshold_par=0.6,
                distance_threshold=175,
                volume_shape=[154,1524,1524],
                volume_offset=[0,0,0],

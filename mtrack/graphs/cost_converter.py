@@ -6,13 +6,17 @@ class CostConverter:
                  vertex_cost_params,
                  edge_cost_params,
                  edge_combination_cost_params,
-                 selection_cost):
+                 selection_cost,
+                 edge_combination_cost="angle"):
 
         self.g1 = g1
         self.vcps = vertex_cost_params
         self.ecps = edge_cost_params
         self.eccps = edge_combination_cost_params
         self.selection_cost = selection_cost
+        if not edge_combination_cost in ["angle", "curvature"]:
+            raise ValueError("Choose between /angle/ or /curvature/")
+        self.edge_combination_cost = edge_combination_cost
 
     def get_g2_cost(self,
                     g2,
@@ -20,7 +24,10 @@ class CostConverter:
 
         g1_vertex_cost = self.g1.get_vertex_cost(**self.vcps)
         g1_edge_cost = self.g1.get_edge_costs(**self.ecps)
-        g1_edge_combination_cost = self.g1.get_edge_combination_cost(**self.eccps)
+        if self.edge_combination_cost == "angle":
+            g1_edge_combination_cost = self.g1.get_edge_combination_cost_angle(**self.eccps)
+        else:
+            g1_edge_combination_cost = self.g1.get_edge_combination_cost_curvature(**self.eccps)
 
         g2_index_map = g2.get_vertex_index_map()
         g2_cost = {}

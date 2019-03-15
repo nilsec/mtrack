@@ -121,7 +121,8 @@ class DB(object):
                       collection,
                       voxel_size,
                       volume_offset,
-                      prob_map_file):
+                      prob_map_file,
+                      prob_map_dset):
 
         logging.info("Add edge cost...")
 
@@ -129,8 +130,8 @@ class DB(object):
 
         voxel_size = np.array(voxel_size)
         f = h5py.File(prob_map_file, "r")
-        prob_map = np.array(f["exported_data"])
-        attrs = f["exported_data"].attrs.items()
+        prob_map = np.array(f[prob_map_dset])
+        attrs = f[prob_map_dset].attrs.items()
         f.close()
 
         shape = np.shape(prob_map)
@@ -141,6 +142,7 @@ class DB(object):
 
         #offset_chunk += np.array(volume_offset)
         offset_chunk *= np.array(voxel_size, dtype=int)
+
         size_chunk = np.array([shape[2], shape[1], shape[0]]) * voxel_size
         x_lim = {"min": offset_chunk[0], "max": offset_chunk[0] + size_chunk[0]}
         y_lim = {"min": offset_chunk[1], "max": offset_chunk[1] + size_chunk[1]}
@@ -419,6 +421,9 @@ class DB(object):
             pos_phys = np.array([round(candidate.position[j]) * voxel_size[j] for j in range(3)])
             assert(np.all(np.array(pos_phys, dtype=int) == pos_phys))
             ori_phys = np.array([candidate.orientation[j] * voxel_size[j] for j in range(3)])
+
+
+            print "z_candidate:", pos_phys[2]/voxel_size[2]
 
             partner = candidate.partner_identifier
             vertex_id = candidate.identifier
