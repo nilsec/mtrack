@@ -58,8 +58,6 @@ def candidates_to_g1(candidates, voxel_size):
 
 
 def connect_graph_locally(g1, distance_threshold):
-    print "Construct KDTree...\n"
-
     positions = []
     id = 0
     for v in g1.get_vertex_iterator():
@@ -68,12 +66,8 @@ def connect_graph_locally(g1, distance_threshold):
         id += 1
 
     kdtree = KDTree(positions)
-    
-    print "Query pairs...\n"
-    # Can tweek eps for speed gains
     pairs = kdtree.query_pairs(distance_threshold, p=2.0, eps=0)
 
-    print "Construct graph...\n"
     
     for edge in pairs:
         if g1.get_partner(edge[0]) != edge[1]:

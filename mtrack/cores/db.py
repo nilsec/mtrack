@@ -422,9 +422,6 @@ class DB(object):
             assert(np.all(np.array(pos_phys, dtype=int) == pos_phys))
             ori_phys = np.array([candidate.orientation[j] * voxel_size[j] for j in range(3)])
 
-
-            print "z_candidate:", pos_phys[2]/voxel_size[2]
-
             partner = candidate.partner_identifier
             vertex_id = candidate.identifier
            
