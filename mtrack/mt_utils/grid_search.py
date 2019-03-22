@@ -7,7 +7,6 @@ import time
 
 import multiprocessing
 from mtrack.mt_utils import gen_config, read_config,  NoDaemonPool # Need outer non-daemon pool
-from mtrack.preprocessing.create_probability_map import ilastik_get_prob_map
 from mtrack import track
 
 def generate_grid(param_dict,
@@ -16,9 +15,7 @@ def generate_grid(param_dict,
 
     """
     Generate directory structure and config files
-    for the grid run and extract prob maps if needed. 
-    Do Ilastik prob map predictions
-    before to avoid redundant computations.
+    for the grid run. 
     """
 
     grid = deque(dict(zip(param_dict, x))\
@@ -38,14 +35,6 @@ def generate_grid(param_dict,
 
         params_n["validated_output_path"] = params_n["validated_output_path"].format(
                                                             params_n["cfg_output_dir"])
-        try: 
-            params_n["prob_map_chunks_perp_dir"] = params_n["prob_map_chunks_perp_dir"].format(
-                                                            params_n["cfg_output_dir"])
- 
-            params_n["prob_map_chunks_par_dir"] = params_n["prob_map_chunks_par_dir"].format(
-                                                            params_n["cfg_output_dir"])
-        except AttributeError:
-            pass
  
         gen_config(**params_n)
         n += 1
