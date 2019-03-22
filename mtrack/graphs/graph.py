@@ -234,24 +234,19 @@ class G:
 
     def get_nested_sbm_masks(self, edge_weights, rec_types="real-exponential"):
         if edge_weights:
-            print "Minimize bested block model with edge weights..."
             state_args = dict(recs=[self.g.ep.weight], rec_types=[rec_types])
         else:
-            print "Minimize nested block model..."
             state_args = {}
         
         state = gt.minimize_nested_blockmodel_dl(self.g, state_args=dict(recs=[self.g.ep.weight], 
                                                      rec_types=[rec_types]))
         states = state.get_levels()
 
-        print "Generate masks..."
         mask_list = []
         for state in states:
             max_comp = state.B
             masks = []
             for label in range(0, max_comp):
-                print state.b.a
-                print len(state.b.a)
                 binary_mask = state.b.a == label
             
                 cc_vp = self.g.new_vertex_property("bool")
@@ -267,15 +262,11 @@ class G:
  
  
     def get_sbm_masks(self):
-        print "Minimize block model..."
         state = gt.minimize_blockmodel_dl(self.g)
         
-        print "Generate masks..."
         max_comp = state.B
         masks = []
         for label in range(0, max_comp):
-            print state.b.a
-            print len(state.b.a)
             binary_mask = state.b.a == label
             
             cc_vp = self.g.new_vertex_property("bool")
@@ -291,9 +282,7 @@ class G:
         return mask_vp
 
     def get_min_cut_masks(self):
-        print "Get min cut masks..."
         min_cut, partition = gt.min_cut(self.g, self.g.ep.weight)
-        print "min cut: ", min_cut
  
         masks = []
         for p in [0,1]:
@@ -308,14 +297,12 @@ class G:
                                                  directed=False,
                                                  attractors=False)
 
-        print "Generate Masks..."
         masks = []
         max_comp = max(component_vp.a)
         for label in range(0, max(max_comp,1)):
             if hist[label] < min_vertices:
                 continue
   
-            print "Get label {}/{}".format(label, max_comp)
             binary_mask = component_vp.a == label
 
             cc_vp = self.g.new_vertex_property("bool")
