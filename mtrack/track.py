@@ -275,6 +275,7 @@ def write_candidate_graph(max_chunks,
                         chunk_limits[2][0]]
 
         candidates = extract_maxima_candidates(chunk,
+                                               max_dset,
                                                offset_chunk,
                                                id_offset)
 
@@ -485,10 +486,10 @@ def solve_core(core,
 if __name__ == "__main__":
     #cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/test_runs/run_7/b+_full/config.ini")
     #track(cfg_dict)
-    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/stephan/experiments/setup01/config.ini")
-    track(cfg_dict)
-
-
-    #cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/max_pool/debug/config.ini")
+    #cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/stephan/experiments/setup01/config.ini")
     #track(cfg_dict)
+
+
+    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/miccai/grid_search/bestbet_sm/grid/b+/grid_0/config.ini")
+    track(cfg_dict)
 

@@ -25,10 +25,11 @@ class MTCandidate(object):
 
 
 def extract_maxima_candidates(maxima,
+                              maxima_dset,
                               offset_pos=np.array([0,0,0]),
                               identifier_0=0):
     f = h5py.File(maxima, "r")
-    maxima = np.array(f["maxima"])
+    maxima = np.array(f[maxima_dset])
     f.close()
 
     candidate_positions = np.array(np.nonzero(maxima)).T
