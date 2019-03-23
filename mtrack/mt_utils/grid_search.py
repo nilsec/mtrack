@@ -4,6 +4,7 @@ from collections import deque
 import json
 import signal
 import time
+import logging
 
 import multiprocessing
 from mtrack.mt_utils import gen_config, read_config,  NoDaemonPool # Need outer non-daemon pool
@@ -48,17 +49,17 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
     for cfg in grid_configs:
         cfg_dict = read_config(cfg)
         if skip_condition(cfg_dict):
-            print "Skip {}...".format(os.path.dirname(cfg))
+            logging.info("Skip {}...".format(os.path.dirname(cfg)))
             grid_configs.remove(cfg)
             n_skipped += 1
             
-    print "Skipped {} runs".format(n_skipped)
-    print "Start grid search with {} workers on {} cpus...".format(n_workers, multiprocessing.cpu_count())
-    print "Grid size: {}".format(len(grids))
+    logging.info("Skipped {} runs".format(n_skipped))
+    logging.info("Start grid search with {} workers on {} cpus...".format(n_workers, multiprocessing.cpu_count()))
+    logging.info("Grid size: {}".format(len(grids)))
     start = time.time()
 
     if n_workers > 1:
-        print "Working on MP branch..."
+        logging.info("Working on MP branch...")
         sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
         pool = NoDaemonPool(n_workers)
         signal.signal(signal.SIGINT, sigint_handler)
@@ -75,9 +76,9 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
                 elapsed = time.time() - start
                 avg_time = elapsed/i
                
-                print "STATUS: Finished {}/{} in {} min. Average time per run: {} min".format(i, len(grid_configs), int(elapsed/60.), int(avg_time/60.))
-                print "Total runs including skip runs done {}/{}".format(i + n_skipped, len(grids))
-                print "Expected time till termination: {} min".format(int((avg_time * (len(grid_configs) - i))/60.))
+                logging.info("STATUS: Finished {}/{} in {} min. Average time per run: {} min".format(i, len(grid_configs), int(elapsed/60.), int(avg_time/60.)))
+                logging.info("Total runs including skip runs done {}/{}".format(i + n_skipped, len(grids)))
+                logging.info("Expected time till termination: {} min".format(int((avg_time * (len(grid_configs) - i))/60.)))
                 i += 1
 
         finally:
@@ -85,10 +86,10 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
             pool.join()
 
     else:
-        print "Working on SP branch..."
+        logging.info("Working on SP branch...")
         for cfg in grid_configs:
             cfg_dict = read_config(cfg)
             if not skip_condition(cfg_dict):
                 track(cfg_dict)
             else:
-                print "Skip {}...".format(os.path.dirname(cfg))
+                logging.info("Skip {}...".format(os.path.dirname(cfg)))
