@@ -488,6 +488,6 @@ if __name__ == "__main__":
     #track(cfg_dict)
 
 
-    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/miccai/grid_search/bestbet_sm/grid/b+/grid_0/config.ini")
+    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/miccai/grid_search/bestbet/grid/b+/grid_0/config.ini")
     track(cfg_dict)
 
