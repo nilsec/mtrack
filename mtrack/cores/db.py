@@ -417,7 +417,7 @@ class DB(object):
         graph = self.get_collection(name_db, collection, overwrite=overwrite)
 
         logging.info("Write candidate vertices...")
-        vertex_id = 0
+        vertex_id = graph.find({"selected": {"$exists": True}}).count()
         for candidate in candidates:
             pos_phys = np.array([round(candidate.position[j]) * voxel_size[j] for j in range(3)])
             assert(np.all(np.array(pos_phys, dtype=int) == pos_phys))
