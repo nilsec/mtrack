@@ -201,23 +201,21 @@ def chunk_prob_map(volume_shape,
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    f0 = h5py.File(prob_map_h5)
-    data = f0[dset]
-    assert(len(data.shape) == 3)
+    with h5py.File(prob_map_h5, "r") as f0:
+        data = f0[dset]
+        assert(len(data.shape) == 3)
 
-    for chunk in chunks:
-        limits = chunk.limits
-        chunk_data = np.array(data[limits[2][0] - volume_offset[2]:limits[2][1] - volume_offset[2],
-                                   limits[1][0] - volume_offset[1]:limits[1][1] - volume_offset[1],
-                                   limits[0][0] - volume_offset[0]:limits[0][1] - volume_offset[0]])
+        for chunk in chunks:
+            limits = chunk.limits
+            chunk_data = np.array(data[limits[2][0] - volume_offset[2]:limits[2][1] - volume_offset[2],
+                                       limits[1][0] - volume_offset[1]:limits[1][1] - volume_offset[1],
+                                       limits[0][0] - volume_offset[0]:limits[0][1] - volume_offset[0]])
 
-        f = h5py.File(output_dir + "/chunk_{}.h5".format(chunk.id), 'w')
-        f.create_dataset(dset, data=chunk_data)
-        f[dset].attrs.create("chunk_id", chunk.id)
-        f[dset].attrs.create("limits", limits)
-        f.close()
-
-    f0.close()
+            f = h5py.File(output_dir + "/chunk_{}.h5".format(chunk.id), 'w')
+            f.create_dataset(dset, data=chunk_data)
+            f[dset].attrs.create("chunk_id", chunk.id)
+            f[dset].attrs.create("limits", limits)
+            f.close()
 
     return output_dir
 
