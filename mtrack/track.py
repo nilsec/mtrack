@@ -471,23 +471,6 @@ def write_candidate_graph(pm_chunks,
         pool.terminate()
         pool.join()
 
-    logging.info("Add edge costs...")
-    for chunk in pm_chunks:
-        logging.info("Work on chunk {}/{}...".format(n_chunk, len(pm_chunks)))
-
-        f = h5py.File(chunk, "r")
-        attrs = f["exported_data"].attrs.items()
-        shape = np.shape(np.array(f["exported_data"]))
-        f.close()
-
-        db.add_edge_cost(name_db,
-                         collection,
-                         voxel_size,
-                         volume_offset,
-                         chunk)
-
-
-
 
 def solve_candidate_volume(name_db,
                            collection,
