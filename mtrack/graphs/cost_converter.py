@@ -19,7 +19,7 @@ class CostConverter:
                     index_maps):
 
         g1_vertex_cost = self.g1.get_vertex_cost(**self.vcps)
-        g1_edge_cost = self.g1.get_edge_costs(**self.ecps)
+        g1_edge_cost = self.g1.get_edge_cost(**self.ecps)
         g1_edge_combination_cost = self.g1.get_edge_combination_cost(**self.eccps)
 
         g2_index_map = g2.get_vertex_index_map()

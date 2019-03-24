@@ -2,11 +2,9 @@ import numpy as np
 from numpy.core.umath_tests import inner1d
 import os
 import itertools
-import logging
 
 from mtrack.graphs.graph import G
 from mtrack.graphs.start_edge import StartEdge 
-from mtrack.mt_utils.spline_interpolation import get_energy_from_ordered_points
 
 class G1(G):
     START_EDGE = StartEdge()
@@ -25,7 +23,6 @@ class G1(G):
                 G.new_vertex_property(self, "solved", dtype="bool", value=False)
                 G.new_edge_property(self, "selected", dtype="bool", value=False)
                 G.new_edge_property(self, "solved", dtype="bool", value=False)
-                G.new_edge_property(self, "edge_cost", dtype="double", value=0.0)
         
                 for v in G.get_vertex_iterator(self):
                     self.set_partner(v, -1) 
@@ -141,12 +138,6 @@ class G1(G):
 
     def solve_edge(self, e):
         G.set_edge_property(self, "solved", None, None, True, e)
-
-    def set_edge_cost(self, e, edge_cost):
-        G.set_edge_property(self, "edge_cost", None, None, edge_cost, e)
-
-    def get_edge_cost(self, e):
-        return G.get_edge_property(self, "edge_cost", e=e)
         
     def set_orientation(self, u, value):
         assert(type(value) == np.ndarray)
@@ -158,7 +149,6 @@ class G1(G):
     def get_orientation(self, u):
         orientations = G.get_vertex_property(self, "orientation")
         return orientations[u]
-
 
     def get_orientation_array(self):
         return G.get_vertex_property(self, "orientation").get_2d_array([0,1,2])
@@ -264,9 +254,44 @@ class G1(G):
         self.g.edge_properties["solved"] = new_solved_edges
                 
                 
-    def get_edge_costs(self, orientation_factor, start_edge_prior):
-        edge_cost_tot = {e: self.get_edge_cost(e) * orientation_factor for e in G.get_edge_iterator(self)}
+    def get_edge_cost(self, distance_factor, orientation_factor, start_edge_prior):
+        edge_array = G.get_edge_array(self)
+        vertex_array = G.get_vertex_array(self)
+        index_map = dict(itertools.izip(vertex_array, range(vertex_array.shape[0])))
+        index_map_inv = dict(itertools.izip(range(vertex_array.shape[0]), vertex_array))
+ 
+        
+        edge_array[:, 0] = np.array([index_map[j] for j in edge_array[:,0]])
+        edge_array[:, 1] = np.array([index_map[j] for j in edge_array[:,1]])
+
+        pos_array = self.get_position_array()
+        orientation_array = self.get_orientation_array()
+
+        vectors = (pos_array[:, edge_array[:, 0]] - pos_array[:, edge_array[:, 1]]).T
+
+        d = np.sum(np.abs(vectors)**2, axis=-1)**(1./2.)
+        d_cost = distance_factor * d
+
+        u_v = vectors/np.clip(d[:,None], a_min=10**(-8), a_max=None)
+        
+        o_0 = (orientation_array[:, edge_array[:, 0]]).T
+        o_1 = (orientation_array[:, edge_array[:, 1]]).T
+        o = np.vstack((o_0, o_1))
+        o_norm = np.sum(np.abs(o)**2, axis=-1)**(1./2.)
+        u_o = o/o_norm[:, None] 
+
+        angles = np.arccos(np.clip(inner1d(np.vstack((u_v, u_v)), u_o), -1.0, 1.0))
+        angles[angles >= np.pi/2.] = np.pi - angles[angles >= np.pi/2.]
+        o_cost = angles[:angles.shape[0]/2] + angles[angles.shape[0]/2:] * orientation_factor
+        
+        tot_cost = d_cost + o_cost
+       
+        edge_cost_tot = {G.get_edge(self, index_map_inv[edge_array[i,0]],\
+                                          index_map_inv[edge_array[i, 1]]):\
+                         tot_cost[i] for i in range(tot_cost.shape[0])}
+
         edge_cost_tot[self.START_EDGE] = 2.0 * start_edge_prior
+
         return edge_cost_tot
 
 
@@ -287,7 +312,6 @@ class G1(G):
         edges = []
         cost = []
         prior_cost = {}
-        edge_combination_cost = {}
         """
         Problem: The indices are derived from the vertices in the graph.
         The graphs are filtered versions of a bigger graph where the
@@ -345,23 +369,12 @@ class G1(G):
                         middle_vertex = int(v)
                         middle_indices.extend([middle_vertex, middle_vertex])
 
-                        end_vertices = [int(e1.source()), 
-                                        int(e1.target()), 
-                                        int(e2.source()), 
-                                        int(e2.target())]
+                        end_vertices = set([int(e1.source()), 
+                                            int(e1.target()), 
+                                            int(e2.source()), 
+                                            int(e2.target())])
 
                         end_vertices.remove(middle_vertex)
-                        end_vertices.remove(middle_vertex)
-
-                        ordered_points = [None, None, None]
-                        ordered_points[0] = np.array(self.get_position(end_vertices[0]))
-                        ordered_points[2] = np.array(self.get_position(end_vertices[1]))
-                        ordered_points[1] = np.array(self.get_position(middle_vertex))
-
-                        energy = get_energy_from_ordered_points(ordered_points, n_samples=1000)
-                        edge_combination_cost[(e1, e2)] = (energy * comb_angle_factor)**2
-
-
                         end_indices.extend(list(end_vertices))
                         edges.append((e1, e2))
                         edges_to_middle[(e1, e2)] = int(v)
@@ -369,8 +382,20 @@ class G1(G):
                         (e1, e2) -> end_indices, middle_indices
                         """
 
+        if middle_indices:
+            pos_array = self.get_position_array()
+            end_indices = np.array([index_map[v] for v in end_indices])
+            middle_indices = np.array([index_map[v] for v in middle_indices])
+
+            v = (pos_array[:, end_indices] - pos_array[:, middle_indices]).T
+            norm = np.sum(np.abs(v)**2, axis=-1)**(1./2.)
+            u = v/np.clip(norm[:,None], a_min=10**(-8), a_max=None)
+            angles = np.arccos(np.clip(inner1d(u[::2], u[1::2]), -1.0, 1.0))
+            angles = np.pi - angles
+            cost = cost + list((angles * comb_angle_factor)**2)
+
+        edge_combination_cost = dict(itertools.izip(edges, cost))
         edge_combination_cost.update(prior_cost)
-        logging.info("edge_combination_cost: " + str(edge_combination_cost))
 
         if return_edges_to_middle:
             return edge_combination_cost, edges_to_middle
@@ -378,7 +403,7 @@ class G1(G):
             return edge_combination_cost
     
     def get_sbm(self, output_folder, nested=False, edge_weights=False):
-        logging.info("Find SBM partition...")
+        print "Find SBM partition..."
         if nested:
             mask_list = G.get_nested_sbm_masks(self, edge_weights)
         else:
@@ -387,7 +412,7 @@ class G1(G):
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
         
-        logging.info("Filter Graphs...")
+        print "Filter Graphs..."
         cc_path_list = []
         
         n = 0
@@ -395,7 +420,9 @@ class G1(G):
         levels = len(mask_list)
         level_path_list = []
         for masks in mask_list:
+            print "Level {}/{}".format(l, levels)
             for mask in masks:
+                print "Filter graph {}/{}".format(n, len(masks)) 
                 output_file = output_folder.replace("/", "level_%s/" % l) + "cc{}.gt".format(n)
                 cc_path_list.append(output_file)
             
@@ -431,15 +458,27 @@ class G1(G):
 
         cut_edges = g.get_number_of_edges() - big.get_number_of_edges() - small.get_number_of_edges()
 
+        print "small :", small.get_number_of_vertices()
+        for v in small.get_vertex_iterator():
+            print "vertex id: ", int(v)
+
+        print "-----------"
+        print "big: ", big.get_number_of_vertices()
+        print "edges g: ", g.get_number_of_edges()
+        print "edges small: ", small.get_number_of_edges()
+        print "edges big: ", big.get_number_of_edges()
+        print "removed edges: ", cut_edges, "\n"
+
         return partition, cut_edges
 
     def get_hcs(self, g, remove_singletons=1, hcs=[]):
-        logging.info("Get hcs...")
+        print "Get hcs..."
         if remove_singletons:
-            logging.info("Remove Singletons")
+            print "Remove Singletons"
             singleton_mask = G.get_kcore_mask(g, remove_singletons)
             g.g.set_vertex_filter(singleton_mask)
             g.g.purge_vertices()
+            print g.get_number_of_vertices(), " vertices remaining"
              
         partition, cut_edges = self.get_min_cut(g)
         
@@ -461,33 +500,32 @@ class G1(G):
                        min_k=1,
                        return_graphs=False):
 
-        logging.info("Get components...")
+        print "Get components..."
         if remove_aps:
-            logging.info("Remove articulation points...")
+            print "Remove articulation points..."
             naps_vp = G.get_articulation_points(self)
             G.set_vertex_filter(self, naps_vp)
 
         if min_k > 1:
-            logging.info("Find " + str(min_k) + "-cores...")
- 
+            print "Find {}-cores...".format(min_k)
             kcore_vp = G.get_kcore_mask(self, min_k)
             G.set_vertex_filter(self, kcore_vp)
 
-        logging.info("Find connected components...")
+        print "Find connected components..."
         masks, hist = G.get_component_masks(self, min_vertices)
         
         if output_folder is not None:
             if not os.path.exists(output_folder):
                 os.makedirs(output_folder)
     
-        logging.info("Filter Graphs...")
+        print "Filter Graphs..."
         cc_path_list = []
        
         graph_list = [] 
         n = 0
         len_masks = len(masks)
         for mask in masks:
-            logging.info("Filter graph " + str(n) + "/" + str(len_masks)) 
+            print "Filter graph {}/{}".format(n, len_masks) 
             if output_folder is not None:
                 output_file = output_folder +\
                                 "cc{}_min{}_phy.gt".format(n, min_vertices)
@@ -508,3 +546,4 @@ class G1(G):
             return graph_list
         else:
             return cc_path_list
+
