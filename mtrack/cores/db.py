@@ -154,35 +154,36 @@ class DB(object):
                                     y_lim,
                                     z_lim)
 
-        n_edges = g1.get_number_of_edges()
-        i = 1
-        edge_to_cost = {}
+        if g1 is not None:
+            n_edges = g1.get_number_of_edges()
+            i = 1
+            edge_to_cost = {}
 
-        logging.info("Overlay edges with prob map...")
-        for e in g1.get_edge_iterator():
-            start = np.array(g1.get_position(e.source())/voxel_size, dtype=int)
-            end = np.array(g1.get_position(e.target())/voxel_size, dtype=int)
-            dda3 = DDA3(start, end, scaling=voxel_size)
-            line = dda3.draw()
+            logging.info("Overlay edges with prob map...")
+            for e in g1.get_edge_iterator():
+                start = np.array(g1.get_position(e.source())/voxel_size, dtype=int)
+                end = np.array(g1.get_position(e.target())/voxel_size, dtype=int)
+                dda3 = DDA3(start, end, scaling=voxel_size)
+                line = dda3.draw()
 
-            cost = 0.0
-            for p in line:
-                p -= (offset_chunk/voxel_size).astype(int)
-                cost += (1. - prob_map[p[2], p[1], p[0]])
-            cost /= len(line)
+                cost = 0.0
+                for p in line:
+                    p -= (offset_chunk/voxel_size).astype(int)
+                    cost += (1. - prob_map[p[2], p[1], p[0]])
+                cost /= len(line)
 
-            v0_mapped = index_map[int(e.source())]
-            v1_mapped = index_map[int(e.target())]
+                v0_mapped = index_map[int(e.source())]
+                v1_mapped = index_map[int(e.target())]
 
-            graph.update_one({"$and": [{"id0": {"$in": [v0_mapped, v1_mapped]}},
-                                       {"id1": {"$in": [v0_mapped, v1_mapped]}}]},
-                             {"$set": {"cost": cost}},
-                             upsert=False)
+                graph.update_one({"$and": [{"id0": {"$in": [v0_mapped, v1_mapped]}},
+                                           {"id1": {"$in": [v0_mapped, v1_mapped]}}]},
+                                 {"$set": {"cost": cost}},
+                                 upsert=False)
 
-            if i % 100 == 0:
-                logging.info(str(float(i)/n_edges * 100) +  "% done")
-                logging.info("cost_write: " + str(cost))
-            i += 1
+                if i % 100 == 0:
+                    logging.info(str(float(i)/n_edges * 100) +  "% done")
+                    logging.info("cost_write: " + str(cost))
+                i += 1
 
     def get_g1(self,
                name_db,
@@ -199,7 +200,11 @@ class DB(object):
                                                 z_lim,
                                                 query_edges)
 
-        g1, index_map = self.__roi_to_g1(vertices, edges)
+        if vertices:
+            g1, index_map = self.__roi_to_g1(vertices, edges)
+        else:
+            g1 = None
+            index_map = None
 
 
         return g1, index_map
@@ -482,31 +487,32 @@ class DB(object):
                                                z_lim,
                                                query_edges=True)
 
-        # Already present edges are not added again here:
-        g1_connected = connect_graph_locally(g1_candidates,
-                                             distance_threshold)
+        if g1_candidates is not None:
+            # Already present edges are not added again here:
+            g1_connected = connect_graph_locally(g1_candidates,
+                                                 distance_threshold)
 
-        graph = self.get_collection(name_db,
-                                    collection)
+            graph = self.get_collection(name_db,
+                                        collection)
 
-        for e in g1_connected.get_edge_iterator():
-            v0 = index_map[e.source()]
-            v1 = index_map[e.target()]
-            
-            edge = deepcopy(self.edge)
-            edge["id0"] = v0
-            edge["id1"] = v1
-            edge["selected"] = False
-            edge["solved"] = False
+            for e in g1_connected.get_edge_iterator():
+                v0 = index_map[e.source()]
+                v1 = index_map[e.target()]
+                
+                edge = deepcopy(self.edge)
+                edge["id0"] = v0
+                edge["id1"] = v1
+                edge["selected"] = False
+                edge["solved"] = False
 
-            # Check if edge is already in db:
-            e_N = graph.find({"$and": [{"id0": {"$in": [v0, v1]}},
-                                       {"id1": {"$in": [v0, v1]}}]}).count()
-            assert(e_N<=1)
+                # Check if edge is already in db:
+                e_N = graph.find({"$and": [{"id0": {"$in": [v0, v1]}},
+                                           {"id1": {"$in": [v0, v1]}}]}).count()
+                assert(e_N<=1)
 
-            if e_N == 0:
-                graph.insert_one(edge)
-    
+                if e_N == 0:
+                    graph.insert_one(edge)
+        
     def is_solved(self,
                   name_db,
                   collection,
