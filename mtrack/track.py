@@ -1,6 +1,6 @@
 from mtrack.cores import CoreSolver, CoreBuilder, VanillaSolver, DB
 from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker,\
-                                 stack_to_chunks, ilastik_get_prob_map,\
+                                 stack_to_chunks,\
                                  extract_candidates_double, extract_candidates_single
 from mtrack.mt_utils import read_config, check_overlap
 from mtrack.graphs.g1_graph import G1
