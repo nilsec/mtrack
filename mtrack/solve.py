@@ -12,6 +12,7 @@ from mtrack.postprocessing import combine_knossos_solutions,\
 def solve(g1,
           start_edge_prior,
           orientation_factor,
+          distance_factor,
           comb_angle_factor,
           selection_cost,
           time_limit,
@@ -25,7 +26,8 @@ def solve(g1,
     """
 
     vertex_cost_params = {}
-    edge_cost_params = {"orientation_factor": orientation_factor,
+    edge_cost_params = {"distance_factor": distance_factor,
+                        "orientation_factor": orientation_factor,
                         "start_edge_prior": start_edge_prior}
 
     edge_combination_cost_params = {"comb_angle_factor": comb_angle_factor}

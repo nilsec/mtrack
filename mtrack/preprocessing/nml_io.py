@@ -103,8 +103,7 @@ def g1_to_nml(g1,
         edge_elem = doc.createElement("edge")
        
         build_attributes(edge_elem, [["source", source_id],
-                                     ["target", target_id],
-                                     ["edge_cost", g1.get_edge_property("edge_cost", e=e)]
+                                     ["target", target_id]
                                     ])
 
         edges_elem.appendChild(edge_elem)
