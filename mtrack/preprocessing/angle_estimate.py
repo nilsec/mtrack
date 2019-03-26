@@ -208,7 +208,7 @@ def get_vector(pos_plus, angle_xz, pos_minus=None, verbose=False, plot=False):
         y = r * np.sin(theta) * np.sin(phi)
         z = r * np.cos(theta)
 
-        return (phi, theta, r), (x, y, z)
+        return (phi, theta, r), (0., 0., 1.)
     
     else:
         pos_minus = np.array(pos_minus) 
@@ -245,7 +245,7 @@ def get_vector(pos_plus, angle_xz, pos_minus=None, verbose=False, plot=False):
             plt.axhline(y=0)
             plt.show()
 
-        return (phi_m_to_p, theta, r), (phi_p_to_m, theta, r), (x_m_to_p, y_m_to_p, z_m_to_p), (x_p_to_m, y_p_to_m, z_p_to_m)
+        return (phi_m_to_p, theta, r), (phi_p_to_m, theta, r), (0., 0., 1.), (0., 0., -1.)
 
 
 
