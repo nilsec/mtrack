@@ -42,7 +42,7 @@ def generate_grid(param_dict,
         n += 1
     
 def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
-    grids = [os.path.join(grid_base_dir, f) for f in os.listdir(grid_base_dir) if f != "prob_maps"]
+    grids = [os.path.join(grid_base_dir, f) for f in os.listdir(grid_base_dir) if f != "prob_maps" and not f.endswith(".json")]
     grid_configs = [g + "/config.ini" for g in grids]
     grid_config_dicts = [read_config(cfg) for cfg in grid_configs]
 
@@ -50,11 +50,12 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
     for cfg in grid_configs:
         cfg_dict = read_config(cfg)
         if skip_condition(cfg_dict):
+            print("Skip {}".format(os.path.dirname(cfg)))
             logging.info("Skip {}...".format(os.path.dirname(cfg)))
             grid_configs.remove(cfg)
             n_skipped += 1
             
-    logging.info("Skipped {} runs".format(n_skipped))
+    print("Skipped {} runs".format(n_skipped))
     logging.info("Start grid search with {} workers on {} cpus...".format(n_workers, multiprocessing.cpu_count()))
     logging.info("Grid size: {}".format(len(grids)))
     start = time.time()
