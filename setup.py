@@ -21,7 +21,7 @@ setup(
         'numpy',
         'scipy>=0.18.0',
         'h5py',
-        'scikit-image',
+        'scikit-image==0.14.2',
         'pymongo',
             ],
 )   

@@ -8,7 +8,7 @@ try:
 except ImportError:
     pass
 import pickle
-assert(skimage.__version__ == '0.14.0')
+assert(skimage.__version__ == '0.14.2')
 
 diam_out = 24 # Outer diameter of microtubule in nm.
 
