@@ -57,23 +57,22 @@ def stack_to_chunks(input_stack, output_dir, chunks, volume_offset=np.array([0,0
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    f0 = h5py.File(input_stack)
-    data = f0["exported_data"]
-    assert(len(data.shape) == 3)
+    with h5py.File(input_stack, "r") as f0:
+        data = f0["exported_data"]
+        assert(len(data.shape) == 3)
 
-    for chunk in chunks:
-        limits = chunk.limits
-        chunk_data = np.array(data[limits[2][0] - volume_offset[2]:limits[2][1] - volume_offset[2], 
-                                   limits[1][0] - volume_offset[1]:limits[1][1] - volume_offset[1], 
-                                   limits[0][0] - volume_offset[0]:limits[0][1] - volume_offset[0]])
- 
-        f = h5py.File(output_dir + "/chunk_{}.h5".format(chunk.id), 'w')
-        f.create_dataset("exported_data", data=chunk_data)
-        f["exported_data"].attrs.create("chunk_id", chunk.id)
-        f["exported_data"].attrs.create("limits", limits)
-        f.close()
-    f0.close()
- 
+        for chunk in chunks:
+            limits = chunk.limits
+            chunk_data = np.array(data[limits[2][0] - volume_offset[2]:limits[2][1] - volume_offset[2], 
+                                       limits[1][0] - volume_offset[1]:limits[1][1] - volume_offset[1], 
+                                       limits[0][0] - volume_offset[0]:limits[0][1] - volume_offset[0]])
+     
+            f = h5py.File(output_dir + "/chunk_{}.h5".format(chunk.id), 'w')
+            f.create_dataset("exported_data", data=chunk_data)
+            f["exported_data"].attrs.create("chunk_id", chunk.id)
+            f["exported_data"].attrs.create("limits", limits)
+            f.close()
+     
 
 def ilastik_prob_map_from_zslices(input_dir,
                                   output_dir, 
