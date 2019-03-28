@@ -6,7 +6,7 @@ import logging
 
 from mtrack.graphs.graph import G
 from mtrack.graphs.start_edge import StartEdge 
-from mtrack.mt_utils.spline_interpolation import get_energy_from_ordered_points
+#from mtrack.mt_utils.spline_interpolation import get_energy_from_ordered_points
 
 class G1(G):
     START_EDGE = StartEdge()
