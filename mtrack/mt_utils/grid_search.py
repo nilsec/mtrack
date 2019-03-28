@@ -1,9 +1,9 @@
 import os
 import itertools
 from collections import deque
-import json
 import signal
 import time
+import json
 
 import multiprocessing
 from mtrack.mt_utils import gen_config, read_config,  NoDaemonPool # Need outer non-daemon pool
@@ -67,6 +67,7 @@ def run_grid(grid_base_dir, n_workers=8, skip_condition=lambda cfg_dict: False):
     print "Start grid search with {} workers on {} cpus...".format(n_workers, multiprocessing.cpu_count())
     print "Grid size: {}".format(len(grids))
     start = time.time()
+    json.dump({"t0": start}, open(grid_base_dir + "/start.json", "w+"))
 
     if n_workers > 1:
         print "Working on MP branch..."
