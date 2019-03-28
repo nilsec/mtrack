@@ -142,30 +142,11 @@ def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1
     if not use_distance_costs:
         edge_costs = None
 
-    try:
-        # Quadmatch
-        print "Match using quadmatch..."
-        label_matches, node_matches, num_splits, num_merges, num_fps, num_fns = match_components(nodes_gt, nodes_rec, 
-                                                                                                 edges_gt_rec, labels_gt, labels_rec, 
-                                                                                                 edge_conflicts=edge_conflicts,
-                                                                                                 max_edges=max_edges, edge_costs=edge_costs,
-                                                                                                 optimality_gap=optimality_gap,
-                                                                                                 time_limit=time_limit)
-    except TypeError:
-        # Comatch
-        if use_distance_costs:
-            no_match_cost = max(edge_costs) * 100
-        else:
-            no_match_cost = 0
-
-        print "Failed... Fallback to comatch with no match cost: {}".format(no_match_cost)
-
-        label_matches, node_matches, num_splits, num_merges, num_fps, num_fns = match_components(nodes_gt, nodes_rec, 
-                                                                                                 edges_gt_rec, labels_gt, labels_rec, 
-                                                                                                 allow_many_to_many=(max_edges>1), edge_costs=edge_costs,
-                                                                                                 no_match_costs=no_match_cost, 
-                                                                                                 optimality_gap=optimality_gap,
-                                                                                                 time_limit=time_limit)
+    print "Match using hungarian_match..."
+    label_matches, node_matches, num_splits, num_merges, num_fps, num_fns = match_components(nodes_gt, nodes_rec, 
+                                                                                             edges_gt_rec, labels_gt, labels_rec, 
+                                                                                             optimality_gap=optimality_gap,
+                                                                                             time_limit=time_limit)
 
     matching_graph.import_matches(node_matches)
     topological_errors = {"n_gt": n_gts, "n_rec": n_recs, "splits": num_splits, "merges": num_merges, "fps": num_fps, "fns": num_fns}
