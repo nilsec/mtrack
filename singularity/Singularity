@@ -63,10 +63,10 @@ conda install -c defaults -c conda-forge -c ostrokach-forge -c pkgw-forge 'graph
 #install pylp
 conda install -c funkey pylp
 
-#install quadmatch
+#install hungarian_match
 COMATCH_ROOT=/src/comatch
 COMATCH_REPOSITORY=https://github.com/funkey/comatch
-COMATCH_REVISION=quadmatch
+COMATCH_REVISION=hungarian
 
 mkdir -p ${COMATCH_ROOT}
 cd ${COMATCH_ROOT}
