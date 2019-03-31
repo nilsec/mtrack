@@ -108,8 +108,12 @@ def build_matching_graph(tracing_g1, reconstruction_g1, voxel_size, distance_thr
     reconstruction_vertex_skeletons = []
     print "Construct voxel skeletons..."
     for tracing_mt in tracing_mts:
-        vs = VoxelSkeleton(tracing_mt, voxel_size=voxel_size, verbose=False, subsample=subsample)
-        tracing_vertex_skeletons.append(vs)
+        try:
+            vs = VoxelSkeleton(tracing_mt, voxel_size=voxel_size, verbose=False, subsample=subsample)
+            tracing_vertex_skeletons.append(vs)
+        except:
+            print "Skipped vs rec"
+            pass
 
     for reconstruction_mt in reconstruction_mts:
         vs = VoxelSkeleton(reconstruction_mt, voxel_size=voxel_size, verbose=False, subsample=subsample)
