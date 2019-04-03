@@ -9,10 +9,10 @@ def read_config(path):
         cfg_dict = {}
 
         # Data
-        cfg_dict["candidate_extraction_mode"] = config.get("Data", "candidate_extraction_mode")
-        cfg_dict["perp_stack_h5"] = config.get("Data", "perp_stack_h5")
-        cfg_dict["par_stack_h5"] = config.get("Data", "par_stack_h5")
-        cfg_dict["single_stack_h5"] = config.get("Data", "single_stack_h5")
+        cfg_dict["maxima"] = config.get("Data", "maxima")
+        cfg_dict["maxima_dset"] = config.get("Data", "maxima_dset")
+        cfg_dict["prob_map"] = config.get("Data", "prob_map")
+        cfg_dict["prob_map_dset"] = config.get("Data", "prob_map_dset")
         cfg_dict["name_db"] = config.get("Data", "name_db")
         cfg_dict["name_collection"] = config.get("Data", "name_collection")
         cfg_dict["extract_candidates"] = config.getboolean("Data", "extract_candidates")
@@ -20,12 +20,6 @@ def read_config(path):
         cfg_dict["db_credentials"] = config.get("Data", "db_credentials")
 
         # Preprocessing
-        cfg_dict["gaussian_sigma_single"] = config.getfloat("Preprocessing", "gaussian_sigma_single")
-        cfg_dict["gaussian_sigma_perp"] = config.getfloat("Preprocessing", "gaussian_sigma_perp")
-        cfg_dict["gaussian_sigma_par"] = config.getfloat("Preprocessing", "gaussian_sigma_par")
-        cfg_dict["point_threshold_perp"] = config.getfloat("Preprocessing", "point_threshold_perp")
-        cfg_dict["point_threshold_par"] = config.getfloat("Preprocessing", "point_threshold_par")
-        cfg_dict["point_threshold_single"] = config.getfloat("Preprocessing", "point_threshold_single")
         cfg_dict["distance_threshold"] = config.getint("Preprocessing", "distance_threshold")
         
         # Chunks
@@ -33,9 +27,6 @@ def read_config(path):
         cfg_dict["volume_offset"] = np.array(config.get("Chunks", "volume_offset").split(", "), dtype=int)
         cfg_dict["max_chunk_shape"] = np.array(config.get("Chunks", "max_chunk_shape").split(", "), dtype=int)
         cfg_dict["chunk_output_dir"] = config.get("Chunks", "chunk_output_dir")
-        cfg_dict["prob_map_chunks_single_dir"] = config.get("Chunks", "prob_map_chunks_single_dir")
-        cfg_dict["prob_map_chunks_perp_dir"] = config.get("Chunks", "prob_map_chunks_perp_dir")
-        cfg_dict["prob_map_chunks_par_dir"] = config.get("Chunks", "prob_map_chunks_par_dir")
 
         # Cores
         cfg_dict["core_size"] = np.array(config.get("Cores", "core_size").split(", "), dtype=int)
@@ -63,6 +54,3 @@ def read_config(path):
         cfg_dict["time_limit_per_cc"] = config.getint("Solve", "time_limit_per_cc")
 
     return cfg_dict
-
-if __name__ == "__main__":
-    read_config("../../config.ini")   

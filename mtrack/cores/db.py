@@ -17,6 +17,8 @@ from mtrack.graphs import g1_graph
 from mtrack.preprocessing import connect_graph_locally
 import ConfigParser
 
+logger = logging.getLogger("__name__")
+
 
 class DB(object):
     def __init__(self, credentials):
@@ -68,7 +70,7 @@ class DB(object):
         return db
 
     def get_collection(self, name_db, collection, overwrite=False):
-        logging.info("Get client...")
+        logger.info("Get client...")
         client = self.get_client()
 
         db = self.get_db(name_db)
@@ -76,7 +78,7 @@ class DB(object):
         
         if collection in collections:
             if overwrite:
-                logging.info("Warning, overwrite collection {}...".format(collection))
+                logger.info("Warning, overwrite collection {}...".format(collection))
                 self.create_collection(name_db=name_db, 
                                        collection=collection, 
                                        overwrite=True)
@@ -85,9 +87,9 @@ class DB(object):
                 assert(db[collection].find({}).count() == 0)
 
             else:
-                logging.info("Collection already exists, request {}.{}...".format(name_db, collection))
+                logger.info("Collection already exists, request {}.{}...".format(name_db, collection))
         else:
-            logging.info("Collection does not exist, create...")
+            logger.info("Collection does not exist, create...")
             self.create_collection(name_db=name_db, 
                                    collection=collection, 
                                    overwrite=False)
@@ -97,17 +99,17 @@ class DB(object):
         return graph
 
     def create_collection(self, name_db, collection, overwrite=False):
-        logging.info("Create new db collection {}.{}...".format(name_db, collection))
+        logger.info("Create new db collection {}.{}...".format(name_db, collection))
         client = self.get_client()
         db = self.get_db(name_db)
         
         if overwrite:
-            logging.info("Overwrite {}.{}...".format(name_db, collection))
+            logger.info("Overwrite {}.{}...".format(name_db, collection))
             db.drop_collection(collection)
 
         graph = db[collection]
 
-        logging.info("Generate indices...")
+        logger.info("Generate indices...")
         graph.create_index([("pz", ASCENDING), ("py", ASCENDING), ("px", ASCENDING)], 
                            name="pos", 
                            sparse=True)
@@ -121,16 +123,17 @@ class DB(object):
                       collection,
                       voxel_size,
                       volume_offset,
-                      prob_map_file):
+                      prob_map_file,
+                      prob_map_dset):
 
-        logging.info("Add edge cost...")
+        logger.info("Add edge cost...")
 
         graph = self.get_collection(name_db, collection, overwrite=False)
 
         voxel_size = np.array(voxel_size)
         f = h5py.File(prob_map_file, "r")
-        prob_map = np.array(f["exported_data"])
-        attrs = f["exported_data"].attrs.items()
+        prob_map = np.array(f[prob_map_dset])
+        attrs = f[prob_map_dset].attrs.items()
         f.close()
 
         shape = np.shape(prob_map)
@@ -141,6 +144,7 @@ class DB(object):
 
         #offset_chunk += np.array(volume_offset)
         offset_chunk *= np.array(voxel_size, dtype=int)
+
         size_chunk = np.array([shape[2], shape[1], shape[0]]) * voxel_size
         x_lim = {"min": offset_chunk[0], "max": offset_chunk[0] + size_chunk[0]}
         y_lim = {"min": offset_chunk[1], "max": offset_chunk[1] + size_chunk[1]}
@@ -152,35 +156,36 @@ class DB(object):
                                     y_lim,
                                     z_lim)
 
-        n_edges = g1.get_number_of_edges()
-        i = 1
-        edge_to_cost = {}
+        if g1 is not None:
+            n_edges = g1.get_number_of_edges()
+            i = 1
+            edge_to_cost = {}
 
-        logging.info("Overlay edges with prob map...")
-        for e in g1.get_edge_iterator():
-            start = np.array(g1.get_position(e.source())/voxel_size, dtype=int)
-            end = np.array(g1.get_position(e.target())/voxel_size, dtype=int)
-            dda3 = DDA3(start, end, scaling=voxel_size)
-            line = dda3.draw()
+            logger.info("Overlay edges with prob map...")
+            for e in g1.get_edge_iterator():
+                start = np.array(g1.get_position(e.source())/voxel_size, dtype=int)
+                end = np.array(g1.get_position(e.target())/voxel_size, dtype=int)
+                dda3 = DDA3(start, end, scaling=voxel_size)
+                line = dda3.draw()
 
-            cost = 0.0
-            for p in line:
-                p -= (offset_chunk/voxel_size).astype(int)
-                cost += (1. - prob_map[p[2], p[1], p[0]])
-            cost /= len(line)
+                cost = 0.0
+                for p in line:
+                    p -= (offset_chunk/voxel_size).astype(int)
+                    cost += (1. - prob_map[p[2], p[1], p[0]])
+                cost /= len(line)
 
-            v0_mapped = index_map[int(e.source())]
-            v1_mapped = index_map[int(e.target())]
+                v0_mapped = index_map[int(e.source())]
+                v1_mapped = index_map[int(e.target())]
 
-            graph.update_one({"$and": [{"id0": {"$in": [v0_mapped, v1_mapped]}},
-                                       {"id1": {"$in": [v0_mapped, v1_mapped]}}]},
-                             {"$set": {"cost": cost}},
-                             upsert=False)
+                graph.update_one({"$and": [{"id0": {"$in": [v0_mapped, v1_mapped]}},
+                                           {"id1": {"$in": [v0_mapped, v1_mapped]}}]},
+                                 {"$set": {"cost": cost}},
+                                 upsert=False)
 
-            if i % 100 == 0:
-                logging.info(str(float(i)/n_edges * 100) +  "% done")
-                logging.info("cost_write: " + str(cost))
-            i += 1
+                if i % 100 == 0:
+                    logger.info(str(float(i)/n_edges * 100) +  "% done")
+                    logger.info("cost_write: " + str(cost))
+                i += 1
 
     def get_g1(self,
                name_db,
@@ -197,7 +202,11 @@ class DB(object):
                                                 z_lim,
                                                 query_edges)
 
-        g1, index_map = self.__roi_to_g1(vertices, edges)
+        if vertices:
+            g1, index_map = self.__roi_to_g1(vertices, edges)
+        else:
+            g1 = None
+            index_map = None
 
 
         return g1, index_map
@@ -253,7 +262,7 @@ class DB(object):
                            y_lim,
                            z_lim):
 
-        logging.info("Validate Selection...")
+        logger.info("Validate Selection...")
         g1_selected, index_map = self.get_selected(name_db,
                                                    collection,
                                                    x_lim,
@@ -264,7 +273,7 @@ class DB(object):
             assert(len(g1_selected.get_incident_edges(v)) <= 2),\
                    "Selection has branchings"
 
-        logging.info("...No violations")
+        logger.info("...No violations")
         return g1_selected
 
         
@@ -280,16 +289,16 @@ class DB(object):
         
         graph = self.get_collection(name_db, collection, overwrite=False)
 
-        logging.info("Write solution...")
+        logger.info("Write solution...")
         if x_lim is not None and y_lim is not None and z_lim is not None:
             min_lim = np.array([x_lim["min"], y_lim["min"], z_lim["min"]])
             max_lim = np.array([x_lim["max"], y_lim["max"], z_lim["max"]])
         else:
-            logging.warning("WARNING: No write ROI provided, write full graph")
+            logger.warning("WARNING: No write ROI provided, write full graph")
             min_lim = np.array([])
             max_lim = np.array([])
 
-        logging.info("Write selected...")
+        logger.info("Write selected...")
         for e in solution.get_edge_iterator():
             v0_id_db = index_map[e.source()]
             v1_id_db = index_map[e.target()]
@@ -341,8 +350,8 @@ class DB(object):
                 
                 assert(graph.find({"degree": {"$gte": 3}}).count()==0)
 
-        logging.info("Selected edges: {}".format(graph.find({"selected": True, "type": "edge"}).count()))
-        logging.info("Selected vertices: {}".format(graph.find({"selected": True, "type": "vertex"}).count()))
+        logger.info("Selected edges: {}".format(graph.find({"selected": True, "type": "edge"}).count()))
+        logger.info("Selected vertices: {}".format(graph.find({"selected": True, "type": "vertex"}).count()))
 
 
     def write_solved(self,
@@ -374,7 +383,7 @@ class DB(object):
                              core.y_lim_core["max"],
                              core.z_lim_core["max"]])
 
-        logging.info("Write solved...")
+        logger.info("Write solved...")
         id_to_vertex_pos = {}
         for v in vertices:
             v_pos = np.array([v["px"], v["py"], v["pz"]])
@@ -414,7 +423,9 @@ class DB(object):
 
         graph = self.get_collection(name_db, collection, overwrite=overwrite)
 
-        logging.info("Write candidate vertices...")
+        logger.info("Write candidate vertices...")
+        vertex_id = graph.find({"selected": {"$exists": True}}).count()
+        vertices = []
         for candidate in candidates:
             pos_phys = np.array([round(candidate.position[j]) * voxel_size[j] for j in range(3)])
             assert(np.all(np.array(pos_phys, dtype=int) == pos_phys))
@@ -439,16 +450,16 @@ class DB(object):
             vertex["degree"] = 0
             vertex["selected"] = False
             vertex["solved"] = False
+            vertices.append(vertex)
 
-            graph.insert_one(vertex)
-
+        graph.insert_many(vertices)
         return vertex_id
 
     def reset_collection(self,
                          name_db,
                          collection):
 
-        logging.info("Reset {}.{}...".format(name_db, collection))
+        logger.info("Reset {}.{}...".format(name_db, collection))
         graph = self.get_collection(name_db, collection)
 
         graph.update_many({}, 
@@ -479,31 +490,35 @@ class DB(object):
                                                z_lim,
                                                query_edges=True)
 
-        # Already present edges are not added again here:
-        g1_connected = connect_graph_locally(g1_candidates,
-                                             distance_threshold)
+        if g1_candidates is not None:
+            # Already present edges are not added again here:
+            g1_connected = connect_graph_locally(g1_candidates,
+                                                 distance_threshold)
 
-        graph = self.get_collection(name_db,
-                                    collection)
-
-        for e in g1_connected.get_edge_iterator():
-            v0 = index_map[e.source()]
-            v1 = index_map[e.target()]
+            graph = self.get_collection(name_db,
+                                        collection)
             
-            edge = deepcopy(self.edge)
-            edge["id0"] = v0
-            edge["id1"] = v1
-            edge["selected"] = False
-            edge["solved"] = False
+            edges = []
+            for e in g1_connected.get_edge_iterator():
+                v0 = index_map[e.source()]
+                v1 = index_map[e.target()]
+                
+                edge = deepcopy(self.edge)
+                edge["id0"] = v0
+                edge["id1"] = v1
+                edge["selected"] = False
+                edge["solved"] = False
 
-            # Check if edge is already in db:
-            e_N = graph.find({"$and": [{"id0": {"$in": [v0, v1]}},
-                                       {"id1": {"$in": [v0, v1]}}]}).count()
-            assert(e_N<=1)
+                # Check if edge is already in db:
+                e_N = graph.find({"$and": [{"id0": {"$in": [v0, v1]}},
+                                           {"id1": {"$in": [v0, v1]}}]}).count()
+                assert(e_N<=1)
 
-            if e_N == 0:
-                graph.insert_one(edge)
-    
+                if e_N == 0:
+                    edges.append(edge)
+
+            graph.insert_many(edges)
+        
     def is_solved(self,
                   name_db,
                   collection,
@@ -532,11 +547,11 @@ class DB(object):
                          z_lim,
                          query_edges=True):
 
-        logging.info("Get vertex ROI...")
+        logger.info("Get vertex ROI...")
         
         graph = self.get_collection(name_db, collection, overwrite=False)
 
-        logging.info("Perform vertex query...")
+        logger.info("Perform vertex query...")
 
         vertices =  list(graph.find({"$and": [{   
                                          "pz": {"$gte": z_lim["min"],
@@ -552,14 +567,14 @@ class DB(object):
         
         edges = [] 
         if query_edges:
-            logging.info("Perform edge query...")
+            logger.info("Perform edge query...")
             edges = list(graph.find({"$and": [{"id0": {"$in": vertex_ids}},
                                               {"id1": {"$in": vertex_ids}}]}))
         
         if not vertices:
-            logging.warning("Warning, requested region holds no vertices!")
+            logger.warning("Warning, requested region holds no vertices!")
         if not edges:
-            logging.warning("Warning, requested region holds no edges!")
+            logger.warning("Warning, requested region holds no edges!")
 
         return vertices, edges
 

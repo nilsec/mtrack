@@ -108,7 +108,7 @@ class ClockTestCase(unittest.TestCase):
         y_1 = []
         for angle in np.arange(0, 2*np.pi, 0.01):
             g1, x, y = generate_bending(angle, radius)
-            edge_combination_cost = g1.get_edge_combination_cost(comb_angle_factor)
+            edge_combination_cost = g1.get_edge_combination_cost_angle(comb_angle_factor)
             x_1.append(x)
             y_1.append(y)
             e01 = g1.get_edge(0,1)
@@ -124,7 +124,7 @@ class ClockTestCase(unittest.TestCase):
         y_10 = []
         for angle in np.arange(0, 2*np.pi, 0.01):
             g1, x, y = generate_bending(angle, radius)
-            edge_combination_cost = g1.get_edge_combination_cost(comb_angle_factor)
+            edge_combination_cost = g1.get_edge_combination_cost_angle(comb_angle_factor)
             x_10.append(x)
             y_10.append(y)
             e01 = g1.get_edge(0,1)

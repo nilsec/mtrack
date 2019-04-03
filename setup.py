@@ -13,7 +13,6 @@ setup(
         'mtrack.graphs',
         'mtrack.cores',
         'mtrack.preprocessing',
-        'mtrack.postprocessing',
         'mtrack.evaluation',
         'mtrack.mt_utils'
             ],
@@ -23,5 +22,6 @@ setup(
         'h5py',
         'scikit-image',
         'pymongo',
+        'networkx==2.2'
             ],
 )   

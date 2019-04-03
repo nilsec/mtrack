@@ -1,6 +1,10 @@
 import numpy as np
+import logging
 
 from mtrack.solve import solve
+
+logger = logging.getLogger("__name__")
+
 
 class CoreSolver(object):
 
@@ -30,7 +34,7 @@ class CoreSolver(object):
                        backend="Gurobi"):
 
 
-        print "Solve connected subgraphs..."
+        logger.info("Solve connected subgraphs...")
         ccs = subgraph.get_components(min_vertices=cc_min_vertices,
                                       output_folder=None,
                                       return_graphs=True)

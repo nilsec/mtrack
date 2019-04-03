@@ -1,7 +1,8 @@
 import numpy as np
 import operator
-import pdb
+import logging
 
+logger = logging.getLogger("__name__")
 
 def dda_round(x):
     return (x + 0.5).astype(int) 
@@ -23,7 +24,7 @@ class DDA3:
         try:
             self.dv = (self.end - self.start) / self.max_length
         except RuntimeWarning:
-            print "max length:", self.max_length, "\n"
+            logger.debug("max length: " + str(self.max_length))
             raise ValueError
 
 

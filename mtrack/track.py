@@ -1,13 +1,7 @@
-from mtrack.cores import CoreSolver, CoreBuilder, VanillaSolver, DB
-from mtrack.preprocessing import DirectionType, g1_to_nml, Chunker,\
-                                 stack_to_chunks, ilastik_get_prob_map,\
-                                 extract_candidates_double, extract_candidates_single
+from mtrack.cores import CoreSolver, CoreBuilder, DB
+from mtrack.preprocessing import g1_to_nml, Chunker, extract_maxima_candidates
 from mtrack.mt_utils import read_config, check_overlap
 from mtrack.graphs.g1_graph import G1
-try:
-    from mtrack.postprocessing import skeletonize
-except:
-    pass
 from solve import solve
 
 import numpy as np
@@ -19,7 +13,8 @@ import signal
 import traceback
 import functools
 import shutil
-import pdb
+
+logger = logging.getLogger("__name__")
 
 
 def track(config):
@@ -46,7 +41,7 @@ def track(config):
                          "twice as large as the distance threshold in all dimensions")
 
     # Init logger:
-    logging.info("Start tracking")
+    logger.info("Start tracking")
 
     # Generate core geometry: 
     builder = CoreBuilder(volume_size=roi_volume_size,
@@ -60,62 +55,30 @@ def track(config):
     cf_lists = builder.gen_cfs()
 
     if config["extract_candidates"]:
-        """
-        Check if candidate extraction needs to be performed
-        otherwise it is assumed the given db collection holds
-        already extracted candidates.
-        """
-        if config["candidate_extraction_mode"] == "double":
+        max_chunk_dir = chunk_prob_map(volume_shape=config["volume_shape"],
+                                    max_chunk_shape=config["max_chunk_shape"],
+                                    volume_offset=config["volume_offset"],
+                                    voxel_size=config["voxel_size"],
+                                    prob_map_h5=config["maxima"],
+                                    dset=config["maxima_dset"],
+                                    output_dir=os.path.join(config["chunk_output_dir"], "maxima"))
 
-            if config["prob_map_chunks_perp_dir"] == "None":
-                """
-                Check if chunking of the probability maps needs to
-                be performed, otherwise the chunk dir specified is used.
-                """
+        pm_chunk_dir = chunk_prob_map(volume_shape=config["volume_shape"],
+                                    max_chunk_shape=config["max_chunk_shape"],
+                                    volume_offset=config["volume_offset"],
+                                    voxel_size=config["voxel_size"],
+                                    prob_map_h5=config["prob_map"],
+                                    dset=config["prob_map_dset"],
+                                    output_dir=os.path.join(config["chunk_output_dir"], "pm"))
 
-                dir_perp = chunk_prob_map(volume_shape=config["volume_shape"],
-                                          max_chunk_shape=config["max_chunk_shape"],
-                                          volume_offset=config["volume_offset"],
-                                          voxel_size=config["voxel_size"],
-                                          prob_map_h5=config["perp_stack_h5"],
-                                          output_dir=os.path.join(config["chunk_output_dir"], "perp"))
+        max_chunks = [os.path.join(max_chunk_dir, f)\
+                      for f in os.listdir(max_chunk_dir) if f.endswith(".h5")]
 
-                dir_par = chunk_prob_map(volume_shape=config["volume_shape"],
-                                          max_chunk_shape=config["max_chunk_shape"],
-                                          volume_offset=config["volume_offset"],
-                                          voxel_size=config["voxel_size"],
-                                          prob_map_h5=config["par_stack_h5"],
-                                          output_dir=os.path.join(config["chunk_output_dir"], "par"))
+        pm_chunks = [os.path.join(pm_chunk_dir, f)\
+                     for f in os.listdir(pm_chunk_dir) if f.endswith(".h5")]
 
-                """
-                Update the config with the new output dirs for 
-                perp and par chunks respectively.
-                """
-                config["prob_map_chunks_perp_dir"] = dir_perp
-                config["prob_map_chunks_par_dir"] = dir_par
-
-                chunks_perp = [os.path.join(config["prob_map_chunks_perp_dir"], f)\
-                               for f in os.listdir(config["prob_map_chunks_perp_dir"]) if f.endswith(".h5")]
-
-                chunks_par = [os.path.join(config["prob_map_chunks_par_dir"], f)\
-                              for f in os.listdir(config["prob_map_chunks_par_dir"]) if f.endswith(".h5")]
-
-        elif config["candidate_extraction_mode"] == "single":
-            if config["prob_map_chunks_single_dir"] == "None":
-                dir_single = chunk_prob_map(volume_shape=config["volume_shape"],
-                                            max_chunk_shape=config["max_chunk_shape"],
-                                            volume_offset=config["volume_offset"],
-                                            voxel_size=config["voxel_size"],
-                                            prob_map_h5=config["single_stack_h5"],
-                                            output_dir=os.path.join(config["chunk_output_dir"], "single"))
-
-                config["prob_map_chunks_single_dir"] = dir_single
-
-                chunks_single = [os.path.join(config["prob_map_chunks_single_dir"], f)\
-                                 for f in os.listdir(config["prob_map_chunks_single_dir"]) if f.endswith(".h5")]
-
-        else:
-            raise ValueError("Provide candidate extraction mode as 'single' or 'double' mode")
+        config["pm_chunks"] = pm_chunks
+        config["max_chunks"] = max_chunks
 
         """
         Extract id, and volume information from chunks
@@ -123,85 +86,42 @@ def track(config):
         """
         chunk_limits = {}
         chunk_ids = {}
-        roi_chunks = []
+        roi_pm_chunks = []
+        roi_max_chunks = []
+        for max_chunk, pm_chunk in zip(max_chunks, pm_chunks):
+            if not os.path.isfile(pm_chunk):
+                raise ValueError("{} is not a file".format(pm_chunk))
 
-        if config["candidate_extraction_mode"] == "double":
-            for f_chunk_perp, f_chunk_par in zip(chunks_perp, chunks_par):
-                if not os.path.isfile(f_chunk_perp):
-                    raise ValueError("{} is not a file".format(f_chunk_perp))
+            f = h5py.File(pm_chunk, "r")
+            attrs = f[config["prob_map_dset"]].attrs.items()
+            f.close()
 
-                f = h5py.File(f_chunk_perp, "r")
-                attrs_perp = f["exported_data"].attrs.items()
-                f.close()
+            chunk_limit = attrs[1][1]
+            chunk_id = attrs[0][1]
 
-                if not os.path.isfile(f_chunk_par):
-                    raise ValueError("{} is not a file".format(f_chunk_par))
+            chunk_limits[pm_chunk] = chunk_limit 
+            chunk_ids[pm_chunk] = chunk_id
 
-                f = h5py.File(f_chunk_par, "r")
-                attrs_par = f["exported_data"].attrs.items()
-                f.close()
-                
-                assert(attrs_perp[0][1] == attrs_par[0][1])
-     
-                """
-                We want to process those chunks where all chunk
-                limits overlap with the ROI
-                """
-                chunk_limit = attrs_perp[1][1]
-                chunk_id = attrs_perp[0][1]
+            full_ovlp = np.array([False, False, False])
+            for i in range(3):
+                full_ovlp[i] = check_overlap(chunk_limit[i], roi[i])
 
-                chunk_limits[(f_chunk_perp, f_chunk_par)] = chunk_limit 
-                chunk_ids[(f_chunk_perp, f_chunk_par)] = chunk_id
-
-                full_ovlp = np.array([False, False, False])
-                for i in range(3):
-                    full_ovlp[i] = check_overlap(chunk_limit[i], roi[i])
-
-                if np.all(full_ovlp):
-                    roi_chunks.append((f_chunk_perp, f_chunk_par))
-        else:
-            for f_chunk in chunks_single:
-                if not os.path.isfile(f_chunk):
-                    raise ValueError("{} is not a file".format(f_chunk))
-
-                f = h5py.File(f_chunk, "r")
-                attrs = f["exported_data"].attrs.items()
-                f.close()
-
-                chunk_limit = attrs[1][1]
-                chunk_id = attrs[0][1]
-
-                chunk_limits[f_chunk] = chunk_limit 
-                chunk_ids[f_chunk] = chunk_id
-
-                full_ovlp = np.array([False, False, False])
-                for i in range(3):
-                    full_ovlp[i] = check_overlap(chunk_limit[i], roi[i])
-
-                if np.all(full_ovlp):
-                    roi_chunks.append(f_chunk)
+            if np.all(full_ovlp):
+                roi_pm_chunks.append(pm_chunk)
+                roi_max_chunks.append(max_chunk)
 
         """
         Extract candidates from all ROI chunks and write to specified
         database.
         """
 
-        if config["candidate_extraction_mode"] == "double":
-            pm_chunks = [[pm[0] for pm in roi_chunks], [pm[1] for pm in roi_chunks]]
-            ps = DirectionType(config["point_threshold_perp"], config["point_threshold_par"])
-            gs = DirectionType(config["gaussian_sigma_perp"], config["gaussian_sigma_par"])
-        else:
-            pm_chunks = roi_chunks
-            ps = config["point_threshold_single"]
-            gs = config["gaussian_sigma_single"]
-
-        write_candidate_graph(pm_chunks=pm_chunks,
-                              mode=config["candidate_extraction_mode"],
+        write_candidate_graph(max_chunks=max_chunks,
+                              max_dset=config["maxima_dset"],
+                              pm_chunks=pm_chunks,
+                              pm_dset=config["prob_map_dset"],
                               name_db=config["name_db"],
                               collection=config["name_collection"],
                               db_credentials=config["db_credentials"],
-                              gs=gs,
-                              ps=ps,
                               distance_threshold=config["distance_threshold"],
                               voxel_size=config["voxel_size"],
                               cores=cores,
@@ -212,11 +132,8 @@ def track(config):
 
         
         # Clean up chunks
-        if config["candidate_extraction_mode"] == "double":
-            shutil.rmtree(config["prob_map_chunks_perp_dir"])
-            shutil.rmtree(config["prob_map_chunks_par_dir"])
-        else:
-            shutil.rmtree(config["prob_map_chunks_single_dir"])
+        shutil.rmtree(max_chunk_dir)
+        shutil.rmtree(pm_chunk_dir)
 
         """
         Solve the ROI and write to specified database. The result
@@ -255,7 +172,7 @@ def track(config):
                                                 y_lim=y_lim_roi,
                                                 z_lim=z_lim_roi)
         except ValueError:
-            logging.warning("WARNING, solution contains no vertices!")
+            logger.warning("WARNING, solution contains no vertices!")
             g1_selected = G1(0)
 
         if config["export_validated"]:
@@ -269,6 +186,7 @@ def chunk_prob_map(volume_shape,
                    volume_offset,
                    voxel_size,
                    prob_map_h5,
+                   dset,
                    output_dir):
 
     if not os.path.exists(output_dir):
@@ -281,10 +199,24 @@ def chunk_prob_map(volume_shape,
 
     chunks = chunker.chunk()
 
-    stack_to_chunks(input_stack=prob_map_h5,
-                    output_dir=output_dir,
-                    chunks=chunks,
-                    volume_offset=volume_offset)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    with h5py.File(prob_map_h5, "r") as f0:
+        data = f0[dset]
+        assert(len(data.shape) == 3)
+
+        for chunk in chunks:
+            limits = chunk.limits
+            chunk_data = np.array(data[limits[2][0] - volume_offset[2]:limits[2][1] - volume_offset[2],
+                                       limits[1][0] - volume_offset[1]:limits[1][1] - volume_offset[1],
+                                       limits[0][0] - volume_offset[0]:limits[0][1] - volume_offset[0]])
+
+            f = h5py.File(output_dir + "/chunk_{}.h5".format(chunk.id), 'w')
+            f.create_dataset(dset, data=chunk_data)
+            f[dset].attrs.create("chunk_id", chunk.id)
+            f[dset].attrs.create("limits", limits)
+            f.close()
 
     return output_dir
 
@@ -307,13 +239,13 @@ def connect_candidates_alias(db,
                           z_lim,
                           distance_threshold)
 
-def write_candidate_graph(pm_chunks,
-                          mode,
+def write_candidate_graph(max_chunks,
+                          max_dset,
+                          pm_chunks,
+                          pm_dset,
                           name_db,
                           collection,
                           db_credentials,
-                          gs,
-                          ps,
                           distance_threshold,
                           voxel_size,
                           cores,
@@ -321,111 +253,41 @@ def write_candidate_graph(pm_chunks,
                           volume_offset,
                           overwrite=False,
                           mp=True):
-    """
-    This function has two modes:
-    
-    double: If double is selected pm_chunks
-            is expected to contain two lists
-            with pm_chunks[0] == perpendicular_chunks
-            and  pm_chunks[1] == parallel_chunks.
-            This is the option that should be selected
-            for a pipeline utilising two seperate
-            classifiers for perpendicular and
-            parallel microtubules respectively.
-            If ilastik is used this is the preferred
-            option.
 
-    single: If single is selected pm_chunks
-            should contain a single list with 
-            the probability map of the combined 
-            predictions.
-    """
-
-    if not mode in ["single", "double"]:
-        raise ValueError("Choose between 'single' or 'double' mode")
-
-
-    logging.info("Extract pm chunks...")
+    logger.info("Extract candidates...")
     db = DB(db_credentials)
     n_chunk = 0
     id_offset = 1
     
     # Overwrite if necesseray:
     graph = db.get_collection(name_db, collection, overwrite=overwrite)
+    for chunk in max_chunks:
+        logger.info("Extract chunk {}/{}...".format(n_chunk, len(max_chunks)))
 
+        f = h5py.File(chunk, "r")
+        attrs = f[max_dset].attrs.items()
+        f.close()
 
-    if mode == "double":
-        pm_chunks_perp = pm_chunks[0]
-        pm_chunks_par = pm_chunks[1]
+        chunk_limits = attrs[1][1]
+        offset_chunk = [chunk_limits[0][0], 
+                        chunk_limits[1][0], 
+                        chunk_limits[2][0]]
 
-        for pm_perp, pm_par in zip(pm_chunks_perp, pm_chunks_par):
-            logging.info("Extract chunk {}/{}...".format(n_chunk, len(pm_chunks_par)))
+        candidates = extract_maxima_candidates(chunk,
+                                               max_dset,
+                                               offset_chunk,
+                                               id_offset)
 
-            prob_map_stack = DirectionType(pm_perp, pm_par)
+        id_offset_tmp = db.write_candidates(name_db,
+                                            collection,
+                                            candidates,
+                                            voxel_size,
+                                            overwrite=False)
+    
+        assert(graph.find({"selected": {"$exists": True}}).count() == id_offset_tmp)
 
-            f = h5py.File(pm_perp, "r")
-            attrs = f["exported_data"].attrs.items()
-            f.close()
-
-            chunk_limits = attrs[1][1]
-            offset_chunk = [chunk_limits[0][0], 
-                            chunk_limits[1][0], 
-                            chunk_limits[2][0]]
-
-            print offset_chunk
-
-            candidates = extract_candidates_double(prob_map_stack,
-                                                   gs,
-                                                   ps,
-                                                   voxel_size,
-                                                   bounding_box=None,
-                                                   bs_output_dir=None,
-                                                   offset_pos=offset_chunk,
-                                                   identifier_0=id_offset)
-
-            id_offset_tmp = db.write_candidates(name_db,
-                                                collection,
-                                                candidates,
-                                                voxel_size,
-                                                overwrite=False)
-
-
-            assert(graph.find({"selected": {"$exists": True}}).count() == id_offset_tmp)
-
-            id_offset = id_offset_tmp + 1
-            n_chunk += 1
-
-    else:
-        for chunk in pm_chunks:
-            logging.info("Extract chunk {}/{}...".format(n_chunk, len(pm_chunks)))
-
-            f = h5py.File(chunk, "r")
-            attrs = f["exported_data"].attrs.items()
-            f.close()
-
-            chunk_limits = attrs[1][1]
-            offset_chunk = [chunk_limits[0][0], 
-                            chunk_limits[1][0], 
-                            chunk_limits[2][0]]
-
-            candidates = extract_candidates_single(chunk,
-                                                   gs,
-                                                   ps,
-                                                   voxel_size,
-                                                   binary_closing=True,
-                                                   offset_pos=offset_chunk,
-                                                   identifier_0=id_offset)
-
-            id_offset_tmp = db.write_candidates(name_db,
-                                                collection,
-                                                candidates,
-                                                voxel_size,
-                                                overwrite=False)
-        
-            assert(graph.find({"selected": {"$exists": True}}).count() == id_offset_tmp)
-
-            id_offset = id_offset_tmp + 1
-            n_chunk += 1
+        id_offset = id_offset_tmp + 1
+        n_chunk += 1
 
     # Don't forward SIGINT to child processes
     sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -434,15 +296,15 @@ def write_candidate_graph(pm_chunks,
 
     bound_connect_candidates_alias = functools.partial(connect_candidates_alias, db)
 
-    logging.info("Connect candidates...")
+    logger.info("Connect candidates...")
     try:
         for cf_core_ids in cf_lists:
-            logging.info("Connecting {}".format(cf_core_ids))
+            logger.info("Connecting {}".format(cf_core_ids))
                         
             results = []
             if mp:
                 for core_id in cf_core_ids:
-                    logging.info("Add context {} to pool (mp: {})".format(core_id, mp))
+                    logger.info("Add context {} to pool (mp: {})".format(core_id, mp))
                     core = cores[core_id]
                     results.append(pool.apply_async(bound_connect_candidates_alias, 
                                                     (name_db,
@@ -471,22 +333,21 @@ def write_candidate_graph(pm_chunks,
         pool.terminate()
         pool.join()
 
-    logging.info("Add edge costs...")
+    logger.info("Add edge costs...")
     for chunk in pm_chunks:
-        logging.info("Work on chunk {}/{}...".format(n_chunk, len(pm_chunks)))
+        logger.info("Work on chunk {}/{}...".format(n_chunk, len(pm_chunks)))
 
         f = h5py.File(chunk, "r")
-        attrs = f["exported_data"].attrs.items()
-        shape = np.shape(np.array(f["exported_data"]))
+        attrs = f[pm_dset].attrs.items()
+        shape = np.shape(np.array(f[pm_dset]))
         f.close()
 
         db.add_edge_cost(name_db,
                          collection,
                          voxel_size,
                          volume_offset,
-                         chunk)
-
-
+                         chunk,
+                         pm_dset)
 
 
 def solve_candidate_volume(name_db,
@@ -512,12 +373,12 @@ def solve_candidate_volume(name_db,
 
     try:
         for cf_core_ids in cf_lists:
-            logging.info("Working on {}".format(cf_core_ids))
+            logger.info("Working on {}".format(cf_core_ids))
                         
             results = []
             if mp:
                 for core_id in cf_core_ids:
-                    logging.info("Add core {} to pool (mp: {})".format(core_id, mp))
+                    logger.info("Add core {} to pool (mp: {})".format(core_id, mp))
                     results.append(pool.apply_async(solve_core, (cores[core_id],
                                                              name_db,
                                                              collection,
@@ -569,8 +430,8 @@ def solve_core(core,
                backend):
 
     try:
-        logging.info("Core id {}".format(core.id))
-        logging.info("Process core {}...".format(core.id))
+        logger.info("Core id {}".format(core.id))
+        logger.info("Process core {}...".format(core.id))
         db = DB(db_credentials)
         solver = CoreSolver()
         
@@ -614,66 +475,20 @@ def solve_core(core,
                             collection,
                             core)
         else:
-            logging.info("Skip core {}, already solved...".format(core.id))
+            logger.info("Skip core {}, already solved...".format(core.id))
 
         return core.id
     except:
         raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
 
-def cluster(name_db,
-            collection,
-            db_credentials,
-            roi,
-            output_dir,
-            epsilon_lines,
-            epsilon_volumes,
-            min_overlap_volumes,
-            cluster_orientation_factor,
-            remove_singletons,
-            voxel_size,
-            use_ori=True):
-
-    db = DB(db_credentials)
-
-    x_lim_roi = {"min": roi[0][0] * voxel_size[0],
-                 "max": roi[0][1] * voxel_size[0]}
-    y_lim_roi = {"min": roi[1][0] * voxel_size[1],
-                 "max": roi[1][1] * voxel_size[1]}
-    z_lim_roi = {"min": roi[2][0] * voxel_size[2],
-                 "max": roi[2][1] * voxel_size[2]}
-
-    g1, index_map = db.get_selected(name_db,
-                                    collection,
-                                    x_lim=x_lim_roi,
-                                    y_lim=y_lim_roi,
-                                    z_lim=z_lim_roi)
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    solution_file = os.path.join(output_dir, "cluster_roi.gt")
-    g1.save(solution_file)
-
-    skeletonize(solution_file,
-                output_dir,
-                epsilon_lines,
-                epsilon_volumes,
-                min_overlap_volumes,
-                canvas_shape=[roi[2][1] - roi[2][0], 
-                              roi[1][1] - roi[1][0], 
-                              roi[0][1] - roi[0][0]],
-                offset=np.array([roi[0][0],
-                                 roi[1][0],
-                                 roi[2][0]]),
-                orientation_factor=cluster_orientation_factor,
-                remove_singletons=remove_singletons,
-                use_ori=use_ori,
-                voxel_size=voxel_size)
-
-
 if __name__ == "__main__":
     #cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/test_runs/run_7/b+_full/config.ini")
     #track(cfg_dict)
-    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/experiments/grid_search_lsd/run_7/energy_cost_4b/grid_0/config.ini")
+    #cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/stephan/experiments/setup01/config.ini")
+    #track(cfg_dict)
+
+
+    cfg_dict = read_config("/groups/funke/home/ecksteinn/Projects/microtubules/cremi/miccai/grid_search/bestbet/grid/b+/grid_0/config.ini")
     track(cfg_dict)
+

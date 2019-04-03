@@ -85,8 +85,6 @@ class CoreBuilder(object):
         """
         LEGACY CODE - Only used for testing.
         """
-
-        print "Generate core neighbours..."
         nbs = {core.id: set() for core in cores}
         
         for i in range(len(cores)):

@@ -1,20 +1,21 @@
 import numpy as np
 import os
-
+import logging
+import json
 from comatch import match_components
+
 from mtrack.preprocessing import nml_to_g1, g1_to_nml
 from mtrack.evaluation.voxel_skeleton import VoxelSkeleton
 from mtrack.evaluation.matching_graph import MatchingGraph
 from mtrack.graphs import G1
-import json
 
+logger = logging.getLogger("__name__")
 
 def evaluate(tracing, 
              reconstruction, 
              voxel_size, 
              distance_threshold, 
              subsample, 
-             use_distance_costs=True, 
              max_edges=1,
              export_to=None,
              x_lim=None,
@@ -39,7 +40,7 @@ def evaluate(tracing,
     for item in inputs:
         if isinstance(item, str):
             if (not item.endswith(".nml")) or (not os.path.isfile(item)):
-                print item, item.endswith(".nml"), os.path.isfile(item)
+                logger.debug(str(item) + str(item.endswith(".nml")) + str(os.path.isfile(item)))
                 raise ValueError("Provide inputs as path to knossos nml file or as a g1 graph directly")
             else:
                 inputs_g1.append(nml_to_g1(item, output_file=None))
@@ -69,7 +70,6 @@ def evaluate(tracing,
                                                              subsample)
 
         matching_graph, topological_errors, node_errors = evaluate_matching_graph(matching_graph, 
-                                                                                  use_distance_costs, 
                                                                                   max_edges, export_to,
                                                                                   optimality_gap,
                                                                                   time_limit, n_gts, n_recs)
@@ -108,17 +108,21 @@ def build_matching_graph(tracing_g1, reconstruction_g1, voxel_size, distance_thr
     # by conversion to vertex skeletons:
     tracing_vertex_skeletons = []
     reconstruction_vertex_skeletons = []
-    print "Construct voxel skeletons..."
+    logger.info("Construct voxel skeletons...")
     for tracing_mt in tracing_mts:
-        vs = VoxelSkeleton(tracing_mt, voxel_size=voxel_size, verbose=False, subsample=subsample)
-        tracing_vertex_skeletons.append(vs)
+        try:
+            vs = VoxelSkeleton(tracing_mt, voxel_size=voxel_size, verbose=False, subsample=subsample)
+            tracing_vertex_skeletons.append(vs)
+        except:
+            logger.warning("Skipped vs rec")
+            pass
 
     for reconstruction_mt in reconstruction_mts:
         vs = VoxelSkeleton(reconstruction_mt, voxel_size=voxel_size, verbose=False, subsample=subsample)
         reconstruction_vertex_skeletons.append(vs)
 
     # Construct matching graph:
-    print "Construct matching graph..."
+    logger.info("Construct matching graph...")
     matching_graph = MatchingGraph(tracing_vertex_skeletons,
                                    reconstruction_vertex_skeletons,
                                    distance_threshold,
@@ -130,8 +134,8 @@ def build_matching_graph(tracing_g1, reconstruction_g1, voxel_size, distance_thr
     return matching_graph, len(tracing_mts), len(reconstruction_mts)
 
 
-def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1, export_to=None, optimality_gap=0.0, time_limit=None, n_gts=-1, n_recs=-1):
-    if max_edges>1:
+def evaluate_matching_graph(matching_graph, max_edges=1, export_to=None, optimality_gap=0.0, time_limit=None, n_gts=-1, n_recs=-1):
+    if max_edges>1 or max_edges==None:
         edge_conflicts = True
     else:
         edge_conflicts = False
@@ -139,33 +143,13 @@ def evaluate_matching_graph(matching_graph, use_distance_costs=True, max_edges=1
     nodes_gt, nodes_rec, edges_gt_rec, labels_gt, labels_rec, edge_costs, edge_conflicts, edge_pairs = matching_graph.export_to_comatch(edge_conflicts=edge_conflicts, 
                                                                                                                                         edge_pairs=False)
 
-    if not use_distance_costs:
-        edge_costs = None
-
-    try:
-        # Quadmatch
-        print "Match using quadmatch..."
-        label_matches, node_matches, num_splits, num_merges, num_fps, num_fns = match_components(nodes_gt, nodes_rec, 
-                                                                                                 edges_gt_rec, labels_gt, labels_rec, 
-                                                                                                 edge_conflicts=edge_conflicts,
-                                                                                                 max_edges=max_edges, edge_costs=edge_costs,
-                                                                                                 optimality_gap=optimality_gap,
-                                                                                                 time_limit=time_limit)
-    except TypeError:
-        # Comatch
-        if use_distance_costs:
-            no_match_cost = max(edge_costs) * 100
-        else:
-            no_match_cost = 0
-
-        print "Failed... Fallback to comatch with no match cost: {}".format(no_match_cost)
-
-        label_matches, node_matches, num_splits, num_merges, num_fps, num_fns = match_components(nodes_gt, nodes_rec, 
-                                                                                                 edges_gt_rec, labels_gt, labels_rec, 
-                                                                                                 allow_many_to_many=(max_edges>1), edge_costs=edge_costs,
-                                                                                                 no_match_costs=no_match_cost, 
-                                                                                                 optimality_gap=optimality_gap,
-                                                                                                 time_limit=time_limit)
+    logger.info("Match using hungarian match...")
+    label_matches, node_matches, num_splits, num_merges, num_fps, num_fns = match_components(nodes_gt, nodes_rec, 
+                                                                                             edges_gt_rec, labels_gt, labels_rec, 
+                                                                                             edge_conflicts=edge_conflicts,
+                                                                                             max_edges=max_edges,
+                                                                                             optimality_gap=optimality_gap,
+                                                                                             time_limit=time_limit)
 
     matching_graph.import_matches(node_matches)
     topological_errors = {"n_gt": n_gts, "n_rec": n_recs, "splits": num_splits, "merges": num_merges, "fps": num_fps, "fns": num_fns}

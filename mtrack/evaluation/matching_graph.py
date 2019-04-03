@@ -1,11 +1,12 @@
 import numpy as np
 import os
 from scipy.spatial import KDTree
+import json
 
 from mtrack.graphs import G1
 from mtrack.preprocessing import g1_to_nml
-import json
 
+logger = logging.getLogger("__name__")
 
 class MatchingGraph(object):
     def __init__(self, 
@@ -13,11 +14,11 @@ class MatchingGraph(object):
                  reconstructed_skeletons, 
                  distance_threshold,
                  voxel_size,
-                 verbose=False, 
                  distance_cost=True,
                  initialize_all=True):
         """
         TODO: Clean up export/mask methods - too much code duplication now.
+              Handle conflict find during import, unnecessary slow now
 
         Matching graph representation.
 
@@ -30,8 +31,6 @@ class MatchingGraph(object):
 
         self.graphs = {"gt": [skeleton.get_graph() for skeleton in groundtruth_skeletons], 
                        "rec": [skeleton.get_graph() for skeleton in reconstructed_skeletons]}
-
-        self.verbose = verbose
 
         self.distance_cost = distance_cost
 
@@ -434,8 +433,7 @@ class MatchingGraph(object):
         self.matching_graph.set_vertex_filter(None)
 
     def export_to_comatch(self, edge_conflicts=False, edge_pairs=False):
-        if self.verbose:
-            print "Export to comatch..."
+        logger.info("Export to comatch...")
 
         nodes_gt = []
         nodes_rec = []
@@ -468,15 +466,13 @@ class MatchingGraph(object):
         self.clear_edge_masks()
 
         if edge_conflicts:
-            if self.verbose:
-                print "Get edge conflicts..."
+            logger.info("Get edge conflicts...")
             edge_conflicts = self.get_edge_conflicts()
         else:
             edge_conflicts = None
 
         if edge_pairs:
-            if self.verbose:
-                print "Get edge pairs..."
+            logger.info("Get edge pairs...")
             edge_pairs = self.get_edge_pairs()
         else:
             edge_pairs = None
@@ -663,8 +659,7 @@ class MatchingGraph(object):
         """
         Add original skeleton edges back to the matching graph.
         """
-        if self.verbose:
-            print "Add skeleton edges..."
+        logger.info("Add skeleton edges...")
 
         for tag in ["gt", "rec"]:
             graphs = self.graphs[tag]
@@ -682,8 +677,7 @@ class MatchingGraph(object):
         together with the voxel size.
         """
 
-        if self.verbose:
-            print "Add matching edges..."
+        logger.info("Add matching edges...")
 
         gt_positions = self.get_positions("gt")
         rec_positions = self.get_positions("rec")
@@ -692,8 +686,7 @@ class MatchingGraph(object):
         gt_mv_ids = self.get_mv_ids("gt")
         rec_mv_ids = self.get_mv_ids("rec")
 
-        if self.verbose:
-            print "Initialize KDTrees..."
+        logger.info("Initialize KDTrees...")
         gt_tree = KDTree(gt_positions * np.array(voxel_size))
         rec_tree = KDTree(rec_positions * np.array(voxel_size))
 
@@ -703,16 +696,12 @@ class MatchingGraph(object):
         For each element self.data[i] of this tree, 
         results[i] is a list of the indices of its neighbors in other.data.
         """
-        if self.verbose:
-            print "Query ball tree..."
+        logger.info("Query ball tree...")
         results = gt_tree.query_ball_tree(rec_tree, r=distance_threshold)
        
-        if self.verbose:
-            print "Add matching edges to graph..."
+        logger.info("Add matching edges to graph...")
 
         for gt_id in range(len(results)):
-            if not gt_id % 100:
-                print float(gt_id)/len(results) * 100, "%"
             mv_id_source = gt_mv_ids[gt_id]
 
             for rec_id in results[gt_id]:

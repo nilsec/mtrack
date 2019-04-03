@@ -3,7 +3,12 @@ from xml.dom import minidom
 import os
 import sys
 import ast
+import logging
+
 import mtrack.graphs
+
+logger = logging.getLogger("__name__")
+
 
 class NodeAttribute:
     def __init__(self, position, id, orientation, partner, identifier):
@@ -122,7 +127,7 @@ def g1_to_nml(g1,
     with open(output_file, "w+") as f:
         f.write(doc)
 
-    print "G1 graph written to {}".format(output_file)
+    logger.info("G1 graph written to {}".format(output_file))
 
     return output_file
 
@@ -147,7 +152,7 @@ def from_nml(filename, edge_attribute=None):
             #point, id, orientation, partner, identifier = from_node_elem_to_node(node_elem)
             node_attribute = NodeAttribute(*from_node_elem_to_node(node_elem))
             if node_attribute.id in node_dic:
-                print 'WARNING: ID already exists'
+                logger.warning('WARNING: ID already exists')
                 break
             else:
                 #point_dic[id] = [point, id, orientation, partner, identifier]

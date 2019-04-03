@@ -1,6 +1,8 @@
 import graph_tool.all as gt
 gt.openmp_set_num_threads(1) # openmp does not play well with multiprocessing
 import numpy as np
+import logging
+
 
 class G:
     """
@@ -225,73 +227,6 @@ class G:
         vp.a = vertex_mask
         self.set_vertex_filter(vp)
 
-    def get_articulation_points(self):
-        bicomp_ep, articulation_vp, nc = gt.label_biconnected_components(self.g)
-        naps = articulation_vp.a == 0
-        naps_vp = self.g.new_vertex_property("bool")
-        naps_vp.a = naps
-        return naps_vp
-
-    def get_nested_sbm_masks(self, edge_weights, rec_types="real-exponential"):
-        if edge_weights:
-            state_args = dict(recs=[self.g.ep.weight], rec_types=[rec_types])
-        else:
-            state_args = {}
-        
-        state = gt.minimize_nested_blockmodel_dl(self.g, state_args=dict(recs=[self.g.ep.weight], 
-                                                     rec_types=[rec_types]))
-        states = state.get_levels()
-
-        mask_list = []
-        for state in states:
-            max_comp = state.B
-            masks = []
-            for label in range(0, max_comp):
-                binary_mask = state.b.a == label
-            
-                cc_vp = self.g.new_vertex_property("bool")
-                try:
-                    cc_vp.a = binary_mask
-                    masks.append(cc_vp)
-                except:
-                    continue
-
-            mask_list.append(masks)
-
-        return mask_list
- 
- 
-    def get_sbm_masks(self):
-        state = gt.minimize_blockmodel_dl(self.g)
-        
-        max_comp = state.B
-        masks = []
-        for label in range(0, max_comp):
-            binary_mask = state.b.a == label
-            
-            cc_vp = self.g.new_vertex_property("bool")
-            cc_vp.a = binary_mask
-            masks.append(cc_vp)
-        return masks
-
-    def get_kcore_mask(self, min_k):
-        kval_vp = gt.kcore_decomposition(self.g)
-        mask = kval_vp.a >= min_k
-        mask_vp = self.g.new_vertex_property("bool")
-        mask_vp.a = mask
-        return mask_vp
-
-    def get_min_cut_masks(self):
-        min_cut, partition = gt.min_cut(self.g, self.g.ep.weight)
- 
-        masks = []
-        for p in [0,1]:
-            mask_vp = self.g.new_vertex_property("bool")
-            mask_vp.a = partition.a == p
-            masks.append(mask_vp)
-
-        return masks
- 
     def get_component_masks(self, min_vertices=0):
         component_vp, hist = gt.label_components(self.g, 
                                                  directed=False,
@@ -302,7 +237,6 @@ class G:
         for label in range(0, max(max_comp,1)):
             if hist[label] < min_vertices:
                 continue
-  
             binary_mask = component_vp.a == label
 
             cc_vp = self.g.new_vertex_property("bool")
