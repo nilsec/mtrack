@@ -22,5 +22,6 @@ setup(
         'h5py',
         'scikit-image',
         'pymongo',
+        'networkx==2.2'
             ],
 )   
