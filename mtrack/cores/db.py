@@ -423,6 +423,7 @@ class DB(object):
 
         logging.info("Write candidate vertices...")
         vertex_id = graph.find({"selected": {"$exists": True}}).count()
+        vertices = []
         for candidate in candidates:
             pos_phys = np.array([round(candidate.position[j]) * voxel_size[j] for j in range(3)])
             assert(np.all(np.array(pos_phys, dtype=int) == pos_phys))
@@ -447,9 +448,9 @@ class DB(object):
             vertex["degree"] = 0
             vertex["selected"] = False
             vertex["solved"] = False
+            vertices.append(vertex)
 
-            graph.insert_one(vertex)
-
+        graph.insert_many(vertices)
         return vertex_id
 
     def reset_collection(self,
@@ -494,7 +495,8 @@ class DB(object):
 
             graph = self.get_collection(name_db,
                                         collection)
-
+            
+            edges = []
             for e in g1_connected.get_edge_iterator():
                 v0 = index_map[e.source()]
                 v1 = index_map[e.target()]
@@ -511,7 +513,9 @@ class DB(object):
                 assert(e_N<=1)
 
                 if e_N == 0:
-                    graph.insert_one(edge)
+                    edges.append(edge)
+
+            graph.insert_many(edges)
         
     def is_solved(self,
                   name_db,
