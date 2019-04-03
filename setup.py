@@ -20,8 +20,6 @@ setup(
         'numpy',
         'scipy>=0.18.0',
         'h5py',
-        'scikit-image',
         'pymongo',
-        'networkx==2.2'
             ],
 )   

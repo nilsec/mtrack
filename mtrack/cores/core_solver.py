@@ -3,7 +3,7 @@ import logging
 
 from mtrack.solve import solve
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 
 class CoreSolver(object):

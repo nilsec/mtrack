@@ -7,7 +7,7 @@ import logging
 
 import mtrack.graphs
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 
 class NodeAttribute:

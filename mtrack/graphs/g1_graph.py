@@ -7,7 +7,7 @@ import logging
 from mtrack.graphs.graph import G
 from mtrack.graphs.start_edge import StartEdge
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 class G1(G):
     START_EDGE = StartEdge()

@@ -5,7 +5,7 @@ from mtrack.evaluation.dda3 import DDA3
 from mtrack.graphs import G1
 from mtrack.preprocessing import g1_to_nml
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 class VoxelSkeleton(object):
     def __init__(self, g1_cc, voxel_size, subsample=1):

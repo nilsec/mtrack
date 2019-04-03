@@ -5,7 +5,7 @@ import logging
 
 from mtrack.graphs.g1_graph import G1
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 class G1Solver:
     def __init__(self, 

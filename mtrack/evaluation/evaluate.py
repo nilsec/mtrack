@@ -9,7 +9,7 @@ from mtrack.evaluation.voxel_skeleton import VoxelSkeleton
 from mtrack.evaluation.matching_graph import MatchingGraph
 from mtrack.graphs import G1
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 def evaluate(tracing, 
              reconstruction, 

@@ -76,8 +76,8 @@ python setup.py install
 
 #install mtrack
 cd /src/mtrack
-python setup.py install
 pip install -r requirements.txt
+python setup.py install
 
 %environment
 export GUROBI_HOME=/misc/local/gurobi-8.0.1

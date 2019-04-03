@@ -2,7 +2,7 @@ import numpy as np
 import operator
 import logging
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 def dda_round(x):
     return (x + 0.5).astype(int) 

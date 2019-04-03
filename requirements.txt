@@ -1,6 +1,4 @@
 numpy
 scipy>=0.18.0
 h5py
-matplotlib==2.2.3
-scikit-image==0.14.2
 pymongo

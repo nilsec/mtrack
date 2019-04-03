@@ -2,11 +2,12 @@ import numpy as np
 import os
 from scipy.spatial import KDTree
 import json
+import logging
 
 from mtrack.graphs import G1
 from mtrack.preprocessing import g1_to_nml
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 class MatchingGraph(object):
     def __init__(self, 

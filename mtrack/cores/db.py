@@ -17,7 +17,7 @@ from mtrack.graphs import g1_graph
 from mtrack.preprocessing import connect_graph_locally
 import ConfigParser
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 
 class DB(object):

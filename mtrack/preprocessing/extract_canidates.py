@@ -6,10 +6,6 @@ import h5py
 import numpy as np
 from mtrack.graphs import g1_graph
 from scipy.spatial import KDTree
-try:
-    import matplotlib.pyplot as plt
-except ImportError:
-    pass
 
 
 class MTCandidate(object):

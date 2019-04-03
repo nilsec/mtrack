@@ -6,7 +6,7 @@ import logging
 from mtrack.graphs import g1_graph, graph_converter,\
                    cost_converter, g2_solver
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 def solve(g1,
           start_edge_prior,

@@ -11,7 +11,7 @@ import multiprocessing
 from mtrack.mt_utils import gen_config, read_config,  NoDaemonPool # Need outer non-daemon pool
 from mtrack import track
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 def generate_grid(param_dict,
                   grid_base_dir,
