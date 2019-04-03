@@ -54,6 +54,3 @@ def read_config(path):
         cfg_dict["time_limit_per_cc"] = config.getint("Solve", "time_limit_per_cc")
 
     return cfg_dict
-
-if __name__ == "__main__":
-    print read_config("../../config.ini")   

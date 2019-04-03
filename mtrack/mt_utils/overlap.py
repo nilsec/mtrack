@@ -6,7 +6,3 @@ def check_overlap(x, y):
         return True
     else:
         return False
-
-if __name__ == "__main__":
-    print check_overlap([1,10], [-1,-10])
-    

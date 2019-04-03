@@ -1,10 +1,11 @@
 import numpy as np
-from mtrack.graphs.g1_graph import G1
 import pylp
 import os
+import logging
 
-# For usage inside docker without docker gurobi license
-MUST_USE_SCIP = os.environ.get("MUST_USE_SCIP", False) == "True"
+from mtrack.graphs.g1_graph import G1
+
+logger = logging.getLogger("__name__")
 
 class G1Solver:
     def __init__(self, 
@@ -16,15 +17,11 @@ class G1Solver:
                  vertex_selection_cost,
                  backend="Gurobi"):
 
-        if MUST_USE_SCIP:
-            print "MUST_USE_SCIP=True"
-            backend = "Scip"
-
         if backend == "Gurobi":
-            print "Use Gurobi backend"
+            logger.info("Use Gurobi backend")
             self.backend = pylp.create_linear_solver(pylp.Preference.Gurobi)
         elif backend == "Scip":
-            print "Use Scip backend"
+            logger.info("Use Scip backend")
             self.backend = pylp.create_linear_solver(pylp.Preference.Scip)
         else:
             raise NotImplementedError("Choose between Gurobi or Scip backend")
@@ -205,19 +202,19 @@ class G1Solver:
 
 
     def solve(self, time_limit=None):
-        print "with " + str(len(self.constraints)) + " constraints."
-        print "and " + str(self.n_variables) + " variables.\n"
+        logger.info("solved with " + str(len(self.constraints)) + " constraints.")
+        logger.info("and " + str(self.n_variables) + " variables.")
 
         if time_limit != None:
             try:
-                print "Set time limit of {} seconds".format(time_limit)
+                logger.info("Set time limit of {} seconds".format(time_limit))
                 self.backend.set_timeout(time_limit)
             except AttributeError:
-                print "WARNING: Unable to set time limit"
+                logger.warning("WARNING: Unable to set time limit")
                 pass
 
         solution, msg = self.backend.solve()
-        print "SOLVED with status: " + msg
+        logger.info("SOLVED with status: " + msg)
 
         return solution
 

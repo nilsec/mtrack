@@ -5,8 +5,9 @@ import itertools
 import logging
 
 from mtrack.graphs.graph import G
-from mtrack.graphs.start_edge import StartEdge 
-#from mtrack.mt_utils.spline_interpolation import get_energy_from_ordered_points
+from mtrack.graphs.start_edge import StartEdge
+
+logger = logging.getLogger("__name__")
 
 class G1(G):
     START_EDGE = StartEdge()
@@ -477,89 +478,13 @@ class G1(G):
                         """
 
         edge_combination_cost.update(prior_cost)
-        logging.info("edge_combination_cost: " + str(edge_combination_cost))
+        logger.info("edge_combination_cost: " + str(edge_combination_cost))
 
         if return_edges_to_middle:
             return edge_combination_cost, edges_to_middle
         else:
             return edge_combination_cost
     
-    def get_sbm(self, output_folder, nested=False, edge_weights=False):
-        logging.info("Find SBM partition...")
-        if nested:
-            mask_list = G.get_nested_sbm_masks(self, edge_weights)
-        else:
-            mask_list = [G.get_sbm_masks(self)]
-
-        if not os.path.exists(output_folder):
-            os.makedirs(output_folder)
-        
-        logging.info("Filter Graphs...")
-        cc_path_list = []
-        
-        n = 0
-        l = 0
-        levels = len(mask_list)
-        level_path_list = []
-        for masks in mask_list:
-            for mask in masks:
-                output_file = output_folder.replace("/", "level_%s/" % l) + "cc{}.gt".format(n)
-                cc_path_list.append(output_file)
-            
-                G.set_vertex_filter(self, mask)
-                g1_masked = G1(0, G_in=self)
-                if not os.path.exists(os.path.dirname(output_file)):
-                    os.makedirs(os.path.dirname(output_file))
-                g1_masked.save(output_file)
-            
-                G.set_vertex_filter(self, None)
-                n += 1
-            level_path_list.append(cc_path_list)
-            l += 1
-
-        return level_path_list
-    
-    def get_min_cut(self, g):
-        masks = G.get_min_cut_masks(g)
-        partition = []
-
-        partition_vertices = []
-        for mask in masks:
-            G.set_vertex_filter(g, mask)
-            partition_vertices.append(g.get_number_of_vertices())
-            g1_masked = G1(0, G_in=g)
-            g1_masked.g.purge_vertices()
-            partition.append(g1_masked)
-            G.set_vertex_filter(g, None)
-    
-        small_partition_idx = sorted(enumerate(partition_vertices), key= lambda x: x[1])[0][0]
-        small = partition[small_partition_idx] 
-        big = partition[int(not small_partition_idx)]
-
-        cut_edges = g.get_number_of_edges() - big.get_number_of_edges() - small.get_number_of_edges()
-
-        return partition, cut_edges
-
-    def get_hcs(self, g, remove_singletons=1, hcs=[]):
-        logging.info("Get hcs...")
-        if remove_singletons:
-            logging.info("Remove Singletons")
-            singleton_mask = G.get_kcore_mask(g, remove_singletons)
-            g.g.set_vertex_filter(singleton_mask)
-            g.g.purge_vertices()
-             
-        partition, cut_edges = self.get_min_cut(g)
-        
-        if cut_edges > g.get_number_of_vertices()/2.:
-            hcs.append(g)
-        else:
-            if partition[0].get_number_of_vertices()>1:
-                self.get_hcs(g=partition[0], remove_singletons=False, hcs=hcs)
-
-            if partition[1].get_number_of_vertices()>1:
-                self.get_hcs(g=partition[1], remove_singletons=False, hcs=hcs)
-
-        return hcs
         
     def get_components(self, 
                        min_vertices, 
@@ -568,33 +493,33 @@ class G1(G):
                        min_k=1,
                        return_graphs=False):
 
-        logging.info("Get components...")
+        logger.info("Get components...")
         if remove_aps:
-            logging.info("Remove articulation points...")
+            logger.info("Remove articulation points...")
             naps_vp = G.get_articulation_points(self)
             G.set_vertex_filter(self, naps_vp)
 
         if min_k > 1:
-            logging.info("Find " + str(min_k) + "-cores...")
+            logger.info("Find " + str(min_k) + "-cores...")
  
             kcore_vp = G.get_kcore_mask(self, min_k)
             G.set_vertex_filter(self, kcore_vp)
 
-        logging.info("Find connected components...")
+        logger.info("Find connected components...")
         masks, hist = G.get_component_masks(self, min_vertices)
         
         if output_folder is not None:
             if not os.path.exists(output_folder):
                 os.makedirs(output_folder)
     
-        logging.info("Filter Graphs...")
+        logger.info("Filter Graphs...")
         cc_path_list = []
        
         graph_list = [] 
         n = 0
         len_masks = len(masks)
         for mask in masks:
-            logging.info("Filter graph " + str(n) + "/" + str(len_masks)) 
+            logger.info("Filter graph " + str(n) + "/" + str(len_masks)) 
             if output_folder is not None:
                 output_file = output_folder +\
                                 "cc{}_min{}_phy.gt".format(n, min_vertices)

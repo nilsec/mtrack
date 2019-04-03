@@ -19,7 +19,6 @@ class GraphGenerator(object):
         self.g1 = G1(n_vertices)
         
         positions = []
-        print "Generate vertices..."
         for v in self.g1.get_vertex_iterator():
             if (int(v) >= 1) and (self.g1.get_partner(int(v) - 1) == int(v)):
                 has_partner=True

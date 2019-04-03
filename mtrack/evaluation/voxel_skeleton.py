@@ -1,11 +1,14 @@
 import numpy as np
+import logging
 
 from mtrack.evaluation.dda3 import DDA3
 from mtrack.graphs import G1
 from mtrack.preprocessing import g1_to_nml
 
+logger = logging.getLogger("__name__")
+
 class VoxelSkeleton(object):
-    def __init__(self, g1_cc, voxel_size, subsample=1, verbose=False):
+    def __init__(self, g1_cc, voxel_size, subsample=1):
         """
         Interpolate a g1 graph connected component
         in voxel space and generate a graph on a voxel 
@@ -16,7 +19,6 @@ class VoxelSkeleton(object):
         """
         self.g1_cc = g1_cc
         self.scaling = voxel_size
-        self.verbose = verbose
         self.subsample = subsample
         self.points_unique, self.edge_to_line = self.__generate(scaling=voxel_size)
         self.voxel_skeleton = self.__to_graph(self.points_unique, self.edge_to_line)
@@ -35,8 +37,7 @@ class VoxelSkeleton(object):
         in voxel space with appropriate
         scaling.
         """
-        if self.verbose:
-            print("Interpolate edges...")
+        logger.info("Interpolate edges...")
 
         points = []
         edge_to_line = {}
@@ -64,8 +65,7 @@ class VoxelSkeleton(object):
         gt graph to preserve neighborhood
         information.
         """
-        if self.verbose:
-            print("Initialize interpolation graph...")
+        logger.info("Initialize interpolation graph...")
         
         # Remove doubly counted vertices found at start/end of each edge
         double_vertices = len(edge_to_line) - 1 

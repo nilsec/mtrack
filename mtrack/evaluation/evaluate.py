@@ -1,13 +1,15 @@
 import numpy as np
 import os
-
+import logging
+import json
 from comatch import match_components
+
 from mtrack.preprocessing import nml_to_g1, g1_to_nml
 from mtrack.evaluation.voxel_skeleton import VoxelSkeleton
 from mtrack.evaluation.matching_graph import MatchingGraph
 from mtrack.graphs import G1
-import json
 
+logger = logging.getLogger("__name__")
 
 def evaluate(tracing, 
              reconstruction, 
@@ -38,7 +40,7 @@ def evaluate(tracing,
     for item in inputs:
         if isinstance(item, str):
             if (not item.endswith(".nml")) or (not os.path.isfile(item)):
-                print item, item.endswith(".nml"), os.path.isfile(item)
+                logger.debug(str(item) + str(item.endswith(".nml")) + str(os.path.isfile(item)))
                 raise ValueError("Provide inputs as path to knossos nml file or as a g1 graph directly")
             else:
                 inputs_g1.append(nml_to_g1(item, output_file=None))
@@ -106,13 +108,13 @@ def build_matching_graph(tracing_g1, reconstruction_g1, voxel_size, distance_thr
     # by conversion to vertex skeletons:
     tracing_vertex_skeletons = []
     reconstruction_vertex_skeletons = []
-    print "Construct voxel skeletons..."
+    logger.info("Construct voxel skeletons...")
     for tracing_mt in tracing_mts:
         try:
             vs = VoxelSkeleton(tracing_mt, voxel_size=voxel_size, verbose=False, subsample=subsample)
             tracing_vertex_skeletons.append(vs)
         except:
-            print "Skipped vs rec"
+            logger.warning("Skipped vs rec")
             pass
 
     for reconstruction_mt in reconstruction_mts:
@@ -120,7 +122,7 @@ def build_matching_graph(tracing_g1, reconstruction_g1, voxel_size, distance_thr
         reconstruction_vertex_skeletons.append(vs)
 
     # Construct matching graph:
-    print "Construct matching graph..."
+    logger.info("Construct matching graph...")
     matching_graph = MatchingGraph(tracing_vertex_skeletons,
                                    reconstruction_vertex_skeletons,
                                    distance_threshold,
@@ -141,7 +143,7 @@ def evaluate_matching_graph(matching_graph, max_edges=1, export_to=None, optimal
     nodes_gt, nodes_rec, edges_gt_rec, labels_gt, labels_rec, edge_costs, edge_conflicts, edge_pairs = matching_graph.export_to_comatch(edge_conflicts=edge_conflicts, 
                                                                                                                                         edge_pairs=False)
 
-    print "Match using hungarian match..."
+    logger.info("Match using hungarian match...")
     label_matches, node_matches, num_splits, num_merges, num_fps, num_fns = match_components(nodes_gt, nodes_rec, 
                                                                                              edges_gt_rec, labels_gt, labels_rec, 
                                                                                              edge_conflicts=edge_conflicts,

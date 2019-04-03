@@ -13,7 +13,8 @@ import signal
 import traceback
 import functools
 import shutil
-import pdb
+
+logger = logging.getLogger("__name__")
 
 
 def track(config):
@@ -40,7 +41,7 @@ def track(config):
                          "twice as large as the distance threshold in all dimensions")
 
     # Init logger:
-    logging.info("Start tracking")
+    logger.info("Start tracking")
 
     # Generate core geometry: 
     builder = CoreBuilder(volume_size=roi_volume_size,
@@ -171,7 +172,7 @@ def track(config):
                                                 y_lim=y_lim_roi,
                                                 z_lim=z_lim_roi)
         except ValueError:
-            logging.warning("WARNING, solution contains no vertices!")
+            logger.warning("WARNING, solution contains no vertices!")
             g1_selected = G1(0)
 
         if config["export_validated"]:
@@ -253,7 +254,7 @@ def write_candidate_graph(max_chunks,
                           overwrite=False,
                           mp=True):
 
-    logging.info("Extract candidates...")
+    logger.info("Extract candidates...")
     db = DB(db_credentials)
     n_chunk = 0
     id_offset = 1
@@ -261,7 +262,7 @@ def write_candidate_graph(max_chunks,
     # Overwrite if necesseray:
     graph = db.get_collection(name_db, collection, overwrite=overwrite)
     for chunk in max_chunks:
-        logging.info("Extract chunk {}/{}...".format(n_chunk, len(max_chunks)))
+        logger.info("Extract chunk {}/{}...".format(n_chunk, len(max_chunks)))
 
         f = h5py.File(chunk, "r")
         attrs = f[max_dset].attrs.items()
@@ -295,15 +296,15 @@ def write_candidate_graph(max_chunks,
 
     bound_connect_candidates_alias = functools.partial(connect_candidates_alias, db)
 
-    logging.info("Connect candidates...")
+    logger.info("Connect candidates...")
     try:
         for cf_core_ids in cf_lists:
-            logging.info("Connecting {}".format(cf_core_ids))
+            logger.info("Connecting {}".format(cf_core_ids))
                         
             results = []
             if mp:
                 for core_id in cf_core_ids:
-                    logging.info("Add context {} to pool (mp: {})".format(core_id, mp))
+                    logger.info("Add context {} to pool (mp: {})".format(core_id, mp))
                     core = cores[core_id]
                     results.append(pool.apply_async(bound_connect_candidates_alias, 
                                                     (name_db,
@@ -332,9 +333,9 @@ def write_candidate_graph(max_chunks,
         pool.terminate()
         pool.join()
 
-    logging.info("Add edge costs...")
+    logger.info("Add edge costs...")
     for chunk in pm_chunks:
-        logging.info("Work on chunk {}/{}...".format(n_chunk, len(pm_chunks)))
+        logger.info("Work on chunk {}/{}...".format(n_chunk, len(pm_chunks)))
 
         f = h5py.File(chunk, "r")
         attrs = f[pm_dset].attrs.items()
@@ -372,12 +373,12 @@ def solve_candidate_volume(name_db,
 
     try:
         for cf_core_ids in cf_lists:
-            logging.info("Working on {}".format(cf_core_ids))
+            logger.info("Working on {}".format(cf_core_ids))
                         
             results = []
             if mp:
                 for core_id in cf_core_ids:
-                    logging.info("Add core {} to pool (mp: {})".format(core_id, mp))
+                    logger.info("Add core {} to pool (mp: {})".format(core_id, mp))
                     results.append(pool.apply_async(solve_core, (cores[core_id],
                                                              name_db,
                                                              collection,
@@ -429,8 +430,8 @@ def solve_core(core,
                backend):
 
     try:
-        logging.info("Core id {}".format(core.id))
-        logging.info("Process core {}...".format(core.id))
+        logger.info("Core id {}".format(core.id))
+        logger.info("Process core {}...".format(core.id))
         db = DB(db_credentials)
         solver = CoreSolver()
         
@@ -474,7 +475,7 @@ def solve_core(core,
                             collection,
                             core)
         else:
-            logging.info("Skip core {}, already solved...".format(core.id))
+            logger.info("Skip core {}, already solved...".format(core.id))
 
         return core.id
     except:

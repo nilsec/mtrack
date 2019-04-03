@@ -1,16 +1,20 @@
 import numpy as np
 import pylp
 import os
+import logging
+
+logger = logging.getLogger("__name__")
+
 
 class G2Solver:
     def __init__(self, g2, backend="Gurobi"):
         self.g2_vertices_N = g2.get_number_of_vertices()
         
         if backend == "Gurobi":
-            print "Use Gurobi backend"
+            logger.info("Use Gurobi backend")
             self.backend = pylp.create_linear_solver(pylp.Preference.Gurobi)
         elif backend == "Scip":
-            print "Use Scip backend"
+            logger.info("Use Scip backend")
             self.backend = pylp.create_linear_solver(pylp.Preference.Scip)
         else:
             raise NotImplementedError("Choose between Gurobi or Scip backend")
@@ -88,19 +92,19 @@ class G2Solver:
         self.backend.set_constraints(self.constraints)
 
     def solve(self, time_limit=None, num_threads=16):
-        print "with: " + str(len(self.constraints)) + " constraints."
-        print "and " + str(self.g2_vertices_N) + " variables.\n"
+        logger.info("solve with: " + str(len(self.constraints)) + " constraints.")
+        logger.info("and " + str(self.g2_vertices_N) + " variables")
 
         if time_limit != None:
             try:
-                print "Set time limit of {} seconds".format(time_limit)
+                logger.info("Set time limit of {} seconds".format(time_limit))
                 self.backend.set_timeout(time_limit)
             except AttributeError:
-                print "WARNING: Unable to set time limit"
+                logger.warning("WARNING: Unable to set time limit")
                 pass
 
         #self.backend.set_num_threads(num_threads)
         solution, msg = self.backend.solve()
-        print "SOLVED with status: " + msg
+        logger.info("SOLVED with status: " + msg)
 
         return solution
