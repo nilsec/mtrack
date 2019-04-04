@@ -6,6 +6,8 @@ import h5py
 import numpy as np
 from mtrack.graphs import g1_graph
 from scipy.spatial import KDTree
+from scipy import ndimage
+from skimage.measure import regionprops
 
 
 class MTCandidate(object):
@@ -18,6 +20,64 @@ class MTCandidate(object):
     def __repr__(self):
         return "<MtCandidateObject | position: %s, orientation: %s, id: %s, partner id: %s> \n" %\
         (self.position, self.orientation, self.identifier, self.partner_identifier)
+
+
+def extract_cc_candidates(prob_map,
+                          prob_map_dset,
+                          threshold,
+                          offset_pos=np.array([0,0,0]),
+                          identifier_0=0):
+
+    f = h5py.File(prob_map, "r")
+    prob_map = np.array(f[prob_map_dset])
+    f.close()
+
+    binary_stack = []
+    candidates = []
+    i = 0
+    for z in range(np.shape(prob_map)[0]):
+        binary_map = prob_map[z,:,:] > threshold
+        s_closing = np.ones((5,5))
+        binary_map = ndimage.binary_closing(binary_map, s_closing).astype(int)
+               
+        s_label = ndimage.generate_binary_structure(2,2) 
+        cc, n_features = ndimage.label(np.array(binary_map, dtype=np.uint32), structure=s_label)
+        centroids = fit_ellipse(cc)
+        for centroid in centroids:
+            candidate = MTCandidate(np.array(centroid + [z]) + offset_pos, 
+                                    np.array([1.,0.,0.]),
+                                    i + identififer_0,
+                                    partner_identifier=-1)
+            candidates.append(candidate)
+            i += 1
+
+    return candidates
+
+
+def fit_ellipse(cc, verbose=False, plot=False):
+    """
+    Fits an ellipse to the connected components of a binary image and returns major, minor axis, angle to x axis 
+    as well as the centroid of each connected component.
+    
+    Parameters:
+    ---------------------
+    cc: Labeled input image. I.e. cc contains a matrix where connected components are indicated by different values.
+        This is readily available as output from ndimage.label(). Labels with value zero are ignored.
+    
+    Returns:
+    --------------------
+    centroids
+    """
+
+    props = skimage.measure.regionprops(cc, cache=True)
+    cc_features = []
+    centroids = []
+    centroid.append((feature[3], feature[4]))
+    for prop in props:
+        y_0, x_0 = prop.centroid 
+        centroids.append([x0, y0])
+
+    return centroids
 
 
 def extract_maxima_candidates(maxima,

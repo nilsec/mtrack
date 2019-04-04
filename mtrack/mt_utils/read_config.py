@@ -9,8 +9,6 @@ def read_config(path):
         cfg_dict = {}
 
         # Data
-        cfg_dict["maxima"] = config.get("Data", "maxima")
-        cfg_dict["maxima_dset"] = config.get("Data", "maxima_dset")
         cfg_dict["prob_map"] = config.get("Data", "prob_map")
         cfg_dict["prob_map_dset"] = config.get("Data", "prob_map_dset")
         cfg_dict["name_db"] = config.get("Data", "name_db")
@@ -21,6 +19,7 @@ def read_config(path):
 
         # Preprocessing
         cfg_dict["distance_threshold"] = config.getint("Preprocessing", "distance_threshold")
+        cfg_dict["threshold"] = config.getfloat("Preprocessing", "threshold")
         
         # Chunks
         cfg_dict["volume_shape"] = np.array(config.get("Chunks", "volume_shape").split(", "), dtype=int)

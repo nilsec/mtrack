@@ -1,9 +1,7 @@
 import ConfigParser
 import os
 
-def gen_config(maxima,
-               maxima_dset,
-               prob_map,
+def gen_config(prob_map,
                prob_map_dset,
                name_db,
                name_collection,
@@ -11,6 +9,7 @@ def gen_config(maxima,
                reset,
                db_credentials,
                distance_threshold,
+               threshold,
                volume_shape,
                volume_offset,
                max_chunk_shape,
@@ -39,8 +38,6 @@ def gen_config(maxima,
     config = ConfigParser.ConfigParser()
 
     config.add_section('Data')
-    config.set('Data', 'maxima', str(maxima))
-    config.set('Data', 'maxima_dset', str(maxima_dset))
     config.set('Data', 'prob_map', str(prob_map))
     config.set('Data', 'prob_map_dset', str(prob_map_dset))
     config.set('Data', 'name_db', str(name_db))
@@ -51,6 +48,7 @@ def gen_config(maxima,
 
     config.add_section('Preprocessing')
     config.set('Preprocessing', 'distance_threshold', str(distance_threshold))
+    config.set('Preprocessing', 'threshold', str(threshold))
 
     config.add_section('Chunks')
     config.set('Chunks', 'volume_shape', str(volume_shape[0]) + ", " +\
@@ -103,9 +101,7 @@ def gen_config(maxima,
 
 
 if __name__ == "__main__":
-    gen_config(maxima=None,
-               maxima_dset=None,
-               prob_map=None,
+    gen_config(prob_map=None,
                prob_map_dset=None,
                name_db="db_name",
                name_collection="collection_name",
@@ -113,6 +109,7 @@ if __name__ == "__main__":
                reset=False,
                db_credentials="path_to_db_credentials.ini",
                distance_threshold=175,
+               threshold=0.5,
                volume_shape=[154,1524,1524],
                volume_offset=[0,0,0],
                max_chunk_shape=[50,1524,1524],

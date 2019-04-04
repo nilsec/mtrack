@@ -55,14 +55,6 @@ def track(config):
     cf_lists = builder.gen_cfs()
 
     if config["extract_candidates"]:
-        max_chunk_dir = chunk_prob_map(volume_shape=config["volume_shape"],
-                                    max_chunk_shape=config["max_chunk_shape"],
-                                    volume_offset=config["volume_offset"],
-                                    voxel_size=config["voxel_size"],
-                                    prob_map_h5=config["maxima"],
-                                    dset=config["maxima_dset"],
-                                    output_dir=os.path.join(config["chunk_output_dir"], "maxima"))
-
         pm_chunk_dir = chunk_prob_map(volume_shape=config["volume_shape"],
                                     max_chunk_shape=config["max_chunk_shape"],
                                     volume_offset=config["volume_offset"],
@@ -71,14 +63,10 @@ def track(config):
                                     dset=config["prob_map_dset"],
                                     output_dir=os.path.join(config["chunk_output_dir"], "pm"))
 
-        max_chunks = [os.path.join(max_chunk_dir, f)\
-                      for f in os.listdir(max_chunk_dir) if f.endswith(".h5")]
-
         pm_chunks = [os.path.join(pm_chunk_dir, f)\
                      for f in os.listdir(pm_chunk_dir) if f.endswith(".h5")]
 
         config["pm_chunks"] = pm_chunks
-        config["max_chunks"] = max_chunks
 
         """
         Extract id, and volume information from chunks
@@ -87,8 +75,7 @@ def track(config):
         chunk_limits = {}
         chunk_ids = {}
         roi_pm_chunks = []
-        roi_max_chunks = []
-        for max_chunk, pm_chunk in zip(max_chunks, pm_chunks):
+        for pm_chunk in pm_chunks:
             if not os.path.isfile(pm_chunk):
                 raise ValueError("{} is not a file".format(pm_chunk))
 
@@ -108,15 +95,15 @@ def track(config):
 
             if np.all(full_ovlp):
                 roi_pm_chunks.append(pm_chunk)
-                roi_max_chunks.append(max_chunk)
 
         """
         Extract candidates from all ROI chunks and write to specified
         database.
         """
 
-        write_candidate_graph(max_chunks=max_chunks,
-                              max_dset=config["maxima_dset"],
+        write_candidate_graph(threshold=config["threshold"],
+                              max_chunks=None,
+                              max_dset=None,
                               pm_chunks=pm_chunks,
                               pm_dset=config["prob_map_dset"],
                               name_db=config["name_db"],
@@ -132,7 +119,6 @@ def track(config):
 
         
         # Clean up chunks
-        shutil.rmtree(max_chunk_dir)
         shutil.rmtree(pm_chunk_dir)
 
         """
@@ -239,7 +225,8 @@ def connect_candidates_alias(db,
                           z_lim,
                           distance_threshold)
 
-def write_candidate_graph(max_chunks,
+def write_candidate_graph(threshold,
+                          max_chunks,
                           max_dset,
                           pm_chunks,
                           pm_dset,
@@ -261,11 +248,11 @@ def write_candidate_graph(max_chunks,
     
     # Overwrite if necesseray:
     graph = db.get_collection(name_db, collection, overwrite=overwrite)
-    for chunk in max_chunks:
-        logger.info("Extract chunk {}/{}...".format(n_chunk, len(max_chunks)))
+    for chunk in pm_chunks:
+        logger.info("Extract chunk {}/{}...".format(n_chunk, len(pm_chunks)))
 
         f = h5py.File(chunk, "r")
-        attrs = f[max_dset].attrs.items()
+        attrs = f[pm_dset].attrs.items()
         f.close()
 
         chunk_limits = attrs[1][1]
@@ -273,10 +260,11 @@ def write_candidate_graph(max_chunks,
                         chunk_limits[1][0], 
                         chunk_limits[2][0]]
 
-        candidates = extract_maxima_candidates(chunk,
-                                               max_dset,
-                                               offset_chunk,
-                                               id_offset)
+        candidates = extract_cc_candidates(chunk,
+                                           pm_dset,
+                                           threshold,
+                                           offset_chunk,
+                                           id_offset)
 
         id_offset_tmp = db.write_candidates(name_db,
                                             collection,
