@@ -334,6 +334,7 @@ def write_candidate_graph(max_chunks,
         pool.join()
 
     logger.info("Add edge costs...")
+    n_chunk = 0
     for chunk in pm_chunks:
         logger.info("Work on chunk {}/{}...".format(n_chunk, len(pm_chunks)))
 
@@ -348,6 +349,7 @@ def write_candidate_graph(max_chunks,
                          volume_offset,
                          chunk,
                          pm_dset)
+        n_chunk += 1
 
 
 def solve_candidate_volume(name_db,
