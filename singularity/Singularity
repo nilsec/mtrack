@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: ubuntu:18.04
+From: ubuntu:16.04
 
 %help
 This container contains mtrack, a package for tracking of microtubules in EM volumes
@@ -22,16 +22,15 @@ cp /groups/funke/home/ecksteinn/Projects/microtubules/mtrack/setup.py ${SINGULAR
 %post
 # install requirements
 apt-get update && apt-get install -y --no-install-recommends \
-build-essential \
 cmake \
 git \
 ca-certificates \
 mercurial \
-libboost-all-dev \
+libboost1.58-all-dev \
 libhdf5-serial-dev \
 libtiff5-dev \
 libfftw3-dev \
-python-dev \
+python2.7-dev \
 python-numpy \
 python-pip \
 python-setuptools \
@@ -39,6 +38,7 @@ python-scipy \
 wget \
 curl \
 vim \
+bzip2 \
 gzip && \
 rm -rf /var/lib/apt/lists/*
 
@@ -76,8 +76,8 @@ python setup.py install
 
 #install mtrack
 cd /src/mtrack
-pip install -r requirements.txt
-python setup.py install
+conda install --yes --file requirements.txt
+pip install .
 
 %environment
 export GUROBI_HOME=/misc/local/gurobi-8.0.1
