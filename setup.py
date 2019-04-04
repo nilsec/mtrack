@@ -21,5 +21,6 @@ setup(
         'scipy>=0.18.0',
         'h5py',
         'pymongo',
+        'pylp'
             ],
 )   
