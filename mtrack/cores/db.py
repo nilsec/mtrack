@@ -452,7 +452,9 @@ class DB(object):
             vertex["solved"] = False
             vertices.append(vertex)
 
-        graph.insert_many(vertices)
+        if vertices:
+            graph.insert_many(vertices)
+
         return vertex_id
 
     def reset_collection(self,
@@ -517,7 +519,8 @@ class DB(object):
                 if e_N == 0:
                     edges.append(edge)
 
-            graph.insert_many(edges)
+            if edges:
+                graph.insert_many(edges)
         
     def is_solved(self,
                   name_db,
