@@ -81,13 +81,14 @@ class G2Solver:
 
         for must_pick_one in g2.get_must_pick_one():
             constraint = pylp.LinearConstraint()
-
-            for v in must_pick_one:
-                constraint.set_coefficient(v, 1)
-                
-            constraint.set_relation(pylp.Relation.GreaterEqual)
-            constraint.set_value(1)
-            self.constraints.add(constraint)
+            
+            if must_pick_one:
+                for v in must_pick_one:
+                    constraint.set_coefficient(v, 1)
+                    
+                constraint.set_relation(pylp.Relation.GreaterEqual)
+                constraint.set_value(1)
+                self.constraints.add(constraint)
 
         self.backend.set_constraints(self.constraints)
 

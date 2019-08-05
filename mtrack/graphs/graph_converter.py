@@ -209,10 +209,14 @@ class GraphConverter:
             for subset in g2_vertex_forced_tmp:
                 g2_vertex_forced.append(set([v for v in subset\
                                              if G1.START_EDGE in g2vertex_g1edges[v]]))
+        else:
+            g2_vertex_forced = list(g2_vertex_forced)
 
         if g2_edge_forced:
             g2_edge_forced_tmp = [set(g1edge_g2vertices[e]) for e in g2_edge_forced]
             g2_edge_forced = g2_edge_forced_tmp
+        else:
+            g2_edge_forced = list(g2_edge_forced)
 
         
         index_maps = {"g2vertex_g1edges": g2vertex_g1edges,
